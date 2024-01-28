@@ -1,4 +1,4 @@
-package de.coldtea.verborum.dictionary;
+package de.coldtea.verborum.msdictionary;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;

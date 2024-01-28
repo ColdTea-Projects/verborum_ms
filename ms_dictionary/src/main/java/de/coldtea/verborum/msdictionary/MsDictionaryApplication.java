@@ -1,4 +1,4 @@
-package de.coldtea.verborum.dictionary;
+package de.coldtea.verborum.msdictionary;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
