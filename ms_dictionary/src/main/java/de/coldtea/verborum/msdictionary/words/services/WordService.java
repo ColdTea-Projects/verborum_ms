@@ -27,15 +27,9 @@ public class WordService {
 
     @Transactional
     public void saveWords(String dictionaryId, List<WordDTO> wordList){
-        List<Word> words = wordList.stream()
-                .map(wordDTO -> new Word(
-                        wordDTO.getWordId(),
-                        dictionaryId,
-                        wordDTO.getWord(),
-                        wordDTO.getWordMeta(),
-                        wordDTO.getTranslation(),
-                        wordDTO.getTranslationMeta()
-                )).collect(Collectors.toList());
+        List<Word> words = listUtils.map(wordList,
+                wordDTO -> convertToWord(dictionaryId, wordDTO)
+        );
 
         wordRepository.saveAllAndFlush(words);
     }
@@ -74,6 +68,17 @@ public class WordService {
 
     public Word getWord(String wordId){
         return wordRepository.findById(wordId).orElseThrow();
+    }
+
+    private Word convertToWord(String dictionaryId, WordDTO wordDTO){
+        return new Word(
+                wordDTO.getWordId(),
+                dictionaryId,
+                wordDTO.getWord(),
+                wordDTO.getWordMeta(),
+                wordDTO.getTranslation(),
+                wordDTO.getTranslationMeta()
+        );
     }
 
 }
