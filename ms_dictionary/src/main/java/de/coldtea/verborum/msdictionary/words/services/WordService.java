@@ -6,12 +6,14 @@ import de.coldtea.verborum.msdictionary.dictionaries.repository.DictionaryReposi
 import de.coldtea.verborum.msdictionary.words.repository.Word;
 import de.coldtea.verborum.msdictionary.words.repository.WordRepository;
 import jakarta.transaction.Transactional;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
+@RequiredArgsConstructor
 public class WordService {
 
     private final WordRepository wordRepository;
@@ -19,11 +21,6 @@ public class WordService {
     private final DictionaryRepository dictionaryRepository;
 
     private final ListUtils listUtils = new ListUtils();
-
-    public WordService(WordRepository wordRepository, DictionaryRepository dictionaryRepository) {
-        this.wordRepository = wordRepository;
-        this.dictionaryRepository = dictionaryRepository;
-    }
 
     @Transactional
     public void saveWords(String dictionaryId, List<WordDTO> wordList){

@@ -1,9 +1,10 @@
 package de.coldtea.verborum.msdictionary.words.controller;
 
-import de.coldtea.verborum.msdictionary.dictionaries.repository.Dictionary;
+import de.coldtea.verborum.msdictionary.common.utils.UUIDValidator;
 import de.coldtea.verborum.msdictionary.words.repository.Word;
 import de.coldtea.verborum.msdictionary.words.services.WordDTO;
 import de.coldtea.verborum.msdictionary.words.services.WordService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -16,12 +17,16 @@ import java.util.List;
 @RequiredArgsConstructor
 public class WordController {
 
-    WordService wordService;
+    private final WordService wordService;
 
     @PostMapping("/{dictionaryId}")
-    public ResponseEntity<String> createWords(@PathVariable String dictionaryId, @RequestBody List<WordDTO> words){
-        wordService.saveWords(dictionaryId, words);
+    public ResponseEntity<String> createWords(@PathVariable String dictionaryId, @Valid @RequestBody List<WordDTO> words){
+        UUIDValidator.isValidUUID(dictionaryId, "Dictionary ID");
+        for(WordDTO word: words){
+            UUIDValidator.isValidUUID(word.getWordId(), "Word ID");
+        }
 
+        wordService.saveWords(dictionaryId, words);
         return new ResponseEntity<>("Saved successfully into dictionary " + dictionaryId, HttpStatus.CREATED);
     }
 

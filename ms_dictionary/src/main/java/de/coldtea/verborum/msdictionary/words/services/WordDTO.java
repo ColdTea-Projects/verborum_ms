@@ -3,14 +3,24 @@ package de.coldtea.verborum.msdictionary.words.services;
 import com.fasterxml.jackson.annotation.JsonBackReference;
 import de.coldtea.verborum.msdictionary.dictionaries.repository.Dictionary;
 import jakarta.persistence.*;
+import jakarta.validation.constraints.NotBlank;
 import lombok.Getter;
 
 public class WordDTO {
 
+    @NotBlank(message = "wordId is mandatory")
     private String wordId;
+
+    @NotBlank(message = "word is mandatory")
     private String word;
+
+    @NotBlank(message = "wordMeta is mandatory")
     private String wordMeta;
+
+    @NotBlank(message = "translation is mandatory")
     private String translation;
+
+    @NotBlank(message = "translationMeta is mandatory")
     private String translationMeta;
 
     public WordDTO() {
