@@ -1,7 +1,7 @@
-package de.coldtea.verborum.msdictionary.dictionaries.domain;
+package de.coldtea.verborum.msdictionary.dictionaries.services;
 
-import de.coldtea.verborum.msdictionary.dictionaries.entity.Dictionary;
-import de.coldtea.verborum.msdictionary.dictionaries.entity.DictionaryRepository;
+import de.coldtea.verborum.msdictionary.dictionaries.repository.Dictionary;
+import de.coldtea.verborum.msdictionary.dictionaries.repository.DictionaryRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 

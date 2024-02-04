@@ -1,7 +1,7 @@
-package de.coldtea.verborum.msdictionary.words.entity;
+package de.coldtea.verborum.msdictionary.words.repository;
 
 import com.fasterxml.jackson.annotation.JsonBackReference;
-import de.coldtea.verborum.msdictionary.dictionaries.entity.Dictionary;
+import de.coldtea.verborum.msdictionary.dictionaries.repository.Dictionary;
 import jakarta.persistence.*;
 import lombok.Getter;
 
@@ -28,6 +28,15 @@ public class Word {
     private Dictionary dictionary;
 
     public Word() {
+    }
+
+    public Word(String wordId, String dictionaryId, String word, String wordMeta, String translation, String translationMeta) {
+        this.wordId = wordId;
+        this.dictionaryId = dictionaryId;
+        this.word = word;
+        this.wordMeta = wordMeta;
+        this.translation = translation;
+        this.translationMeta = translationMeta;
     }
 
     public String getWordId() {

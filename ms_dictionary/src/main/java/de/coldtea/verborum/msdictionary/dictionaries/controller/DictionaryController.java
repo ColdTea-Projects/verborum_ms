@@ -1,8 +1,11 @@
-package de.coldtea.verborum.msdictionary.dictionaries;
+package de.coldtea.verborum.msdictionary.dictionaries.controller;
 
-import de.coldtea.verborum.msdictionary.dictionaries.domain.DictionaryService;
-import de.coldtea.verborum.msdictionary.dictionaries.entity.Dictionary;
+import de.coldtea.verborum.msdictionary.dictionaries.services.DictionaryService;
+import de.coldtea.verborum.msdictionary.dictionaries.repository.Dictionary;
+import de.coldtea.verborum.msdictionary.words.repository.Word;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
