@@ -2,21 +2,23 @@ package de.coldtea.verborum.msdictionary.word.service;
 
 import jakarta.validation.constraints.NotBlank;
 
+import static de.coldtea.verborum.msdictionary.common.constants.DTOMessageConstants.*;
+
 public class WordDTO {
 
-    @NotBlank(message = "wordId is mandatory")
+    @NotBlank(message = WORD_WORD_ID)
     private String wordId;
 
-    @NotBlank(message = "word is mandatory")
+    @NotBlank(message = WORD_WORD)
     private String word;
 
-    @NotBlank(message = "wordMeta is mandatory")
+    @NotBlank(message = WORD_WORD_META)
     private String wordMeta;
 
-    @NotBlank(message = "translation is mandatory")
+    @NotBlank(message = WORD_WORD_TRANSLATION)
     private String translation;
 
-    @NotBlank(message = "translationMeta is mandatory")
+    @NotBlank(message = WORD_WORD_TRANSLATION_META)
     private String translationMeta;
 
     public WordDTO() {

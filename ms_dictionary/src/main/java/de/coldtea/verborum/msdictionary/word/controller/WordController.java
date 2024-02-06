@@ -12,6 +12,8 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+import static de.coldtea.verborum.msdictionary.common.constants.ResponseMessageConstants.*;
+
 @RestController
 @RequestMapping("/word")
 @RequiredArgsConstructor
@@ -27,28 +29,28 @@ public class WordController {
         }
 
         wordService.saveWords(dictionaryId, words);
-        return new ResponseEntity<>("Saved successfully into dictionary " + dictionaryId, HttpStatus.CREATED);
+        return new ResponseEntity<>(WORD_SAVED_SUCCESSFULLY + dictionaryId, HttpStatus.CREATED);
     }
 
     @PutMapping("/{dictionaryId}")
     public ResponseEntity<String> updateWords(@PathVariable String dictionaryId, @RequestBody List<WordDTO> words){
         wordService.saveWords(dictionaryId, words);
 
-        return new ResponseEntity<>("Saved successfully into dictionary " + dictionaryId, HttpStatus.CREATED);
+        return new ResponseEntity<>(WORD_UPDATED_SUCCESSFULLY + dictionaryId, HttpStatus.CREATED);
     }
 
     @DeleteMapping("/delete/{wordId}")
     public ResponseEntity<String> deleteWord(@PathVariable String wordId){
         wordService.deleteWords(List.of(wordId));
 
-        return new ResponseEntity<>(wordId + " deleted successfully", HttpStatus.OK);
+        return new ResponseEntity<>(WORD_DELETED_SUCCESSFULLY, HttpStatus.OK);
     }
 
     @DeleteMapping("/delete/bydictionaries")
     public ResponseEntity<String> deleteWordByDictionary(@RequestBody List<String> dictionaryIds){
         wordService.deleteWordsByDictionaryIds(dictionaryIds);
 
-        return new ResponseEntity<>("Deleted successfully", HttpStatus.OK);
+        return new ResponseEntity<>(WORD_DELETED_SUCCESSFULLY, HttpStatus.OK);
     }
 
     @GetMapping("/get/bydictionary/{dictionaryId}")
