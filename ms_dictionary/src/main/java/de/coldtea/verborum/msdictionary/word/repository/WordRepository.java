@@ -1,4 +1,4 @@
-package de.coldtea.verborum.msdictionary.words.repository;
+package de.coldtea.verborum.msdictionary.word.repository;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;

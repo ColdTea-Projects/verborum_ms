@@ -1,10 +1,6 @@
-package de.coldtea.verborum.msdictionary.words.services;
+package de.coldtea.verborum.msdictionary.word.service;
 
-import com.fasterxml.jackson.annotation.JsonBackReference;
-import de.coldtea.verborum.msdictionary.dictionaries.repository.Dictionary;
-import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
-import lombok.Getter;
 
 public class WordDTO {
 

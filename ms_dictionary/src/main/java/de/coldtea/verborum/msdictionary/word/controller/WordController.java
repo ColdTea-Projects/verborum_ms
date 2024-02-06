@@ -1,9 +1,9 @@
-package de.coldtea.verborum.msdictionary.words.controller;
+package de.coldtea.verborum.msdictionary.word.controller;
 
 import de.coldtea.verborum.msdictionary.common.utils.UUIDValidator;
-import de.coldtea.verborum.msdictionary.words.repository.Word;
-import de.coldtea.verborum.msdictionary.words.services.WordDTO;
-import de.coldtea.verborum.msdictionary.words.services.WordService;
+import de.coldtea.verborum.msdictionary.word.repository.Word;
+import de.coldtea.verborum.msdictionary.word.service.WordDTO;
+import de.coldtea.verborum.msdictionary.word.service.WordService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;

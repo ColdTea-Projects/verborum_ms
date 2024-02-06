@@ -1,16 +1,15 @@
-package de.coldtea.verborum.msdictionary.words.services;
+package de.coldtea.verborum.msdictionary.word.service;
 
 import de.coldtea.verborum.msdictionary.common.utils.ListUtils;
-import de.coldtea.verborum.msdictionary.dictionaries.repository.Dictionary;
-import de.coldtea.verborum.msdictionary.dictionaries.repository.DictionaryRepository;
-import de.coldtea.verborum.msdictionary.words.repository.Word;
-import de.coldtea.verborum.msdictionary.words.repository.WordRepository;
+import de.coldtea.verborum.msdictionary.dictionary.repository.Dictionary;
+import de.coldtea.verborum.msdictionary.dictionary.repository.DictionaryRepository;
+import de.coldtea.verborum.msdictionary.word.repository.Word;
+import de.coldtea.verborum.msdictionary.word.repository.WordRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
