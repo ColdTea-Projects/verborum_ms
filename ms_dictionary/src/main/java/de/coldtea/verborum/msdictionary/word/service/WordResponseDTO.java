@@ -1,13 +1,18 @@
 package de.coldtea.verborum.msdictionary.word.service;
 
 import jakarta.validation.constraints.NotBlank;
+import lombok.Getter;
 
 import static de.coldtea.verborum.msdictionary.common.constants.DTOMessageConstants.*;
 
-public class WordDTO {
+@Getter
+public class WordResponseDTO {
 
     @NotBlank(message = WORD_WORD_ID)
     private String wordId;
+
+    @NotBlank(message = WORD_WORD_ID)
+    private String dictionaryId;
 
     @NotBlank(message = WORD_WORD)
     private String word;
@@ -21,43 +26,33 @@ public class WordDTO {
     @NotBlank(message = WORD_WORD_TRANSLATION_META)
     private String translationMeta;
 
-    public WordDTO() {
-    }
-
-    public String getWordId() {
-        return wordId;
+    public WordResponseDTO(String wordId, String dictionaryId, String word, String wordMeta, String translation, String translationMeta) {
+        this.wordId = wordId;
+        this.dictionaryId = dictionaryId;
+        this.word = word;
+        this.wordMeta = wordMeta;
+        this.translation = translation;
+        this.translationMeta = translationMeta;
     }
 
     public void setWordId(String wordId) {
         this.wordId = wordId;
     }
 
-    public String getWord() {
-        return word;
+    public void setDictionaryId(String dictionaryId) {
+        this.dictionaryId = dictionaryId;
     }
 
     public void setWord(String word) {
         this.word = word;
     }
 
-    public String getWordMeta() {
-        return wordMeta;
-    }
-
     public void setWordMeta(String wordMeta) {
         this.wordMeta = wordMeta;
     }
 
-    public String getTranslation() {
-        return translation;
-    }
-
     public void setTranslation(String translation) {
         this.translation = translation;
-    }
-
-    public String getTranslationMeta() {
-        return translationMeta;
     }
 
     public void setTranslationMeta(String translationMeta) {
@@ -66,8 +61,9 @@ public class WordDTO {
 
     @Override
     public String toString() {
-        return "WordDTO{" +
+        return "WordResponseDTO{" +
                 "wordId='" + wordId + '\'' +
+                ", dictionaryId='" + dictionaryId + '\'' +
                 ", word='" + word + '\'' +
                 ", wordMeta='" + wordMeta + '\'' +
                 ", translation='" + translation + '\'' +

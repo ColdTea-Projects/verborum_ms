@@ -2,7 +2,8 @@ package de.coldtea.verborum.msdictionary.word.controller;
 
 import de.coldtea.verborum.msdictionary.common.utils.UUIDValidator;
 import de.coldtea.verborum.msdictionary.word.repository.Word;
-import de.coldtea.verborum.msdictionary.word.service.WordDTO;
+import de.coldtea.verborum.msdictionary.word.service.WordRequestDTO;
+import de.coldtea.verborum.msdictionary.word.service.WordResponseDTO;
 import de.coldtea.verborum.msdictionary.word.service.WordService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -22,9 +23,9 @@ public class WordController {
     private final WordService wordService;
 
     @PostMapping("/{dictionaryId}")
-    public ResponseEntity<String> createWords(@PathVariable String dictionaryId, @Valid @RequestBody List<WordDTO> words){
+    public ResponseEntity<String> createWords(@PathVariable String dictionaryId, @Valid @RequestBody List<WordRequestDTO> words){
         UUIDValidator.isValidUUID(dictionaryId, "Dictionary ID");
-        for(WordDTO word: words){
+        for(WordRequestDTO word: words){
             UUIDValidator.isValidUUID(word.getWordId(), "Word ID");
         }
 
@@ -33,7 +34,7 @@ public class WordController {
     }
 
     @PutMapping("/{dictionaryId}")
-    public ResponseEntity<String> updateWords(@PathVariable String dictionaryId, @RequestBody List<WordDTO> words){
+    public ResponseEntity<String> updateWords(@PathVariable String dictionaryId, @RequestBody List<WordRequestDTO> words){
         wordService.saveWords(dictionaryId, words);
 
         return new ResponseEntity<>(WORD_UPDATED_SUCCESSFULLY + dictionaryId, HttpStatus.CREATED);
@@ -54,22 +55,22 @@ public class WordController {
     }
 
     @GetMapping("/get/bydictionary/{dictionaryId}")
-    public List<Word> getWordsByDictionary(@PathVariable String dictionaryId){
+    public List<WordResponseDTO> getWordsByDictionary(@PathVariable String dictionaryId){
         return wordService.getWordsByDictionaryIds(List.of(dictionaryId));
     }
 
     @GetMapping("/get/bylanguagefrom/{language}")
-    public List<Word> getWordsByLanguageFrom(@PathVariable String language){
+    public List<WordResponseDTO> getWordsByLanguageFrom(@PathVariable String language){
         return wordService.getWordsByLanguageFrom(language);
     }
 
     @GetMapping("/get/bylanguageto/{language}")
-    public List<Word> getWordsByLanguageTo(@PathVariable String language){
+    public List<WordResponseDTO> getWordsByLanguageTo(@PathVariable String language){
         return wordService.getWordsByLanguageTo(language);
     }
 
     @GetMapping("/get/byuser/{userId}")
-    public List<Word> getWordsByUser(@PathVariable String userId){
+    public List<WordResponseDTO> getWordsByUser(@PathVariable String userId){
         return wordService.getWordsByUserId(userId);
     }
 }

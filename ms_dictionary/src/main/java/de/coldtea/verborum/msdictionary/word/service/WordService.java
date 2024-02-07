@@ -22,9 +22,9 @@ public class WordService {
     private final ListUtils listUtils = new ListUtils();
 
     @Transactional
-    public void saveWords(String dictionaryId, List<WordDTO> wordList){
+    public void saveWords(String dictionaryId, List<WordRequestDTO> wordList){
         List<Word> words = listUtils.map(wordList,
-                wordDTO -> convertToWord(dictionaryId, wordDTO)
+                wordRequestDTO -> convertToWord(dictionaryId, wordRequestDTO)
         );
 
         wordRepository.saveAllAndFlush(words);
@@ -40,40 +40,56 @@ public class WordService {
         wordRepository.deleteByDictionaryIds(dictionaryId);
     }
 
-    public List<Word> getWordsByLanguageFrom(String language){
+    public List<WordResponseDTO> getWordsByLanguageFrom(String language){
         List<String> dictionaryIds = listUtils.map(dictionaryRepository.getByLanguageFrom(language), Dictionary::getDictionaryId);
+        List<Word> words = wordRepository.getByDictionaryIds(dictionaryIds);
 
-        return wordRepository.getByDictionaryIds(dictionaryIds);
+        return listUtils.map(words, this::convertToDTO);
     }
 
-    public List<Word> getWordsByLanguageTo(String language){
+    public List<WordResponseDTO> getWordsByLanguageTo(String language){
         List<String> dictionaryIds = listUtils.map(dictionaryRepository.getByLanguageTo(language), Dictionary::getDictionaryId);
+        List<Word> words = wordRepository.getByDictionaryIds(dictionaryIds);
 
-        return wordRepository.getByDictionaryIds(dictionaryIds);
+        return listUtils.map(words, this::convertToDTO);
     }
 
-    public List<Word> getWordsByUserId(String userId){
+    public List<WordResponseDTO> getWordsByUserId(String userId){
         List<String> dictionaryIds = listUtils.map(dictionaryRepository.getByUserId(userId), Dictionary::getDictionaryId);
+        List<Word> words = wordRepository.getByDictionaryIds(dictionaryIds);
 
-        return wordRepository.getByDictionaryIds(dictionaryIds);
+        return listUtils.map(words, this::convertToDTO);
     }
 
-    public List<Word> getWordsByDictionaryIds(List<String> dictionaryIds){
-        return wordRepository.getByDictionaryIds(dictionaryIds);
+    public List<WordResponseDTO> getWordsByDictionaryIds(List<String> dictionaryIds){
+        List<Word> words = wordRepository.getByDictionaryIds(dictionaryIds);
+
+        return listUtils.map(words, this::convertToDTO);
     }
 
     public Word getWord(String wordId){
         return wordRepository.findById(wordId).orElseThrow();
     }
 
-    private Word convertToWord(String dictionaryId, WordDTO wordDTO){
+    private Word convertToWord(String dictionaryId, WordRequestDTO wordRequestDTO){
         return new Word(
-                wordDTO.getWordId(),
+                wordRequestDTO.getWordId(),
                 dictionaryId,
-                wordDTO.getWord(),
-                wordDTO.getWordMeta(),
-                wordDTO.getTranslation(),
-                wordDTO.getTranslationMeta()
+                wordRequestDTO.getWord(),
+                wordRequestDTO.getWordMeta(),
+                wordRequestDTO.getTranslation(),
+                wordRequestDTO.getTranslationMeta()
+        );
+    }
+
+    private WordResponseDTO convertToDTO(Word word){
+        return new WordResponseDTO(
+                word.getWordId(),
+                word.getDictionaryId(),
+                word.getWord(),
+                word.getWordMeta(),
+                word.getTranslation(),
+                word.getTranslationMeta()
         );
     }
 
