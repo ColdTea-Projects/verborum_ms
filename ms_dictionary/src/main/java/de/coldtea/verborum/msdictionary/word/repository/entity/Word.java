@@ -1,7 +1,7 @@
-package de.coldtea.verborum.msdictionary.word.repository;
+package de.coldtea.verborum.msdictionary.word.repository.entity;
 
 import com.fasterxml.jackson.annotation.JsonBackReference;
-import de.coldtea.verborum.msdictionary.dictionary.repository.Dictionary;
+import de.coldtea.verborum.msdictionary.dictionary.repository.entity.Dictionary;
 import jakarta.persistence.*;
 import lombok.Getter;
 

@@ -1,6 +1,6 @@
-package de.coldtea.verborum.msdictionary.dictionary.repository;
+package de.coldtea.verborum.msdictionary.dictionary.repository.entity;
 
-import de.coldtea.verborum.msdictionary.word.repository.Word;
+import de.coldtea.verborum.msdictionary.word.repository.entity.Word;
 import jakarta.persistence.*;
 import lombok.Getter;
 

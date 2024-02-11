@@ -1,9 +1,9 @@
 package de.coldtea.verborum.msdictionary.word.service;
 
 import de.coldtea.verborum.msdictionary.common.utils.ListUtils;
-import de.coldtea.verborum.msdictionary.dictionary.repository.Dictionary;
+import de.coldtea.verborum.msdictionary.dictionary.repository.entity.Dictionary;
 import de.coldtea.verborum.msdictionary.dictionary.repository.DictionaryRepository;
-import de.coldtea.verborum.msdictionary.word.repository.Word;
+import de.coldtea.verborum.msdictionary.word.repository.entity.Word;
 import de.coldtea.verborum.msdictionary.word.repository.WordRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -37,32 +37,32 @@ public class WordService {
 
     @Transactional
     public void deleteWordsByDictionaryIds(List<String> dictionaryId){
-        wordRepository.deleteByDictionaryIds(dictionaryId);
+        wordRepository.deleteByDictionaryIdIn(dictionaryId);
     }
 
     public List<WordResponseDTO> getWordsByLanguageFrom(String language){
-        List<String> dictionaryIds = listUtils.map(dictionaryRepository.getByLanguageFrom(language), Dictionary::getDictionaryId);
-        List<Word> words = wordRepository.getByDictionaryIds(dictionaryIds);
+        List<String> dictionaryIds = listUtils.map(dictionaryRepository.findByFromLang(language), Dictionary::getDictionaryId);
+        List<Word> words = wordRepository.findByDictionaryIdIn(dictionaryIds);
 
         return listUtils.map(words, this::convertToDTO);
     }
 
     public List<WordResponseDTO> getWordsByLanguageTo(String language){
-        List<String> dictionaryIds = listUtils.map(dictionaryRepository.getByLanguageTo(language), Dictionary::getDictionaryId);
-        List<Word> words = wordRepository.getByDictionaryIds(dictionaryIds);
+        List<String> dictionaryIds = listUtils.map(dictionaryRepository.findByToLang(language), Dictionary::getDictionaryId);
+        List<Word> words = wordRepository.findByDictionaryIdIn(dictionaryIds);
 
         return listUtils.map(words, this::convertToDTO);
     }
 
     public List<WordResponseDTO> getWordsByUserId(String userId){
-        List<String> dictionaryIds = listUtils.map(dictionaryRepository.getByUserId(userId), Dictionary::getDictionaryId);
-        List<Word> words = wordRepository.getByDictionaryIds(dictionaryIds);
+        List<String> dictionaryIds = listUtils.map(dictionaryRepository.findByUserId(userId), Dictionary::getDictionaryId);
+        List<Word> words = wordRepository.findByDictionaryIdIn(dictionaryIds);
 
         return listUtils.map(words, this::convertToDTO);
     }
 
     public List<WordResponseDTO> getWordsByDictionaryIds(List<String> dictionaryIds){
-        List<Word> words = wordRepository.getByDictionaryIds(dictionaryIds);
+        List<Word> words = wordRepository.findByDictionaryIdIn(dictionaryIds);
 
         return listUtils.map(words, this::convertToDTO);
     }

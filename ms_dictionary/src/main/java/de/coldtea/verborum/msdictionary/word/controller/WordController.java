@@ -1,7 +1,6 @@
 package de.coldtea.verborum.msdictionary.word.controller;
 
 import de.coldtea.verborum.msdictionary.common.utils.UUIDValidator;
-import de.coldtea.verborum.msdictionary.word.repository.Word;
 import de.coldtea.verborum.msdictionary.word.service.WordRequestDTO;
 import de.coldtea.verborum.msdictionary.word.service.WordResponseDTO;
 import de.coldtea.verborum.msdictionary.word.service.WordService;

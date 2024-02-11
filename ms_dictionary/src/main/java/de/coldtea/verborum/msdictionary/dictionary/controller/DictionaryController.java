@@ -1,7 +1,7 @@
 package de.coldtea.verborum.msdictionary.dictionary.controller;
 
 import de.coldtea.verborum.msdictionary.dictionary.service.DictionaryService;
-import de.coldtea.verborum.msdictionary.dictionary.repository.Dictionary;
+import de.coldtea.verborum.msdictionary.dictionary.repository.entity.Dictionary;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 

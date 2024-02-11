@@ -1,16 +1,13 @@
 package de.coldtea.verborum.msdictionary.word.repository;
 
+import de.coldtea.verborum.msdictionary.word.repository.entity.Word;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
-
+import java.util.Collection;
 import java.util.List;
 
 public interface WordRepository extends JpaRepository<Word, String> {
 
-    @Query("delete from Word w where w.dictionaryId IN :dictionary_ids")
-    void deleteByDictionaryIds(@Param("dictionary_ids")  List<String> dictionaryIds);
+    void deleteByDictionaryIdIn(Collection<String> dictionaryId);
 
-    @Query("select w from Word w where w.dictionaryId IN :dictionary_ids")
-    List<Word> getByDictionaryIds(@Param("dictionary_ids") List<String> dictionaryIds);
+    List<Word> findByDictionaryIdIn(Collection<String> dictionaryId);
 }
