@@ -9,5 +9,4 @@ public class MsDictionaryApplication {
     public static void main(String[] args) {
         SpringApplication.run(MsDictionaryApplication.class, args);
     }
-
 }
