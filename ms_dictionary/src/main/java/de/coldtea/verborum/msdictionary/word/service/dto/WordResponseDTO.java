@@ -1,4 +1,4 @@
-package de.coldtea.verborum.msdictionary.word.service;
+package de.coldtea.verborum.msdictionary.word.service.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import lombok.Getter;
@@ -11,7 +11,7 @@ public class WordResponseDTO {
     @NotBlank(message = WORD_WORD_ID)
     private String wordId;
 
-    @NotBlank(message = WORD_WORD_ID)
+    @NotBlank(message = WORD_DICTIONARY_ID)
     private String dictionaryId;
 
     @NotBlank(message = WORD_WORD)

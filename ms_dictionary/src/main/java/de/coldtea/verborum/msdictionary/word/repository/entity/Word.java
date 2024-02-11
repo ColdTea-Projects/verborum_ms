@@ -9,17 +9,23 @@ import lombok.Getter;
 @Entity
 @Table(name = "words")
 public class Word {
+    @Getter
     @Id
     @Column(name = "word_id")
     private String wordId;
+    @Getter
     @Column(name = "fk_dictionary_id")
     private String dictionaryId;
+    @Getter
     @Column(name = "word")
     private String word;
+    @Getter
     @Column(name = "word_meta")
     private String wordMeta;
+    @Getter
     @Column(name = "translation")
     private String translation;
+    @Getter
     @Column(name = "translation_meta")
     private String translationMeta;
 
@@ -39,48 +45,24 @@ public class Word {
         this.translationMeta = translationMeta;
     }
 
-    public String getWordId() {
-        return wordId;
-    }
-
     public void setWordId(String wordId) {
         this.wordId = wordId;
-    }
-
-    public String getDictionaryId() {
-        return dictionaryId;
     }
 
     public void setDictionaryId(String dictionaryId) {
         this.dictionaryId = dictionaryId;
     }
 
-    public String getWord() {
-        return word;
-    }
-
     public void setWord(String word) {
         this.word = word;
-    }
-
-    public String getWordMeta() {
-        return wordMeta;
     }
 
     public void setWordMeta(String wordMeta) {
         this.wordMeta = wordMeta;
     }
 
-    public String getTranslation() {
-        return translation;
-    }
-
     public void setTranslation(String translation) {
         this.translation = translation;
-    }
-
-    public String getTranslationMeta() {
-        return translationMeta;
     }
 
     public void setTranslationMeta(String translationMeta) {

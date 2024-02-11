@@ -1,4 +1,4 @@
-package de.coldtea.verborum.msdictionary.common.exception;
+package de.coldtea.verborum.msdictionary.common.response;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.AllArgsConstructor;

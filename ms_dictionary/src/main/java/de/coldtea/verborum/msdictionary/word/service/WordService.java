@@ -5,6 +5,8 @@ import de.coldtea.verborum.msdictionary.dictionary.repository.entity.Dictionary;
 import de.coldtea.verborum.msdictionary.dictionary.repository.DictionaryRepository;
 import de.coldtea.verborum.msdictionary.word.repository.entity.Word;
 import de.coldtea.verborum.msdictionary.word.repository.WordRepository;
+import de.coldtea.verborum.msdictionary.word.service.dto.WordRequestDTO;
+import de.coldtea.verborum.msdictionary.word.service.dto.WordResponseDTO;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;

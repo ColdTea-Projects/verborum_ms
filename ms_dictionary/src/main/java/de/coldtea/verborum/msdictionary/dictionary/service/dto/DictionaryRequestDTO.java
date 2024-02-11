@@ -1,35 +1,32 @@
-package de.coldtea.verborum.msdictionary.dictionary.repository.entity;
+package de.coldtea.verborum.msdictionary.dictionary.service.dto;
 
-import de.coldtea.verborum.msdictionary.word.repository.entity.Word;
-import jakarta.persistence.*;
+import jakarta.validation.constraints.NotBlank;
 import lombok.Getter;
 
-import java.util.List;
+import static de.coldtea.verborum.msdictionary.common.constants.DTOMessageConstants.*;
 
 @Getter
-@Entity
-@Table(name = "dictionaries")
-public class Dictionary {
-    @Getter
-    @Id
-    @Column(name = "dictionary_id")
+public class DictionaryRequestDTO {
+
+    @NotBlank(message = DICTIONARY_DICTIONARY_ID)
     private String dictionaryId;
-    @Column(name = "fk_user_id")
+
+    @NotBlank(message = DICTIONARY_USER_ID)
     private String userId;
-    @Column(name = "name")
+
+    @NotBlank(message = DICTIONARY_NAME)
     private String name;
-    @Column(name = "is_public")
+
+    @NotBlank(message = DICTIONARY_IS_PUBLIC)
     private Boolean isPublic;
-    @Getter
-    @Column(name = "from_lang")
+
+    @NotBlank(message = DICTIONARY_FROM_LANG)
     private String fromLang;
-    @Column(name = "to_lang")
+
+    @NotBlank(message = DICTIONARY_TO_LANG)
     private String toLang;
 
-    @OneToMany(mappedBy = "dictionary")
-    private List<Word> words;
-
-    public Dictionary(String dictionaryId, String userId, String name, Boolean isPublic, String fromLang, String toLang) {
+    public DictionaryRequestDTO(String dictionaryId, String userId, String name, Boolean isPublic, String fromLang, String toLang) {
         this.dictionaryId = dictionaryId;
         this.userId = userId;
         this.name = name;
@@ -64,7 +61,7 @@ public class Dictionary {
 
     @Override
     public String toString() {
-        return "Dictionary{" +
+        return "DictionaryRequestDTO{" +
                 "dictionaryId='" + dictionaryId + '\'' +
                 ", userId='" + userId + '\'' +
                 ", name='" + name + '\'' +
