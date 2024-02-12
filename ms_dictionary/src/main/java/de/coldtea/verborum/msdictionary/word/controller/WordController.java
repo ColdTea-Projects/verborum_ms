@@ -1,8 +1,6 @@
 package de.coldtea.verborum.msdictionary.word.controller;
 
-import de.coldtea.verborum.msdictionary.common.response.SuccessResponse;
-import de.coldtea.verborum.msdictionary.common.utils.LanguageCodeValidator;
-import de.coldtea.verborum.msdictionary.common.utils.UUIDValidator;
+import de.coldtea.verborum.msdictionary.common.response.Response;
 import de.coldtea.verborum.msdictionary.word.service.dto.WordRequestDTO;
 import de.coldtea.verborum.msdictionary.word.service.dto.WordResponseDTO;
 import de.coldtea.verborum.msdictionary.word.service.WordService;
@@ -26,14 +24,14 @@ public class WordController {
     private final WordService wordService;
 
     @PostMapping("/{dictionaryId}")
-    public ResponseEntity<SuccessResponse> createWords(@PathVariable String dictionaryId, @Valid @RequestBody List<WordRequestDTO> words, WebRequest request){
+    public ResponseEntity<Response> createWords(@PathVariable String dictionaryId, @Valid @RequestBody List<WordRequestDTO> words, WebRequest request){
         UUIDValidator.isValidUUID(dictionaryId, "Dictionary ID");
         for(WordRequestDTO word: words){
             UUIDValidator.isValidUUID(word.getWordId(), "Word ID");
         }
 
         wordService.saveWords(dictionaryId, words);
-        return new ResponseEntity<>(SuccessResponse.builder()
+        return new ResponseEntity<>(Response.builder()
                 .status(HttpStatus.CREATED.value())
                 .message(WORD_SAVED_SUCCESSFULLY + dictionaryId)
                 .path(request.getContextPath())
@@ -42,14 +40,14 @@ public class WordController {
     }
 
     @PutMapping("/{dictionaryId}")
-    public ResponseEntity<SuccessResponse> updateWords(@PathVariable String dictionaryId, @RequestBody List<WordRequestDTO> words, WebRequest request){
+    public ResponseEntity<Response> updateWords(@PathVariable String dictionaryId, @RequestBody List<WordRequestDTO> words, WebRequest request){
         UUIDValidator.isValidUUID(dictionaryId, "Dictionary ID");
         for(WordRequestDTO word: words){
             UUIDValidator.isValidUUID(word.getWordId(), "Word ID");
         }
         wordService.saveWords(dictionaryId, words);
 
-        return new ResponseEntity<>(SuccessResponse.builder()
+        return new ResponseEntity<>(Response.builder()
                 .status(HttpStatus.CREATED.value())
                 .message(WORD_UPDATED_SUCCESSFULLY + dictionaryId)
                 .path(request.getContextPath())
@@ -58,11 +56,11 @@ public class WordController {
     }
 
     @DeleteMapping("/delete/{wordId}")
-    public ResponseEntity<SuccessResponse> deleteWord(@PathVariable String wordId, WebRequest request){
+    public ResponseEntity<Response> deleteWord(@PathVariable String wordId, WebRequest request){
         UUIDValidator.isValidUUID(wordId, "Word ID");
         wordService.deleteWords(List.of(wordId));
 
-        return new ResponseEntity<>(SuccessResponse.builder()
+        return new ResponseEntity<>(Response.builder()
                 .status(HttpStatus.OK.value())
                 .message(WORD_DELETED_SUCCESSFULLY)
                 .path(request.getContextPath())
@@ -71,13 +69,13 @@ public class WordController {
     }
 
     @DeleteMapping("/delete/bydictionaries")
-    public ResponseEntity<SuccessResponse> deleteWordByDictionary(@RequestBody List<String> dictionaryIds, WebRequest request){
+    public ResponseEntity<Response> deleteWordByDictionary(@RequestBody List<String> dictionaryIds, WebRequest request){
         for(String dictionaryId: dictionaryIds){
             UUIDValidator.isValidUUID(dictionaryId, "Dictionary ID");
         }
         wordService.deleteWordsByDictionaryIds(dictionaryIds);
 
-        return new ResponseEntity<>(SuccessResponse.builder()
+        return new ResponseEntity<>(Response.builder()
                 .status(HttpStatus.OK.value())
                 .message(WORD_DELETED_SUCCESSFULLY)
                 .path(request.getContextPath())

@@ -1,6 +1,5 @@
 package de.coldtea.verborum.msdictionary.word.service;
 
-import de.coldtea.verborum.msdictionary.common.utils.ListUtils;
 import de.coldtea.verborum.msdictionary.dictionary.repository.entity.Dictionary;
 import de.coldtea.verborum.msdictionary.dictionary.repository.DictionaryRepository;
 import de.coldtea.verborum.msdictionary.word.repository.entity.Word;
