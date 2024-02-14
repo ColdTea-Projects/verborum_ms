@@ -1,4 +1,4 @@
-package de.coldtea.verborum.msdictionary.word.service.dto;
+package de.coldtea.verborum.msdictionary.word.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import lombok.Getter;

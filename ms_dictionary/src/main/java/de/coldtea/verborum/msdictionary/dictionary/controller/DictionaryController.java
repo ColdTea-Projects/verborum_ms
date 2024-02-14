@@ -11,13 +11,13 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.context.request.WebRequest;
 
-import java.time.OffsetDateTime;
 import java.util.List;
 
 import static de.coldtea.verborum.msdictionary.common.constants.ResponseMessageConstants.*;
+import static de.coldtea.verborum.msdictionary.common.utils.ResponseUtils.buildResponse;
 
 @RestController
-@RequestMapping("/dictionary")
+@RequestMapping("/dictionaries")
 @RequiredArgsConstructor
 public class DictionaryController {
 
@@ -26,42 +26,28 @@ public class DictionaryController {
     @PostMapping("/")
     public ResponseEntity<Response> createDictionary(@Valid @RequestBody DictionaryRequestDTO dictionary, WebRequest request) {
 
-        dictionaryService.saveDictionary(dictionary);
-        return new ResponseEntity<>(Response.builder()
-                .status(HttpStatus.CREATED.value())
-                .message(DICTIONARY_SAVED_SUCCESSFULLY + dictionary.getDictionaryId())
-                .path(request.getContextPath())
-                .timestamp(OffsetDateTime.now())
-                .build(), HttpStatus.CREATED);
+        DictionaryResponseDTO dictionaryResponseDTO = dictionaryService.saveDictionary(dictionary);
+        return buildResponse(HttpStatus.CREATED, DICTIONARY_SAVED_SUCCESSFULLY, dictionaryResponseDTO.getDictionaryId(), request);
     }
 
     @PutMapping("/")
     public ResponseEntity<Response> updateDictionary(@Valid @RequestBody DictionaryRequestDTO dictionary, WebRequest request) {
 
         dictionaryService.saveDictionary(dictionary);
-        return new ResponseEntity<>(Response.builder()
-                .status(HttpStatus.CREATED.value())
-                .message(DICTIONARY_UPDATED_SUCCESSFULLY + dictionary.getDictionaryId())
-                .path(request.getContextPath())
-                .timestamp(OffsetDateTime.now())
-                .build(), HttpStatus.CREATED);
+        return buildResponse(HttpStatus.CREATED, DICTIONARY_UPDATED_SUCCESSFULLY, dictionary.getDictionaryId(), request);
     }
 
     @DeleteMapping("/{dictionaryId}")
     public ResponseEntity<Response> deleteDictionary(@PathVariable String dictionaryId, WebRequest request) {
         dictionaryService.deleteDictionary(dictionaryId);
-        return new ResponseEntity<>(Response.builder()
-                .status(HttpStatus.OK.value())
-                .message(DICTIONARY_DELETED_SUCCESSFULLY + dictionaryId)
-                .path(request.getContextPath())
-                .timestamp(OffsetDateTime.now())
-                .build(), HttpStatus.OK);
+        return buildResponse(HttpStatus.OK, DICTIONARY_DELETED_SUCCESSFULLY, dictionaryId, request);
     }
 
 
     @GetMapping("/{userId}")
-    public List<DictionaryResponseDTO> getAllDictionaries(@PathVariable String userId) {
-        return dictionaryService.getDictionariesByUser(userId);
+    public ResponseEntity<List<DictionaryResponseDTO>> getAllDictionariesByUser(@PathVariable String userId) {
+        return new ResponseEntity<>(dictionaryService.getDictionariesByUser(userId), HttpStatus.OK);
     }
+
 
 }

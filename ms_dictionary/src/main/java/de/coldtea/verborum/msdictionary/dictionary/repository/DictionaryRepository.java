@@ -1,6 +1,6 @@
 package de.coldtea.verborum.msdictionary.dictionary.repository;
 
-import de.coldtea.verborum.msdictionary.dictionary.repository.entity.Dictionary;
+import de.coldtea.verborum.msdictionary.dictionary.entity.Dictionary;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;

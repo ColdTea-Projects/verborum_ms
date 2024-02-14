@@ -20,5 +20,7 @@ public final class DTOMessageConstants {
     public static final String DICTIONARY_FROM_LANG = "fromLang is mandatory";
     public static final String DICTIONARY_TO_LANG = "toLang is mandatory";
     public static final String INVALID_LANGUAGE_CODE = "Invalid language code: ";
+    public static final String WORD_ID = "wordId";
+
 
 }

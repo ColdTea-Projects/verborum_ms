@@ -3,6 +3,7 @@ package de.coldtea.verborum.msdictionary.dictionary.service.impl;
 import de.coldtea.verborum.msdictionary.common.mapper.DictionaryMapper;
 import de.coldtea.verborum.msdictionary.dictionary.dto.DictionaryRequestDTO;
 import de.coldtea.verborum.msdictionary.dictionary.dto.DictionaryResponseDTO;
+import de.coldtea.verborum.msdictionary.dictionary.entity.Dictionary;
 import de.coldtea.verborum.msdictionary.dictionary.repository.DictionaryRepository;
 import de.coldtea.verborum.msdictionary.dictionary.service.DictionaryService;
 import jakarta.transaction.Transactional;
@@ -22,8 +23,9 @@ public class DictionaryServiceImpl implements DictionaryService {
 
     @Transactional
     @Override
-    public void saveDictionary(DictionaryRequestDTO dictionaryRequestDTO) {
-        dictionaryRepository.saveAndFlush(dictionaryMapper.toDictionary(dictionaryRequestDTO));
+    public DictionaryResponseDTO saveDictionary(DictionaryRequestDTO dictionaryRequestDTO) {
+        Dictionary savedDictionary = dictionaryRepository.saveAndFlush(dictionaryMapper.toDictionary(dictionaryRequestDTO));
+        return dictionaryMapper.toDictionaryResponseDTO(savedDictionary);
     }
 
     @Transactional

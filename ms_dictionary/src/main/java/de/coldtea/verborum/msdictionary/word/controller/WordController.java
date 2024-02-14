@@ -1,8 +1,11 @@
 package de.coldtea.verborum.msdictionary.word.controller;
 
 import de.coldtea.verborum.msdictionary.common.response.Response;
-import de.coldtea.verborum.msdictionary.word.service.dto.WordRequestDTO;
-import de.coldtea.verborum.msdictionary.word.service.dto.WordResponseDTO;
+import de.coldtea.verborum.msdictionary.common.utils.ResponseUtils;
+import de.coldtea.verborum.msdictionary.common.utils.SupportedLanguage;
+import de.coldtea.verborum.msdictionary.common.utils.ValidUUID;
+import de.coldtea.verborum.msdictionary.word.dto.WordRequestDTO;
+import de.coldtea.verborum.msdictionary.word.dto.WordResponseDTO;
 import de.coldtea.verborum.msdictionary.word.service.WordService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -11,98 +14,72 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.context.request.WebRequest;
 
-import java.time.OffsetDateTime;
 import java.util.List;
 
 import static de.coldtea.verborum.msdictionary.common.constants.ResponseMessageConstants.*;
+import static de.coldtea.verborum.msdictionary.common.utils.ResponseUtils.getListOfWords;
 
 @RestController
-@RequestMapping("/word")
+@RequestMapping("/words")
 @RequiredArgsConstructor
 public class WordController {
 
     private final WordService wordService;
 
+
     @PostMapping("/{dictionaryId}")
-    public ResponseEntity<Response> createWords(@PathVariable String dictionaryId, @Valid @RequestBody List<WordRequestDTO> words, WebRequest request){
-        UUIDValidator.isValidUUID(dictionaryId, "Dictionary ID");
-        for(WordRequestDTO word: words){
-            UUIDValidator.isValidUUID(word.getWordId(), "Word ID");
-        }
+    public ResponseEntity<Response> createWords(@PathVariable @ValidUUID(fieldName = "dictionaryId") String dictionaryId,
+                                                @Valid @RequestBody List<WordRequestDTO> words, WebRequest request) {
 
         wordService.saveWords(dictionaryId, words);
-        return new ResponseEntity<>(Response.builder()
-                .status(HttpStatus.CREATED.value())
-                .message(WORD_SAVED_SUCCESSFULLY + dictionaryId)
-                .path(request.getContextPath())
-                .timestamp(OffsetDateTime.now())
-                .build(), HttpStatus.CREATED);
+
+        String listOfWords = getListOfWords(words);
+
+        return ResponseUtils.buildResponse(HttpStatus.CREATED, WORD_SAVED_SUCCESSFULLY, listOfWords, request);
     }
 
     @PutMapping("/{dictionaryId}")
-    public ResponseEntity<Response> updateWords(@PathVariable String dictionaryId, @RequestBody List<WordRequestDTO> words, WebRequest request){
-        UUIDValidator.isValidUUID(dictionaryId, "Dictionary ID");
-        for(WordRequestDTO word: words){
-            UUIDValidator.isValidUUID(word.getWordId(), "Word ID");
-        }
+    public ResponseEntity<Response> updateWords(@PathVariable @ValidUUID(fieldName = "dictionaryId") String dictionaryId, @RequestBody List<WordRequestDTO> words, WebRequest request) {
+
         wordService.saveWords(dictionaryId, words);
 
-        return new ResponseEntity<>(Response.builder()
-                .status(HttpStatus.CREATED.value())
-                .message(WORD_UPDATED_SUCCESSFULLY + dictionaryId)
-                .path(request.getContextPath())
-                .timestamp(OffsetDateTime.now())
-                .build(), HttpStatus.CREATED);
+        String listOfWords = getListOfWords(words);
+
+        return ResponseUtils.buildResponse(HttpStatus.CREATED, WORD_UPDATED_SUCCESSFULLY, listOfWords, request);
     }
 
-    @DeleteMapping("/delete/{wordId}")
-    public ResponseEntity<Response> deleteWord(@PathVariable String wordId, WebRequest request){
-        UUIDValidator.isValidUUID(wordId, "Word ID");
+    @DeleteMapping("/{wordId}")
+    public ResponseEntity<Response> deleteWord(@PathVariable @ValidUUID(fieldName = "wordId") String wordId, WebRequest request) {
         wordService.deleteWords(List.of(wordId));
 
-        return new ResponseEntity<>(Response.builder()
-                .status(HttpStatus.OK.value())
-                .message(WORD_DELETED_SUCCESSFULLY)
-                .path(request.getContextPath())
-                .timestamp(OffsetDateTime.now())
-                .build(), HttpStatus.OK);
+        return ResponseUtils.buildResponse(HttpStatus.OK, WORD_DELETED_SUCCESSFULLY, wordId, request);
     }
 
-    @DeleteMapping("/delete/bydictionaries")
-    public ResponseEntity<Response> deleteWordByDictionary(@RequestBody List<String> dictionaryIds, WebRequest request){
-        for(String dictionaryId: dictionaryIds){
-            UUIDValidator.isValidUUID(dictionaryId, "Dictionary ID");
-        }
-        wordService.deleteWordsByDictionaryIds(dictionaryIds);
+    @DeleteMapping("/dictionary/{dictionaryId}")
+    public ResponseEntity<Response> deleteWordsByDictionary(@PathVariable @ValidUUID(fieldName = "dictionaryId") String dictionaryId, WebRequest request) {
 
-        return new ResponseEntity<>(Response.builder()
-                .status(HttpStatus.OK.value())
-                .message(WORD_DELETED_SUCCESSFULLY)
-                .path(request.getContextPath())
-                .timestamp(OffsetDateTime.now())
-                .build(), HttpStatus.OK);
+        wordService.deleteWordsByDictionaryId(dictionaryId);
+
+        return ResponseUtils.buildResponse(HttpStatus.OK, WORD_DELETED_SUCCESSFULLY_BY_DICT_ID, dictionaryId, request);
     }
 
-    @GetMapping("/get/bydictionary/{dictionaryId}")
-    public List<WordResponseDTO> getWordsByDictionary(@PathVariable String dictionaryId, WebRequest request){
-        UUIDValidator.isValidUUID(dictionaryId, "Dictionary ID");
+    @GetMapping("/dictionary/{dictionaryId}")
+    public List<WordResponseDTO> getWordsByDictionary(@PathVariable String dictionaryId) {
         return wordService.getWordsByDictionaryIds(List.of(dictionaryId));
     }
 
-    @GetMapping("/get/bylanguagefrom/{language}")
-    public List<WordResponseDTO> getWordsByLanguageFrom(@PathVariable String language, WebRequest request){
-        LanguageCodeValidator.isValidLanguageCode(language);
+    @GetMapping("/language/from/{language}")
+    public List<WordResponseDTO> getWordsByLanguageFrom(@PathVariable @SupportedLanguage String language) {
         return wordService.getWordsByLanguageFrom(language);
     }
 
-    @GetMapping("/get/bylanguageto/{language}")
-    public List<WordResponseDTO> getWordsByLanguageTo(@PathVariable String language, WebRequest request){
-        LanguageCodeValidator.isValidLanguageCode(language);
+    @GetMapping("/language/to/{language}")
+    public List<WordResponseDTO> getWordsByLanguageTo(@PathVariable String language) {
         return wordService.getWordsByLanguageTo(language);
     }
 
-    @GetMapping("/get/byuser/{userId}")
-    public List<WordResponseDTO> getWordsByUser(@PathVariable String userId, WebRequest request){
+    @GetMapping("/user/{userId}")
+    public List<WordResponseDTO> getWordsByUser(@PathVariable String userId) {
         return wordService.getWordsByUserId(userId);
     }
 }

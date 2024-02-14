@@ -6,7 +6,7 @@ import de.coldtea.verborum.msdictionary.dictionary.dto.DictionaryResponseDTO;
 import java.util.List;
 
 public interface DictionaryService {
-    void saveDictionary(DictionaryRequestDTO dictionaryDto);
+    DictionaryResponseDTO saveDictionary(DictionaryRequestDTO dictionaryDto);
     void deleteDictionary(String dictionaryId);
     List<DictionaryResponseDTO> getDictionariesByUser(String userId);
 }
