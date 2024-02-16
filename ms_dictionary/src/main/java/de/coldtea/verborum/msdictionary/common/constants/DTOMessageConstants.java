@@ -11,10 +11,16 @@ public final class DTOMessageConstants {
     public static final String WORD_WORD_TRANSLATION_META = "translationMeta is mandatory";
 
     //Dictionary DTOs
+    public static final String DICTIONARY_ID = "dictionaryId";
+    public static final String USER_ID = "userId";
     public static final String DICTIONARY_DICTIONARY_ID = "dictionaryId is mandatory";
     public static final String DICTIONARY_USER_ID = "userId is mandatory";
     public static final String DICTIONARY_NAME = "name is mandatory";
     public static final String DICTIONARY_IS_PUBLIC = "isPublic is mandatory";
     public static final String DICTIONARY_FROM_LANG = "fromLang is mandatory";
     public static final String DICTIONARY_TO_LANG = "toLang is mandatory";
+    public static final String INVALID_LANGUAGE_CODE = "Invalid language code: ";
+    public static final String WORD_ID = "wordId";
+
+
 }

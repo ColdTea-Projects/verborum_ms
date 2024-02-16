@@ -1,19 +1,27 @@
 package de.coldtea.verborum.msdictionary.common.utils;
 
+import jakarta.validation.ConstraintValidator;
+import jakarta.validation.ConstraintValidatorContext;
 import de.coldtea.verborum.msdictionary.common.exception.InvalidUUIDException;
 
 import java.util.UUID;
 
-public class UUIDValidator {
+public class UUIDValidator implements ConstraintValidator<ValidUUID, String> {
 
-    public static boolean isValidUUID(String uuidString, String fieldName) {
+    private String fieldName;
+
+    @Override
+    public void initialize(ValidUUID constraintAnnotation) {
+        this.fieldName = constraintAnnotation.fieldName();
+    }
+
+    @Override
+    public boolean isValid(String uuidString, ConstraintValidatorContext constraintValidatorContext) {
         try {
             UUID.fromString(uuidString);
-            // If no exception is thrown, the UUID is valid
             return true;
         } catch (IllegalArgumentException e) {
-            // If an exception is thrown, the UUID is not valid
-            throw new InvalidUUIDException(fieldName);
+            throw new InvalidUUIDException("Invalid UUID for field: " + fieldName);
         }
     }
 }

@@ -8,6 +8,7 @@ public final class ResponseMessageConstants {
     public static final String WORD_SAVED_SUCCESSFULLY = "Saved successfully into dictionary ";
     public static final String WORD_UPDATED_SUCCESSFULLY = "Updated successfully into dictionary ";
     public static final String WORD_DELETED_SUCCESSFULLY = "Deleted successfully";
+    public static final String WORD_DELETED_SUCCESSFULLY_BY_DICT_ID = "Words deleted successfully by dictionary id";
 
     //DictionaryController
     public static final String DICTIONARY_SAVED_SUCCESSFULLY = "Saved successfully into dictionary ";
