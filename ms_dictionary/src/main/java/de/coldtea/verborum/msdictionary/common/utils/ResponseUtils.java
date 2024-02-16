@@ -13,7 +13,6 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @AllArgsConstructor
-@NoArgsConstructor
 public class ResponseUtils {
     public static ResponseEntity<Response> buildResponse(HttpStatus status, String message, String dictionaryOrWord, WebRequest request) {
         return new ResponseEntity<>(Response.builder()
