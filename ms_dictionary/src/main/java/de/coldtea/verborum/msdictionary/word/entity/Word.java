@@ -20,8 +20,6 @@ import java.time.LocalDateTime;
 @Table(name = "words")
 public class Word {
     @Id
-    @GeneratedValue(generator = "UUID")
-    @GenericGenerator(name = "UUID")
     @Column(name = "word_id", updatable = false, nullable = false)
     private String wordId;
 
@@ -40,9 +38,9 @@ public class Word {
     @Column(name = "translation_meta")
     private String translationMeta;
 
-    @ManyToOne
-    @JsonBackReference
-    private Dictionary dictionary;
+//    @ManyToOne
+//    @JsonBackReference
+//    private Dictionary dictionary;
 
     @CreationTimestamp
     @Column(name = "creation_dt", nullable = false, updatable = false)

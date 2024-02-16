@@ -1,9 +1,11 @@
 package de.coldtea.verborum.msdictionary.word.controller;
 
 import de.coldtea.verborum.msdictionary.common.response.Response;
+import de.coldtea.verborum.msdictionary.common.utils.ListUtils;
 import de.coldtea.verborum.msdictionary.common.utils.ResponseUtils;
 import de.coldtea.verborum.msdictionary.common.utils.SupportedLanguage;
 import de.coldtea.verborum.msdictionary.common.utils.ValidUUID;
+import de.coldtea.verborum.msdictionary.word.dto.WordBundleRequestDTO;
 import de.coldtea.verborum.msdictionary.word.dto.WordRequestDTO;
 import de.coldtea.verborum.msdictionary.word.dto.WordResponseDTO;
 import de.coldtea.verborum.msdictionary.word.service.WordService;
@@ -15,6 +17,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.context.request.WebRequest;
 
 import java.util.List;
+import java.util.stream.Stream;
 
 import static de.coldtea.verborum.msdictionary.common.constants.ResponseMessageConstants.*;
 import static de.coldtea.verborum.msdictionary.common.utils.ResponseUtils.getListOfWords;
@@ -25,25 +28,22 @@ import static de.coldtea.verborum.msdictionary.common.utils.ResponseUtils.getLis
 public class WordController {
 
     private final WordService wordService;
+    private final ListUtils listUtils = new ListUtils();
 
+    @PostMapping("")
+    public ResponseEntity<Response> createWords(@Valid @RequestBody List<WordBundleRequestDTO> bundles, WebRequest request) {
+        wordService.saveWords(bundles);
 
-    @PostMapping("/{dictionaryId}")
-    public ResponseEntity<Response> createWords(@PathVariable @ValidUUID(fieldName = "dictionaryId") String dictionaryId,
-                                                @Valid @RequestBody List<WordRequestDTO> words, WebRequest request) {
-
-        wordService.saveWords(dictionaryId, words);
-
-        String listOfWords = getListOfWords(words);
+        String listOfWords = getListOfWords(listUtils.flatMap(bundles, bundle -> bundle.getWords().stream()));
 
         return ResponseUtils.buildResponse(HttpStatus.CREATED, WORD_SAVED_SUCCESSFULLY, listOfWords, request);
     }
 
-    @PutMapping("/{dictionaryId}")
-    public ResponseEntity<Response> updateWords(@PathVariable @ValidUUID(fieldName = "dictionaryId") String dictionaryId, @RequestBody List<WordRequestDTO> words, WebRequest request) {
+    @PutMapping("")
+    public ResponseEntity<Response> updateWords(@Valid @RequestBody List<WordBundleRequestDTO> bundles, WebRequest request) {
+        wordService.saveWords(bundles);
 
-        wordService.saveWords(dictionaryId, words);
-
-        String listOfWords = getListOfWords(words);
+        String listOfWords = getListOfWords(listUtils.flatMap(bundles, bundle -> (Stream<WordRequestDTO>) bundle.getWords()));
 
         return ResponseUtils.buildResponse(HttpStatus.CREATED, WORD_UPDATED_SUCCESSFULLY, listOfWords, request);
     }
