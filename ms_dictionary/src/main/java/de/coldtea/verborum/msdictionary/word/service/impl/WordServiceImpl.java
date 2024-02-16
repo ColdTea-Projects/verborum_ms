@@ -4,7 +4,7 @@ import de.coldtea.verborum.msdictionary.common.exception.RecordNotFoundException
 import de.coldtea.verborum.msdictionary.common.mapper.WordMapper;
 import de.coldtea.verborum.msdictionary.dictionary.entity.Dictionary;
 import de.coldtea.verborum.msdictionary.dictionary.repository.DictionaryRepository;
-import de.coldtea.verborum.msdictionary.word.repository.entity.Word;
+import de.coldtea.verborum.msdictionary.word.entity.Word;
 import de.coldtea.verborum.msdictionary.word.repository.WordRepository;
 import de.coldtea.verborum.msdictionary.word.dto.WordRequestDTO;
 import de.coldtea.verborum.msdictionary.word.dto.WordResponseDTO;

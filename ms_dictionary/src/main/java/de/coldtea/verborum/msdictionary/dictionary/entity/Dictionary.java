@@ -1,6 +1,6 @@
 package de.coldtea.verborum.msdictionary.dictionary.entity;
 
-import de.coldtea.verborum.msdictionary.word.repository.entity.Word;
+import de.coldtea.verborum.msdictionary.word.entity.Word;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;

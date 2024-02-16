@@ -1,6 +1,6 @@
 package de.coldtea.verborum.msdictionary.word.repository;
 
-import de.coldtea.verborum.msdictionary.word.repository.entity.Word;
+import de.coldtea.verborum.msdictionary.word.entity.Word;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 

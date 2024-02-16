@@ -2,7 +2,7 @@ package de.coldtea.verborum.msdictionary.common.mapper;
 
 import de.coldtea.verborum.msdictionary.word.dto.WordRequestDTO;
 import de.coldtea.verborum.msdictionary.word.dto.WordResponseDTO;
-import de.coldtea.verborum.msdictionary.word.repository.entity.Word;
+import de.coldtea.verborum.msdictionary.word.entity.Word;
 import org.mapstruct.Mapper;
 
 @Mapper(componentModel = "spring")

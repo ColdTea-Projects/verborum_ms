@@ -5,7 +5,7 @@ import de.coldtea.verborum.msdictionary.common.mapper.WordMapper;
 import de.coldtea.verborum.msdictionary.dictionary.entity.Dictionary;
 import de.coldtea.verborum.msdictionary.dictionary.repository.DictionaryRepository;
 import de.coldtea.verborum.msdictionary.word.dto.WordResponseDTO;
-import de.coldtea.verborum.msdictionary.word.repository.entity.Word;
+import de.coldtea.verborum.msdictionary.word.entity.Word;
 import de.coldtea.verborum.msdictionary.word.repository.WordRepository;
 import de.coldtea.verborum.msdictionary.word.dto.WordRequestDTO;
 import org.junit.jupiter.api.BeforeEach;

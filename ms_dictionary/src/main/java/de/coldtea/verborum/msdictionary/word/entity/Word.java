@@ -1,4 +1,4 @@
-package de.coldtea.verborum.msdictionary.word.repository.entity;
+package de.coldtea.verborum.msdictionary.word.entity;
 
 import com.fasterxml.jackson.annotation.JsonBackReference;
 import de.coldtea.verborum.msdictionary.dictionary.entity.Dictionary;
