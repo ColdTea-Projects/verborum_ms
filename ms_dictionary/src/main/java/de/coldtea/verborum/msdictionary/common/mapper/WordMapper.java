@@ -12,6 +12,6 @@ public interface WordMapper {
 
     @Mapping(source = "dictionaryId", target = "dictionaryId")
     Word toWord(String dictionaryId, WordRequestDTO wordRequestDTO);
-    
+
     WordResponseDTO toWordResponseDTO(Word word);
 }

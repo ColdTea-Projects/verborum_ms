@@ -34,7 +34,7 @@ public class WordController {
     public ResponseEntity<Response> createWords(@Valid @RequestBody List<WordBundleRequestDTO> bundles, WebRequest request) {
         wordService.saveWords(bundles);
 
-        String listOfWords = getListOfWords(listUtils.flatMap(bundles, bundle -> bundle.getWords().stream()));
+        String listOfWords = getListOfWords(listUtils.flatMap(bundles, WordBundleRequestDTO::getWordStream));
 
         return ResponseUtils.buildResponse(HttpStatus.CREATED, WORD_SAVED_SUCCESSFULLY, listOfWords, request);
     }
@@ -43,7 +43,7 @@ public class WordController {
     public ResponseEntity<Response> updateWords(@Valid @RequestBody List<WordBundleRequestDTO> bundles, WebRequest request) {
         wordService.saveWords(bundles);
 
-        String listOfWords = getListOfWords(listUtils.flatMap(bundles, bundle -> (Stream<WordRequestDTO>) bundle.getWords()));
+        String listOfWords = getListOfWords(listUtils.flatMap(bundles, WordBundleRequestDTO::getWordStream));
 
         return ResponseUtils.buildResponse(HttpStatus.CREATED, WORD_UPDATED_SUCCESSFULLY, listOfWords, request);
     }
