@@ -1,0 +1,148 @@
+{
+  "databaseChangeLog": [
+    {
+      "changeSet": {
+        "id": "1708206670873-1",
+        "author": "yasarnacigunduz (generated)",
+        "objectQuotingStrategy": "QUOTE_ONLY_RESERVED_WORDS",
+        "changes": [
+          {
+            "createTable": {
+              "columns": [
+                {
+                  "column": {
+                    "constraints": {
+                      "nullable": false,
+                      "primaryKey": true,
+                      "primaryKeyName": "pk_dictionaries"
+                    },
+                    "name": "dictionary_id",
+                    "type": "VARCHAR(255)"
+                  }
+                },
+                {
+                  "column": {
+                    "name": "fk_user_id",
+                    "type": "VARCHAR(255)"
+                  }
+                },
+                {
+                  "column": {
+                    "name": "name",
+                    "type": "VARCHAR(255)"
+                  }
+                },
+                {
+                  "column": {
+                    "name": "is_public",
+                    "type": "BOOLEAN"
+                  }
+                },
+                {
+                  "column": {
+                    "name": "from_lang",
+                    "type": "VARCHAR(255)"
+                  }
+                },
+                {
+                  "column": {
+                    "name": "to_lang",
+                    "type": "VARCHAR(255)"
+                  }
+                },
+                {
+                  "column": {
+                    "constraints": {
+                      "nullable": false
+                    },
+                    "name": "creation_dt",
+                    "type": "DATETIME"
+                  }
+                },
+                {
+                  "column": {
+                    "name": "update_dt",
+                    "type": "DATETIME"
+                  }
+                }
+              ],
+              "tableName": "dictionaries"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "changeSet": {
+        "id": "1708206670873-2",
+        "author": "yasarnacigunduz (generated)",
+        "objectQuotingStrategy": "QUOTE_ONLY_RESERVED_WORDS",
+        "changes": [
+          {
+            "createTable": {
+              "columns": [
+                {
+                  "column": {
+                    "constraints": {
+                      "nullable": false,
+                      "primaryKey": true,
+                      "primaryKeyName": "pk_words"
+                    },
+                    "name": "word_id",
+                    "type": "VARCHAR(255)"
+                  }
+                },
+                {
+                  "column": {
+                    "name": "fk_dictionary_id",
+                    "type": "VARCHAR(255)"
+                  }
+                },
+                {
+                  "column": {
+                    "name": "word",
+                    "type": "VARCHAR(255)"
+                  }
+                },
+                {
+                  "column": {
+                    "name": "word_meta",
+                    "type": "VARCHAR(255)"
+                  }
+                },
+                {
+                  "column": {
+                    "name": "translation",
+                    "type": "VARCHAR(255)"
+                  }
+                },
+                {
+                  "column": {
+                    "name": "translation_meta",
+                    "type": "VARCHAR(255)"
+                  }
+                },
+                {
+                  "column": {
+                    "constraints": {
+                      "nullable": false
+                    },
+                    "name": "creation_dt",
+                    "type": "DATETIME"
+                  }
+                },
+                {
+                  "column": {
+                    "name": "update_dt",
+                    "type": "DATETIME"
+                  }
+                }
+              ],
+              "tableName": "words"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
