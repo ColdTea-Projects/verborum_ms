@@ -4,6 +4,7 @@ import de.coldtea.verborum.msdictionary.common.exception.RecordNotFoundException
 import de.coldtea.verborum.msdictionary.common.mapper.WordMapper;
 import de.coldtea.verborum.msdictionary.dictionary.entity.Dictionary;
 import de.coldtea.verborum.msdictionary.dictionary.repository.DictionaryRepository;
+import de.coldtea.verborum.msdictionary.word.dto.WordBundleRequestDTO;
 import de.coldtea.verborum.msdictionary.word.dto.WordResponseDTO;
 import de.coldtea.verborum.msdictionary.word.entity.Word;
 import de.coldtea.verborum.msdictionary.word.repository.WordRepository;
@@ -47,12 +48,14 @@ class WordServiceImplTest {
         String dictionaryId = "1";
         List<WordRequestDTO> wordList = new ArrayList<>();
         wordList.add(new WordRequestDTO());
+        List<WordBundleRequestDTO> wordBundles = new ArrayList<>();
+        wordBundles.add(new WordBundleRequestDTO(dictionaryId, wordList));
 
         when(dictionaryRepository.findById(dictionaryId)).thenReturn(Optional.of(new Dictionary()));
-        when(wordMapper.toWord(any(WordRequestDTO.class))).thenReturn(new Word());
+        when(wordMapper.toWord(dictionaryId, new WordRequestDTO())).thenReturn(new Word());
 
         // Act
-        assertDoesNotThrow(() -> wordService.saveWords(dictionaryId, wordList));
+        assertDoesNotThrow(() -> wordService.saveWords(wordBundles));
 
         // Assert
         verify(dictionaryRepository).findById(dictionaryId);
@@ -64,11 +67,14 @@ class WordServiceImplTest {
         // Arrange
         String dictionaryId = "1";
         List<WordRequestDTO> wordList = new ArrayList<>();
+        wordList.add(new WordRequestDTO());
+        List<WordBundleRequestDTO> wordBundles = new ArrayList<>();
+        wordBundles.add(new WordBundleRequestDTO(dictionaryId, wordList));
 
         when(dictionaryRepository.findById(dictionaryId)).thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThrows(RecordNotFoundException.class, () -> wordService.saveWords(dictionaryId, wordList));
+        assertThrows(RecordNotFoundException.class, () -> wordService.saveWords(wordBundles));
     }
 
     @Test

@@ -20,8 +20,6 @@ import java.util.List;
 @Table(name = "dictionaries")
 public class Dictionary {
     @Id
-    @GeneratedValue(generator = "UUID")
-    @GenericGenerator(name = "UUID")
     @Column(name = "dictionary_id", updatable = false, nullable = false)
     private String dictionaryId;
 
@@ -41,9 +39,9 @@ public class Dictionary {
     @Column(name = "to_lang")
     private String toLang;
 
-    @OneToMany(mappedBy = "dictionary")
-    @ToString.Exclude
-    private List<Word> words;
+//    @OneToMany(mappedBy = "dictionary")
+//    @ToString.Exclude
+//    private List<Word> words;
 
     @CreationTimestamp
     @Column(name = "creation_dt", nullable = false, updatable = false)
