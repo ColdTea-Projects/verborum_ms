@@ -1,13 +1,16 @@
 package de.coldtea.verborum.msdictionary.word.service;
 
+import de.coldtea.verborum.msdictionary.word.dto.WordBundleRequestDTO;
 import de.coldtea.verborum.msdictionary.word.dto.WordRequestDTO;
 import de.coldtea.verborum.msdictionary.word.dto.WordResponseDTO;
+import de.coldtea.verborum.msdictionary.word.entity.Word;
 
 import java.util.List;
+import java.util.stream.Stream;
 
 public interface WordService {
 
-    void saveWords(String dictionaryId, List<WordRequestDTO> wordList);
+    void saveWords(List<WordBundleRequestDTO> wordList);
 
     void deleteWords(List<String> wordIdList);
 
