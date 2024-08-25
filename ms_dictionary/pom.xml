@@ -108,8 +108,14 @@
             <artifactId>mapstruct-processor</artifactId>
             <version>1.5.5.Final</version>
         </dependency>
-    </dependencies>
 
+        <dependency>
+            <groupId>org.liquibase</groupId>
+            <artifactId>liquibase-core</artifactId>
+            <version>4.25.1</version>
+        </dependency>
+    </dependencies>
+    
     <build>
         <plugins>
             <!-- Spring Boot Maven Plugin -->
