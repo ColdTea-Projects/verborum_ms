@@ -1,0 +1,9 @@
+# IntelliJ IDEA — per-machine IDE state
+.idea/
+
+# Maven build output
+target/
+
+# OS noise
+.DS_Store
+Thumbs.db
