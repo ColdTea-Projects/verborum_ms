@@ -1,6 +1,7 @@
 package de.coldtea.verborum.msdictionary.word.dto;
 
 import de.coldtea.verborum.msdictionary.common.utils.ValidUUID;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import lombok.*;
@@ -21,6 +22,7 @@ public class WordBundleRequestDTO {
     @ValidUUID(fieldName = DICTIONARY_ID)
     private String dictionaryId;
 
+    @Valid
     @NotEmpty(message = WORD_WORD_LIST)
     private List<WordRequestDTO> words;
 

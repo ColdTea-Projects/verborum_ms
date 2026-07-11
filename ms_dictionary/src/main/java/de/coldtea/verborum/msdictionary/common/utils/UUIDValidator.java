@@ -17,6 +17,9 @@ public class UUIDValidator implements ConstraintValidator<ValidUUID, String> {
 
     @Override
     public boolean isValid(String uuidString, ConstraintValidatorContext constraintValidatorContext) {
+        // Null-handling belongs to @NotBlank — UUID.fromString(null) would throw an unhandled NPE
+        if (uuidString == null) return true;
+
         try {
             UUID.fromString(uuidString);
             return true;
