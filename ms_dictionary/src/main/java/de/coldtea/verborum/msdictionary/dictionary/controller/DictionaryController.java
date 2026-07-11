@@ -49,5 +49,14 @@ public class DictionaryController {
         return new ResponseEntity<>(dictionaryService.getDictionariesByUser(userId), HttpStatus.OK);
     }
 
+    @GetMapping("/dictionary/{dictionaryId}")
+    public ResponseEntity<DictionaryResponseDTO> getDictionaryById(@PathVariable String dictionaryId) {
+        return new ResponseEntity<>(dictionaryService.getDictionaryById(dictionaryId), HttpStatus.OK);
+    }
+
+    @GetMapping("/batch")
+    public ResponseEntity<List<DictionaryResponseDTO>> getDictionariesByIds(@RequestParam List<String> ids) {
+        return new ResponseEntity<>(dictionaryService.getDictionariesByIds(ids), HttpStatus.OK);
+    }
 
 }

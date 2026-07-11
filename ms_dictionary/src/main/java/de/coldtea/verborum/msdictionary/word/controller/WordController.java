@@ -82,4 +82,9 @@ public class WordController {
     public List<WordResponseDTO> getWordsByUser(@PathVariable String userId) {
         return wordService.getWordsByUserId(userId);
     }
+
+    @GetMapping("/batch")
+    public List<WordResponseDTO> getWordsByIds(@RequestParam List<String> ids) {
+        return wordService.getWordsByIds(ids);
+    }
 }
