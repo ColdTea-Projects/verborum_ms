@@ -4,14 +4,14 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="c492de37-e40b-4ad1-a74f-fd377783deb5" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/.gitignore" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/modules.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/verborum_ms.iml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/CLAUDE.md" beforeDir="false" afterPath="$PROJECT_DIR$/CLAUDE.md" afterDir="false" />
+    <list default="true" id="c492de37-e40b-4ad1-a74f-fd377783deb5" name="Changes" comment="BE-17 : scaffolding, modular pom.xml applications and etc.">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/agent/roadmap.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/agent/roadmap.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/docs/agent/verborum.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/agent/verborum.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ms_dictionary/pom.xml" beforeDir="false" afterPath="$PROJECT_DIR$/ms_dictionary/pom.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ms_dictionary/src/test/java/de/coldtea/verborum/msdictionary/MsDictionaryApplicationTests.java" beforeDir="false" afterPath="$PROJECT_DIR$/ms_dictionary/src/test/java/de/coldtea/verborum/msdictionary/MsDictionaryApplicationTests.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ms_user/pom.xml" beforeDir="false" afterPath="$PROJECT_DIR$/ms_user/pom.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ms_user/src/test/java/de/coldtea/verborum/msuser/MsUserApplicationTests.java" beforeDir="false" afterPath="$PROJECT_DIR$/ms_user/src/test/java/de/coldtea/verborum/msuser/MsUserApplicationTests.java" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -26,6 +26,13 @@
     </option>
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
+  <component name="MavenImportPreferences">
+    <option name="generalSettings">
+      <MavenGeneralSettings>
+        <option name="mavenHomeTypeForPersistence" value="WRAPPER" />
+      </MavenGeneralSettings>
+    </option>
+  </component>
   <component name="ProjectColorInfo">{
   &quot;associatedIndex&quot;: 6
 }</component>
@@ -34,24 +41,25 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
-    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
-    &quot;last_opened_file_path&quot;: &quot;C:/Users/s.mammadrza/Documents/Personal Projects/verborum-ms&quot;,
-    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
-    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
-    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
-    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
-    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
-    &quot;project.structure.last.edited&quot;: &quot;Project&quot;,
-    &quot;project.structure.proportion&quot;: &quot;0.0&quot;,
-    &quot;project.structure.side.proportion&quot;: &quot;0.0&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;project.propVCSSupport.DirectoryMappings&quot;,
-    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "kotlin-language-version-configured": "true",
+    "last_opened_file_path": "C:/Users/s.mammadrza/Documents/Personal Projects/verborum_ms",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "project.structure.last.edited": "Project",
+    "project.structure.proportion": "0.0",
+    "project.structure.side.proportion": "0.0",
+    "settings.editor.selected.configurable": "project.propVCSSupport.DirectoryMappings",
+    "vue.rearranger.settings.migration": "true"
   }
-}</component>
+}]]></component>
   <component name="RunManager" selected="Spring Boot.MsDictionaryApplication">
     <configuration default="true" type="JetRunConfigurationType">
       <module name="verborum_ms" />
@@ -97,10 +105,24 @@
       <option name="presentableId" value="Default" />
       <updated>1783795507605</updated>
       <workItem from="1783795508895" duration="1851000" />
+      <workItem from="1783797430230" duration="2849000" />
     </task>
+    <task id="LOCAL-00001" summary="BE-17 : scaffolding, modular pom.xml applications and etc.">
+      <option name="closed" value="true" />
+      <created>1783797625923</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1783797625923</updated>
+    </task>
+    <option name="localTasksCounter" value="2" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="BE-17 : scaffolding, modular pom.xml applications and etc." />
+    <option name="LAST_COMMIT_MESSAGE" value="BE-17 : scaffolding, modular pom.xml applications and etc." />
   </component>
 </project>
