@@ -26,7 +26,7 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
 
 - [x] `P0-01` Core CRUD for Dictionary and Word is implemented
 - [x] `P0-02` Validation, exception handling, Liquibase, MapStruct all working
-- [ ] `P0-03` **Fix `Response` and `ErrorResponse` missing `@Getter`**
+- [x] `P0-03` **Fix `Response` and `ErrorResponse` missing `@Getter`**
   - Files: `common/response/Response.java`, `common/response/ErrorResponse.java`
   - Why: Jackson serializes these as empty `{}` without getters. Every API response is broken.
   - Done when: POST /dictionaries/ returns a properly populated JSON response body
@@ -78,12 +78,12 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
 > Depends on: Phase 1 complete (needs RabbitMQ to consume `user.deleted` cascade logic later)
 > Mirror ms_dictionary structure exactly — see `docs/agent/clean-code.md`
 
-- [ ] `P2-01` **Scaffold ms_user module**
+- [x] `P2-01` **Scaffold ms_user module**
   - Create `ms_user/` directory with `pom.xml`, `MsUserApplication.java`
   - Port: 8086
   - Base package: `de.coldtea.verborum.msuser`
   - Done when: app starts (even with no endpoints) on port 8086
-- [ ] `P2-02` **Create `docker-compose.yml` for ms_user**
+- [x] `P2-02` **Create `docker-compose.yml` for ms_user**
   - Postgres on port 5433, Adminer on port 8081, DB name: `vdbprofile`
   - Done when: `docker-compose up` in `ms_user/` starts the DB
 - [ ] `P2-03` **Design and create User entity + Liquibase migration**

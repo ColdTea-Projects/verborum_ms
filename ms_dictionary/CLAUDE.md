@@ -28,8 +28,6 @@ Full CRUD for **Dictionaries** and **Words** — the core vocabulary store.
   Joins are done via explicit repository calls. Do not activate the relationship without
   discussion.
 - `wordMeta` / `translationMeta` are `json` columns in Postgres, mapped as `String` in Java.
-- **Known bug:** `Response` and `ErrorResponse` are missing `@Getter` (task P0-03). Fix before
-  relying on API response bodies.
 - **No security** on any endpoint yet (task P3-03). Do not expose publicly until then.
 
 ## Missing endpoints (see roadmap P0-04, P0-05)

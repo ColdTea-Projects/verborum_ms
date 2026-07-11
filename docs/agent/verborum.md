@@ -168,21 +168,18 @@ See `docs/agent/rabbitmq.md` for implementation details.
 
 ## Known Issues in ms_dictionary
 
-1. **`Response` and `ErrorResponse` missing `@Getter`** — Jackson may serialize as empty `{}`.
-   Fix: add `@Getter` to both classes.
-
-2. **`word_meta` / `translation_meta` type mismatch** — DB column is `json` type but Java entity
+1. **`word_meta` / `translation_meta` type mismatch** — DB column is `json` type but Java entity
    maps it as plain `String`. Works but loses type safety. Consider `@Column(columnDefinition = "jsonb")`
    with a proper JSON handler, or keep as String and document it.
 
-3. **Missing `getDictionaryById` endpoint** — shown in the architecture diagram but not implemented.
+2. **Missing `getDictionaryById` endpoint** — shown in the architecture diagram but not implemented.
 
-4. **No security on any endpoint** — ms_dictionary has no authentication or authorization.
+3. **No security on any endpoint** — ms_dictionary has no authentication or authorization.
    All endpoints are open. This is intentional for local development only and will be
    fixed in Phase 3 by adding Spring Security + Keycloak JWT validation. Do not expose
    ms_dictionary to public traffic until Phase 3 is complete.
 
-5. **`@GenericGenerator` imported but unused** in entity files (deprecated in newer Hibernate).
+4. **`@GenericGenerator` imported but unused** in entity files (deprecated in newer Hibernate).
 
 ---
 
