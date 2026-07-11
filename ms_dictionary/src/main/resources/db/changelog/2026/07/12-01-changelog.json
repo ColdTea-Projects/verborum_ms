@@ -1,0 +1,25 @@
+{
+  "databaseChangeLog": [
+    {
+      "changeSet": {
+        "id": "20260712-01-word-meta-json",
+        "author": "claude (P0-06)",
+        "comment": "Convert word_meta and translation_meta from VARCHAR(255) to json. Pre-existing rows must contain valid JSON (or NULL) for the cast to succeed.",
+        "changes": [
+          {
+            "sql": {
+              "sql": "ALTER TABLE words ALTER COLUMN word_meta TYPE json USING word_meta::json; ALTER TABLE words ALTER COLUMN translation_meta TYPE json USING translation_meta::json;"
+            }
+          }
+        ],
+        "rollback": [
+          {
+            "sql": {
+              "sql": "ALTER TABLE words ALTER COLUMN word_meta TYPE VARCHAR(255) USING word_meta::text; ALTER TABLE words ALTER COLUMN translation_meta TYPE VARCHAR(255) USING translation_meta::text;"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

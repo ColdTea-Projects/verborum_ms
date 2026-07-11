@@ -8,6 +8,9 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.GenericGenerator;
 import org.hibernate.annotations.UpdateTimestamp;
 
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 import java.time.LocalDateTime;
 
 @Getter
@@ -29,13 +32,18 @@ public class Word {
     @Column(name = "word")
     private String word;
 
-    @Column(name = "word_meta")
+    // JSON contract for word_meta / translation_meta: a JSON object with optional keys
+    // "partOfSpeech" (string), "example" (string), "notes" (string); additional keys allowed.
+    // The value must be valid JSON — the DB column type is json (see 2026/07/12-01-changelog.json).
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "word_meta", columnDefinition = "json")
     private String wordMeta;
 
     @Column(name = "translation")
     private String translation;
 
-    @Column(name = "translation_meta")
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "translation_meta", columnDefinition = "json")
     private String translationMeta;
 
 //    @ManyToOne
