@@ -168,9 +168,10 @@ See `docs/agent/rabbitmq.md` for implementation details.
 
 ## Known Issues in ms_dictionary
 
-1. **`word_meta` / `translation_meta` type mismatch** — DB column is `json` type but Java entity
-   maps it as plain `String`. Works but loses type safety. Consider `@Column(columnDefinition = "jsonb")`
-   with a proper JSON handler, or keep as String and document it.
+1. **`word_meta` / `translation_meta` type mismatch** — the Liquibase changelog creates these
+   as `VARCHAR(255)` (not `json` as previously documented), and the Java entity maps them as
+   plain `String`. JSON metadata longer than 255 chars fails to insert. Fix via a NEW changeset
+   (see roadmap P0-06); consider `jsonb` with a proper handler, or a wider text column.
 
 2. **Missing `getDictionaryById` endpoint** — shown in the architecture diagram but not implemented.
 

@@ -41,6 +41,47 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
 - [ ] `P0-06` **Document `word_meta` / `translation_meta` JSON contract**
   - Add a comment in `Word.java` and `verborum.md` defining the expected JSON shape
   - Done when: the shape is documented and both entity and changelog use `columnDefinition = "json"`
+  - Note (2026-07-12 full review): the columns are actually `VARCHAR(255)` in the changelog,
+    not `json` as previously documented — metadata longer than 255 chars will fail to insert.
+    Fixing this needs a new changeset (never modify the existing one).
+
+<!-- Tasks P0-07 … P0-13 added 2026-07-12 after a one-time full review of the existing code -->
+- [ ] `P0-07` **Add `RecordNotFoundException` handler to `GlobalExceptionHandler`**
+  - Thrown by `WordServiceImpl` (unknown dictionary on save/delete) but has no handler,
+    so it falls into the generic `Exception` handler and returns 500 instead of 404
+  - Done when: POST /words with an unknown dictionaryId returns 404 with a proper ErrorResponse
+- [ ] `P0-08` **Fix swapped arguments in `handleMethodArgumentNotValidException`** (ms_dictionary AND ms_user)
+  - `buildErrorResponse(status, errorMessage, ExceptionName, request)` — message and exception
+    name are reversed vs. the signature `(status, simpleName, detail, request)`
+  - Done when: `error` = exception name, `errorDetail` = field messages, in both services
+- [ ] `P0-09` **Cascade-delete words when a dictionary is deleted**
+  - `DictionaryServiceImpl.deleteDictionary()` deletes only the dictionary; its words are
+    orphaned forever (no DB-level FK to stop it). `WordRepository.deleteByDictionaryIdIn`
+    already exists (currently unused)
+  - Done when: DELETE /dictionaries/{id} removes the dictionary and all its words in one transaction
+- [ ] `P0-10` **Add `@Valid` to `WordBundleRequestDTO.words`**
+  - Without cascade, the per-word constraints (`@ValidUUID` on wordId, `@NotBlank`s) never run
+    on POST/PUT /words — invalid words are accepted
+  - Done when: posting a bundle with a malformed wordId returns 400
+- [ ] `P0-11` **Make custom validators null-safe**
+  - `UUIDValidator`: `UUID.fromString(null)` throws NPE (only `IllegalArgumentException` is
+    caught); `SupportedLanguageValidator`: `language.toUpperCase()` NPEs on null → both 500
+    instead of a clean validation error when the field is missing
+  - Done when: null input returns the proper 400 validation error (leave null-checking to `@NotBlank`)
+- [x] `P0-12` **Remove pinned ancient test dependencies from both poms** (ms_dictionary AND ms_user)
+  - `junit-jupiter-engine` 5.6.2 and `mockito-junit-jupiter` 2.23.0 are pinned at compile scope,
+    conflicting with Spring Boot 3.2's managed JUnit 5.10 — `MsDictionaryApplicationTests` fails
+    with `AbstractMethodError` and the whole suite exits red; they also ship in the prod jar
+  - Done when: versions/scopes removed (Boot manages them), `mvnw test` passes in both modules
+  - Done 2026-07-12. All 16 unit tests green, `mvnw test` passes in both modules. The
+    `contextLoads` `@SpringBootTest` in each module is `@Disabled` because it needs the
+    docker-compose Postgres running — re-enable once a DB is available in CI/dev
+- [x] `P0-13` **Un-pin `postgresql` 42.3.8** (ms_dictionary AND ms_user)
+  - Overrides Boot-managed driver and is affected by CVE-2024-1597; drop the `<version>` tag
+  - Done when: both modules build with the Boot-managed driver version
+  - Done 2026-07-12. Note: Boot 3.2.2 itself manages 42.6.0 (also affected by CVE-2024-1597),
+    so both poms set `<postgresql.version>42.6.2</postgresql.version>` — Boot's sanctioned
+    override property. Remove the property once the Boot parent is bumped to ≥3.2.3
 
 ---
 
@@ -124,6 +165,11 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
   - Create `common/listener/UserEventListener.java` in ms_dictionary
   - On `user.deleted`: delete all dictionaries and words for that userId
   - Done when: deleting a user cascades to remove their dictionaries and words
+- [ ] `P2-11` **Fix Keycloak role mapping in ms_user `SecurityConfig`** (added 2026-07-12 after full review)
+  - `JwtGrantedAuthoritiesConverter.setAuthoritiesClaimName("realm_access.roles")` does NOT
+    resolve nested claims — Keycloak realm roles live under `realm_access` → `roles`, so no
+    roles are ever mapped to authorities. Needs a custom converter that reads the nested claim
+  - Done when: a token with realm role `user` yields authority `ROLE_user` in the security context
 
 ---
 
@@ -154,6 +200,12 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
   - Create `common/utils/SecurityUtils.java` in each secured service
   - Update create/mutate endpoints to use `SecurityUtils.getCurrentUserId()`
   - Done when: userId in Dictionary and Word always comes from the token, not request body
+- [ ] `P3-06` **Lock down actuator exposure in all services** (added 2026-07-12 after full review)
+  - `management.endpoints.web.exposure.include=*` combined with `permitAll` on `/actuator/**`
+    exposes `/actuator/env`, heapdump, etc. publicly — in ms_user this can leak
+    `KEYCLOAK_ADMIN_CLIENT_SECRET` via the env endpoint
+  - Restrict to `health,info` (or secure the rest with a role)
+  - Done when: `/actuator/env` is not publicly reachable in any service
 
 ---
 
