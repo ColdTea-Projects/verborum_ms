@@ -38,6 +38,13 @@ public class GlobalExceptionHandler {
         return buildErrorResponse(HttpStatus.BAD_REQUEST, InvalidLanguageCodeException.class.getSimpleName(), ex.getMessage(), request);
     }
 
+    @ExceptionHandler(RecordNotFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public ResponseEntity<ErrorResponse> handleRecordNotFoundException(RecordNotFoundException ex, WebRequest request) {
+        log.error(RecordNotFoundException.class.getCanonicalName(), ex);
+        return buildErrorResponse(HttpStatus.NOT_FOUND, RecordNotFoundException.class.getSimpleName(), ex.getMessage(), request);
+    }
+
     private static ResponseEntity<ErrorResponse> buildErrorResponse(HttpStatus badRequest, String simpleName, String ex, WebRequest request) {
         return new ResponseEntity<>(
                 ErrorResponse.builder()
@@ -63,6 +70,6 @@ public class GlobalExceptionHandler {
         String errorMessage = String.join(", ", errorMessages);
 
 
-        return buildErrorResponse(HttpStatus.BAD_REQUEST, errorMessage, MethodArgumentNotValidException.class.getSimpleName(), request);
+        return buildErrorResponse(HttpStatus.BAD_REQUEST, MethodArgumentNotValidException.class.getSimpleName(), errorMessage, request);
     }
 }

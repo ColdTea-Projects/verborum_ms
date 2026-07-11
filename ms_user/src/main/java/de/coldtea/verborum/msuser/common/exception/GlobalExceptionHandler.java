@@ -39,7 +39,7 @@ public class GlobalExceptionHandler {
 
         String errorMessage = String.join(", ", errorMessages);
 
-        return buildErrorResponse(HttpStatus.BAD_REQUEST, errorMessage, MethodArgumentNotValidException.class.getSimpleName(), request);
+        return buildErrorResponse(HttpStatus.BAD_REQUEST, MethodArgumentNotValidException.class.getSimpleName(), errorMessage, request);
     }
 
     private static ResponseEntity<ErrorResponse> buildErrorResponse(HttpStatus status, String simpleName, String ex, WebRequest request) {
