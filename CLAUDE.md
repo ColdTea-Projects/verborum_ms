@@ -17,7 +17,7 @@ share them on a marketplace, and (V2) get AI-powered word suggestions.
 verborum_ms/
 ├── CLAUDE.md                  ← you are here
 ├── docs/agent/                ← all skill files
-├── ms_dictionary/             ← ✅ complete (reference implementation)
+├── ms_dictionary/             ← ✅ almost complete (reference implementation)
 ├── ms_user/                   ← ❌ to be built
 └── sql_dumps/
 ```
