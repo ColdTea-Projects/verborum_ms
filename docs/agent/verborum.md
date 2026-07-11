@@ -51,9 +51,9 @@ API Gateway ──► Autofil Service  (word suggestions from community data, No
   Security will be added in Phase 3 once Keycloak is configured via ms_user.
   Until then, do not expose ms_dictionary to public traffic.
 
-### ❌ ms_user — TO BE BUILT
-- **Port:** TBD (suggest 8086)
-- **DB:** `DB_Profile` (PostgreSQL) — new docker-compose needed
+### 🚧 ms_user — SCAFFOLDED, NO FEATURES YET
+- **Port:** 8086
+- **DB:** `vdbprofile` (PostgreSQL) — docker-compose in `ms_user/` (Postgres 5433 + Adminer 8081)
 - **Base package:** `de.coldtea.verborum.msuser`
 - **What it does:** User profile, auth integration with Keycloak, Dictionary Vault, User Stats
 - **Mirror:** Follow ms_dictionary structure exactly
