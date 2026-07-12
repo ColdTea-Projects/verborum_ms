@@ -16,9 +16,10 @@ share them on a marketplace, and (V2) get AI-powered word suggestions.
 ```
 verborum_ms/
 ├── CLAUDE.md                  ← you are here
+├── pom.xml                    ← aggregator pom — register every new service in <modules>
 ├── docs/agent/                ← all skill files
 ├── ms_dictionary/             ← ✅ almost complete (reference implementation)
-├── ms_user/                   ← ❌ to be built
+├── ms_user/                   ← 🚧 scaffolded, entities/endpoints to be built
 └── sql_dumps/
 ```
 

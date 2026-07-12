@@ -1,0 +1,18 @@
+version: '3.8'
+
+services :
+  db:
+    image: postgres:14-alpine
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: coldtea
+      POSTGRES_PASSWORD: qwerty
+      POSTGRES_DB: vdbprofile
+  admin:
+    image: adminer
+    restart: always
+    depends_on:
+      - db
+    ports:
+      - 8081:8080

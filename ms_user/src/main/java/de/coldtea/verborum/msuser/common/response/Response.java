@@ -1,4 +1,4 @@
-package de.coldtea.verborum.msdictionary.common.response;
+package de.coldtea.verborum.msuser.common.response;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.AllArgsConstructor;

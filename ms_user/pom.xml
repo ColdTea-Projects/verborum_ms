@@ -9,10 +9,10 @@
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
     <groupId>de.coldtea.verborum</groupId>
-    <artifactId>msdictionary</artifactId>
+    <artifactId>msuser</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <name>ms_dictionary</name>
-    <description>ms_dictionary</description>
+    <name>ms_user</name>
+    <description>ms_user</description>
     <properties>
         <java.version>17</java.version>
         <!-- Boot 3.2.2 manages 42.6.0, which is affected by CVE-2024-1597 (fixed in 42.6.1) -->
@@ -104,8 +104,25 @@
             <artifactId>liquibase-core</artifactId>
             <version>4.25.1</version>
         </dependency>
+
+        <!-- Security -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+        </dependency>
+
+        <!-- Keycloak Admin Client - ms_user writes to Keycloak during registration -->
+        <dependency>
+            <groupId>org.keycloak</groupId>
+            <artifactId>keycloak-admin-client</artifactId>
+            <version>23.0.0</version>
+        </dependency>
     </dependencies>
-    
+
     <build>
         <plugins>
             <!-- Spring Boot Maven Plugin -->

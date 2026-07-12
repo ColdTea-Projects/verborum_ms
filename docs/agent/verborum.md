@@ -51,9 +51,9 @@ API Gateway ──► Autofil Service  (word suggestions from community data, No
   Security will be added in Phase 3 once Keycloak is configured via ms_user.
   Until then, do not expose ms_dictionary to public traffic.
 
-### ❌ ms_user — TO BE BUILT
-- **Port:** TBD (suggest 8086)
-- **DB:** `DB_Profile` (PostgreSQL) — new docker-compose needed
+### 🚧 ms_user — SCAFFOLDED, NO FEATURES YET
+- **Port:** 8086
+- **DB:** `vdbprofile` (PostgreSQL) — docker-compose in `ms_user/` (Postgres 5433 + Adminer 8081)
 - **Base package:** `de.coldtea.verborum.msuser`
 - **What it does:** User profile, auth integration with Keycloak, Dictionary Vault, User Stats
 - **Mirror:** Follow ms_dictionary structure exactly
@@ -168,21 +168,19 @@ See `docs/agent/rabbitmq.md` for implementation details.
 
 ## Known Issues in ms_dictionary
 
-1. **`Response` and `ErrorResponse` missing `@Getter`** — Jackson may serialize as empty `{}`.
-   Fix: add `@Getter` to both classes.
+1. **`word_meta` / `translation_meta` type mismatch** — the Liquibase changelog creates these
+   as `VARCHAR(255)` (not `json` as previously documented), and the Java entity maps them as
+   plain `String`. JSON metadata longer than 255 chars fails to insert. Fix via a NEW changeset
+   (see roadmap P0-06); consider `jsonb` with a proper handler, or a wider text column.
 
-2. **`word_meta` / `translation_meta` type mismatch** — DB column is `json` type but Java entity
-   maps it as plain `String`. Works but loses type safety. Consider `@Column(columnDefinition = "jsonb")`
-   with a proper JSON handler, or keep as String and document it.
+2. **Missing `getDictionaryById` endpoint** — shown in the architecture diagram but not implemented.
 
-3. **Missing `getDictionaryById` endpoint** — shown in the architecture diagram but not implemented.
-
-4. **No security on any endpoint** — ms_dictionary has no authentication or authorization.
+3. **No security on any endpoint** — ms_dictionary has no authentication or authorization.
    All endpoints are open. This is intentional for local development only and will be
    fixed in Phase 3 by adding Spring Security + Keycloak JWT validation. Do not expose
    ms_dictionary to public traffic until Phase 3 is complete.
 
-5. **`@GenericGenerator` imported but unused** in entity files (deprecated in newer Hibernate).
+4. **`@GenericGenerator` imported but unused** in entity files (deprecated in newer Hibernate).
 
 ---
 

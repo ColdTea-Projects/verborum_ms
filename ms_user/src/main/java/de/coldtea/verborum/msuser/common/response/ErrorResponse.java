@@ -1,4 +1,4 @@
-package de.coldtea.verborum.msdictionary.common.response;
+package de.coldtea.verborum.msuser.common.response;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.AllArgsConstructor;
@@ -13,11 +13,13 @@ import java.time.OffsetDateTime;
 @AllArgsConstructor
 @NoArgsConstructor
 @JsonIgnoreProperties(ignoreUnknown = true)
-public class Response {
+public class ErrorResponse {
 
     private int status;
 
-    private String message;
+    private String error;
+
+    private String errorDetail;
 
     private String path;
 
