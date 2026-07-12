@@ -30,40 +30,43 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
   - Files: `common/response/Response.java`, `common/response/ErrorResponse.java`
   - Why: Jackson serializes these as empty `{}` without getters. Every API response is broken.
   - Done when: POST /dictionaries/ returns a properly populated JSON response body
-- [ ] `P0-04` **Add missing `GET /dictionaries/dictionary/{dictionaryId}` endpoint**
+- [x] `P0-04` **Add missing `GET /dictionaries/dictionary/{dictionaryId}` endpoint**
   - Files: `DictionaryController`, `DictionaryService`, `DictionaryServiceImpl`, `DictionaryRepository`
   - Why: Shown in architecture diagram, needed by mobile client and ms_marketplace
   - Done when: endpoint returns a single `DictionaryResponseDTO` or 404 if not found
-- [ ] `P0-05` **Add missing batch fetch endpoints**
+- [x] `P0-05` **Add missing batch fetch endpoints**
   - `GET /dictionaries/batch?ids=id1,id2` — fetch multiple dictionaries by ID list
   - `GET /words/batch?ids=id1,id2` — fetch multiple words by ID list
   - Done when: both endpoints return correct lists; empty list for no matches (not 404)
-- [ ] `P0-06` **Document `word_meta` / `translation_meta` JSON contract**
+- [x] `P0-06` **Document `word_meta` / `translation_meta` JSON contract**
   - Add a comment in `Word.java` and `verborum.md` defining the expected JSON shape
   - Done when: the shape is documented and both entity and changelog use `columnDefinition = "json"`
   - Note (2026-07-12 full review): the columns are actually `VARCHAR(255)` in the changelog,
     not `json` as previously documented — metadata longer than 255 chars will fail to insert.
     Fixing this needs a new changeset (never modify the existing one).
+  - Done 2026-07-12: new changeset `2026/07/12-01-changelog.json` converts both columns to
+    `json`; entity uses `@JdbcTypeCode(SqlTypes.JSON)` + `columnDefinition = "json"`; the
+    JSON shape (optional keys partOfSpeech/example/notes) is documented in Word.java + verborum.md
 
 <!-- Tasks P0-07 … P0-13 added 2026-07-12 after a one-time full review of the existing code -->
-- [ ] `P0-07` **Add `RecordNotFoundException` handler to `GlobalExceptionHandler`**
+- [x] `P0-07` **Add `RecordNotFoundException` handler to `GlobalExceptionHandler`**
   - Thrown by `WordServiceImpl` (unknown dictionary on save/delete) but has no handler,
     so it falls into the generic `Exception` handler and returns 500 instead of 404
   - Done when: POST /words with an unknown dictionaryId returns 404 with a proper ErrorResponse
-- [ ] `P0-08` **Fix swapped arguments in `handleMethodArgumentNotValidException`** (ms_dictionary AND ms_user)
+- [x] `P0-08` **Fix swapped arguments in `handleMethodArgumentNotValidException`** (ms_dictionary AND ms_user)
   - `buildErrorResponse(status, errorMessage, ExceptionName, request)` — message and exception
     name are reversed vs. the signature `(status, simpleName, detail, request)`
   - Done when: `error` = exception name, `errorDetail` = field messages, in both services
-- [ ] `P0-09` **Cascade-delete words when a dictionary is deleted**
+- [x] `P0-09` **Cascade-delete words when a dictionary is deleted**
   - `DictionaryServiceImpl.deleteDictionary()` deletes only the dictionary; its words are
     orphaned forever (no DB-level FK to stop it). `WordRepository.deleteByDictionaryIdIn`
     already exists (currently unused)
   - Done when: DELETE /dictionaries/{id} removes the dictionary and all its words in one transaction
-- [ ] `P0-10` **Add `@Valid` to `WordBundleRequestDTO.words`**
+- [x] `P0-10` **Add `@Valid` to `WordBundleRequestDTO.words`**
   - Without cascade, the per-word constraints (`@ValidUUID` on wordId, `@NotBlank`s) never run
     on POST/PUT /words — invalid words are accepted
   - Done when: posting a bundle with a malformed wordId returns 400
-- [ ] `P0-11` **Make custom validators null-safe**
+- [x] `P0-11` **Make custom validators null-safe**
   - `UUIDValidator`: `UUID.fromString(null)` throws NPE (only `IllegalArgumentException` is
     caught); `SupportedLanguageValidator`: `language.toUpperCase()` NPEs on null → both 500
     instead of a clean validation error when the field is missing

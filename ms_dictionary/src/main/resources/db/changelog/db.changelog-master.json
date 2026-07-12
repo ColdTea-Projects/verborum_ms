@@ -143,6 +143,11 @@
           }
         ]
       }
+    },
+    {
+      "include": {
+        "file": "db/changelog/2026/07/12-01-changelog.json"
+      }
     }
   ]
 }

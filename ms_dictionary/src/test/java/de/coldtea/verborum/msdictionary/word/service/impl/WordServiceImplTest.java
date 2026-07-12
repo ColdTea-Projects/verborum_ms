@@ -269,5 +269,38 @@ class WordServiceImplTest {
         verify(wordRepository).findByDictionaryIdIn(dictionaryIds);
         verifyNoInteractions(wordMapper);
     }
+
+    @Test
+    void getWordsByIds_Success() {
+        // Arrange
+        List<String> wordIds = List.of("1", "2");
+        List<Word> words = List.of(new Word(), new Word());
+        when(wordRepository.findAllById(wordIds)).thenReturn(words);
+        when(wordMapper.toWordResponseDTO(any())).thenReturn(new WordResponseDTO());
+
+        // Act
+        List<WordResponseDTO> result = wordService.getWordsByIds(wordIds);
+
+        // Assert
+        assertEquals(words.size(), result.size());
+        verify(wordRepository).findAllById(wordIds);
+        verify(wordMapper, times(words.size())).toWordResponseDTO(any());
+    }
+
+    @Test
+    void getWordsByIds_NoWordsFound() {
+        // Arrange
+        List<String> wordIds = List.of("1", "2");
+        when(wordRepository.findAllById(wordIds)).thenReturn(List.of());
+
+        // Act
+        List<WordResponseDTO> result = wordService.getWordsByIds(wordIds);
+
+        // Assert
+        assertNotNull(result);
+        assertTrue(result.isEmpty());
+        verify(wordRepository).findAllById(wordIds);
+        verifyNoInteractions(wordMapper);
+    }
 }
 

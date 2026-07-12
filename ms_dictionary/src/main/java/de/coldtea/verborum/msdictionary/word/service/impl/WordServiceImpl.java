@@ -78,6 +78,11 @@ public class WordServiceImpl implements WordService {
         return wordRepository.findByDictionaryIdIn(dictionaryIds).stream().map(wordMapper::toWordResponseDTO).toList();
     }
 
+    @Override
+    public List<WordResponseDTO> getWordsByIds(List<String> wordIds) {
+        return wordRepository.findAllById(wordIds).stream().map(wordMapper::toWordResponseDTO).toList();
+    }
+
     private Stream<Word> convertToWordStream(@NotNull WordBundleRequestDTO bundle){
         dictionaryRepository.findById(bundle.getDictionaryId())
                 .orElseThrow(() -> new RecordNotFoundException(DICTIONARY_WAS_NOT_FOUND_ID + bundle.getDictionaryId()));

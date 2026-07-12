@@ -23,6 +23,9 @@ public class SupportedLanguageValidator implements ConstraintValidator<Supported
 
     @Override
     public boolean isValid(String language, ConstraintValidatorContext constraintValidatorContext) {
+        // Null-handling belongs to @NotBlank — toUpperCase() on null would throw an unhandled NPE
+        if (language == null) return true;
+
         if (!supportedLanguages.contains(language.toUpperCase())) {
             throw new InvalidLanguageCodeException(INVALID_LANGUAGE_CODE + language);
         }

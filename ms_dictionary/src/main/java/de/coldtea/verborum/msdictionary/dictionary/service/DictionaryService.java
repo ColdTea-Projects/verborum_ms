@@ -9,4 +9,6 @@ public interface DictionaryService {
     DictionaryResponseDTO saveDictionary(DictionaryRequestDTO dictionaryDto);
     void deleteDictionary(String dictionaryId);
     List<DictionaryResponseDTO> getDictionariesByUser(String userId);
+    DictionaryResponseDTO getDictionaryById(String dictionaryId);
+    List<DictionaryResponseDTO> getDictionariesByIds(List<String> dictionaryIds);
 }

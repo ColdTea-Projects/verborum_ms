@@ -22,4 +22,6 @@ public interface WordService {
     List<WordResponseDTO> getWordsByUserId(String userId);
 
     List<WordResponseDTO> getWordsByDictionaryIds(List<String> dictionaryIds);
+
+    List<WordResponseDTO> getWordsByIds(List<String> wordIds);
 }

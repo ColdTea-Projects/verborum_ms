@@ -27,9 +27,8 @@ Full CRUD for **Dictionaries** and **Words** — the core vocabulary store.
 - The JPA `@OneToMany`/`@ManyToOne` between Dictionary and Word is **intentionally disabled**.
   Joins are done via explicit repository calls. Do not activate the relationship without
   discussion.
-- `wordMeta` / `translationMeta` are `json` columns in Postgres, mapped as `String` in Java.
+- `wordMeta` / `translationMeta` are `json` columns in Postgres, mapped as `String` in Java
+  via `@JdbcTypeCode(SqlTypes.JSON)`. The value must be valid JSON (object with optional keys
+  `partOfSpeech`, `example`, `notes`) or the insert fails at the DB.
+- Deleting a dictionary also deletes its words in the service layer (no DB-level FK).
 - **No security** on any endpoint yet (task P3-03). Do not expose publicly until then.
-
-## Missing endpoints (see roadmap P0-04, P0-05)
-- `GET /dictionaries/dictionary/{dictionaryId}` (single fetch)
-- Batch fetch by ID lists for dictionaries and words
