@@ -151,10 +151,33 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
     `user.deleted` lands in `verborum.dead-letter`. This matters at P2-10, the first consumer
     queue — do not revert the DLX to direct without adding `x-dead-letter-routing-key` to every
     consumer queue.
-- [ ] `P1-03` **Publish `dictionary.visibility.public/private` events from ms_dictionary**
+- [x] `P1-03` **Publish `dictionary.visibility.public/private` events from ms_dictionary**
   - Create `common/event/DictionaryVisibilityEvent.java`
   - Modify `DictionaryServiceImpl.saveDictionary()` to publish when `is_public` changes
   - Done when: saving a public dictionary sends a message visible in RabbitMQ Management UI
+  - Done 2026-07-16: event DTO created per the shape in `rabbitmq.md`; `saveDictionary()` reads
+    the previous `is_public` before saving and publishes only on an actual flip. 5 unit tests
+    cover each transition (ms_dictionary suite now 28). Verified live by binding a temporary
+    queue to `dictionary.visibility.#`: creating a public dictionary emitted
+    `dictionary.visibility.public`, flipping it emitted `dictionary.visibility.private`, and a
+    rename in between emitted nothing.
+  - Publishes on **change only**, not on every save of a public dictionary (which is what the
+    `rabbitmq.md` publisher example shows). `saveDictionary()` backs both POST and PUT, so
+    re-announcing on every save would have ms_marketplace create a duplicate listing on a rename.
+  - Known gap for Phase 4: because nothing is published when a public dictionary is renamed,
+    ms_marketplace's stored `name`/`fromLang`/`toLang` go stale after an edit. Decide in P4-03
+    whether to add a `dictionary.updated` event or have the listing re-read from ms_dictionary.
+  - Note: the publish happens inside `@Transactional`, per the `rabbitmq.md` publisher pattern.
+    `RabbitTemplate` is not transactional here, so this is a dual-write with two known races,
+    both inherited from that pattern rather than introduced here:
+    1. Anything that throws *after* the send rolls back the write while the event stays
+       published. The publish is deliberately the last statement in `saveDictionary()` to keep
+       that window as small as possible — keep it there.
+    2. The send happens **before** the transaction commits. A consumer that reacts immediately
+       and reads back from ms_dictionary can beat the commit and see stale or absent data.
+       Nothing consumes these events yet, so this is not live — but it becomes real at P4-03,
+       and that is the task that should switch publishing to
+       `@TransactionalEventListener(phase = AFTER_COMMIT)`.
 - [ ] `P1-04` **Publish `dictionary.deleted` event from ms_dictionary**
   - Create `common/event/DictionaryDeletedEvent.java`
   - Modify `DictionaryServiceImpl.deleteDictionary()` to publish on delete
@@ -278,6 +301,15 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
 - [ ] `P4-03` **Consume `dictionary.visibility.public` event**
   - On event: create a `DictionaryStats` record for the dictionary
   - Done when: making a dictionary public creates a marketplace entry
+  - Read the P1-03 notes first — this is the task where two known issues stop being theoretical:
+    1. ms_dictionary publishes *before* its transaction commits, so a listener that calls back
+       into ms_dictionary can beat the commit. Switch ms_dictionary to
+       `@TransactionalEventListener(phase = AFTER_COMMIT)` as part of this task. The event
+       already carries the full listing payload, so the consumer should not need a callback.
+    2. Visibility events fire on change only — a renamed public dictionary emits nothing, so a
+       listing's `name`/`fromLang`/`toLang` will go stale. Decide here: either add a
+       `dictionary.updated` event or have the listing re-read on access.
+  - Make the listener idempotent regardless: a redelivery must not create a second listing.
 - [ ] `P4-04` **Consume `dictionary.visibility.private` event**
   - On event: remove or deactivate the `DictionaryStats` record
   - Done when: making a dictionary private removes it from marketplace

@@ -167,10 +167,18 @@ The DLX is a fanout on purpose — dead-lettered messages keep their original ro
 direct DLX would fail to match and drop. See `docs/agent/rabbitmq.md`.
 
 **Current wiring state (2026-07-16):** ms_dictionary declares the exchange and the dead letter
-infrastructure (roadmap P1-02) but does not publish or consume anything yet — the events in the
-table above are still to come (P1-03 … P1-05). ms_dictionary has no consumer queue until it starts
-consuming `user.deleted` (P2-10). All services declare the same exchange; declarations are
-idempotent, so whichever service starts first creates it.
+infrastructure (roadmap P1-02) and publishes `dictionary.visibility.public` /
+`dictionary.visibility.private` (P1-03). `dictionary.deleted` and `word.created` are still to come
+(P1-04, P1-05). Nothing consumes the visibility events yet — ms_marketplace does not exist, and a
+topic exchange discards a message with no bound queue, so these are fire-and-forget until P4-03.
+ms_dictionary has no consumer queue until it starts consuming `user.deleted` (P2-10). All services
+declare the same exchange; declarations are idempotent, so whichever service starts first creates it.
+
+**Visibility events fire on change only.** `DictionaryServiceImpl.saveDictionary()` backs both POST
+and PUT, so it compares `is_public` against the stored row and publishes only on an actual flip.
+Re-saving a public dictionary (a rename) publishes nothing — otherwise ms_marketplace would create
+a duplicate listing. The flip side: a renamed public dictionary sends no event, so a marketplace
+listing's `name` can go stale. See the P1-03 note in `roadmap.md`.
 
 See `docs/agent/rabbitmq.md` for implementation details.
 

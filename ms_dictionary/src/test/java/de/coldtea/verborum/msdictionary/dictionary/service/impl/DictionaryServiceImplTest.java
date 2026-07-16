@@ -8,19 +8,27 @@ import de.coldtea.verborum.msdictionary.dictionary.entity.Dictionary;
 import de.coldtea.verborum.msdictionary.dictionary.repository.DictionaryRepository;
 import de.coldtea.verborum.msdictionary.word.repository.WordRepository;
 
+import de.coldtea.verborum.msdictionary.common.config.RabbitMQConfig;
+import de.coldtea.verborum.msdictionary.common.event.DictionaryVisibilityEvent;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
+import static de.coldtea.verborum.msdictionary.common.config.RabbitMQConfig.ROUTING_KEY_DICTIONARY_VISIBILITY_PRIVATE;
+import static de.coldtea.verborum.msdictionary.common.config.RabbitMQConfig.ROUTING_KEY_DICTIONARY_VISIBILITY_PUBLIC;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.*;
 
 class DictionaryServiceImplTest {
@@ -33,6 +41,9 @@ class DictionaryServiceImplTest {
 
     @Mock
     private DictionaryMapper dictionaryMapper;
+
+    @Mock
+    private RabbitTemplate rabbitTemplate;
 
     @InjectMocks
     private DictionaryServiceImpl dictionaryService;
@@ -79,6 +90,174 @@ class DictionaryServiceImplTest {
         verify(dictionaryMapper).toDictionary(requestDTO);
         verify(dictionaryRepository).saveAndFlush(dictionary);
         verifyNoMoreInteractions(dictionaryMapper);
+    }
+
+    @Test
+    void saveDictionary_NewPublicDictionary_PublishesPublicEvent() {
+        // Arrange
+        DictionaryRequestDTO requestDTO = requestDTO("dict1");
+        Dictionary dictionary = dictionary("dict1", true);
+
+        when(dictionaryRepository.findById("dict1")).thenReturn(Optional.empty());
+        when(dictionaryMapper.toDictionary(requestDTO)).thenReturn(dictionary);
+        when(dictionaryRepository.saveAndFlush(dictionary)).thenReturn(dictionary);
+        when(dictionaryMapper.toDictionaryResponseDTO(dictionary)).thenReturn(new DictionaryResponseDTO());
+
+        // Act
+        dictionaryService.saveDictionary(requestDTO);
+
+        // Assert
+        ArgumentCaptor<DictionaryVisibilityEvent> captor = ArgumentCaptor.forClass(DictionaryVisibilityEvent.class);
+        verify(rabbitTemplate).convertAndSend(eq(RabbitMQConfig.EXCHANGE),
+                eq(ROUTING_KEY_DICTIONARY_VISIBILITY_PUBLIC), captor.capture());
+
+        DictionaryVisibilityEvent event = captor.getValue();
+        assertEquals("dict1", event.getDictionaryId());
+        assertEquals("user1", event.getUserId());
+        assertEquals("Test Dictionary", event.getDictionaryName());
+        assertEquals("EN", event.getFromLang());
+        assertEquals("DE", event.getToLang());
+        assertTrue(event.getIsPublic());
+    }
+
+    @Test
+    void saveDictionary_NewPrivateDictionary_PublishesNothing() {
+        // Arrange
+        DictionaryRequestDTO requestDTO = requestDTO("dict1");
+        Dictionary dictionary = dictionary("dict1", false);
+
+        when(dictionaryRepository.findById("dict1")).thenReturn(Optional.empty());
+        when(dictionaryMapper.toDictionary(requestDTO)).thenReturn(dictionary);
+        when(dictionaryRepository.saveAndFlush(dictionary)).thenReturn(dictionary);
+        when(dictionaryMapper.toDictionaryResponseDTO(dictionary)).thenReturn(new DictionaryResponseDTO());
+
+        // Act
+        dictionaryService.saveDictionary(requestDTO);
+
+        // Assert
+        verifyNoInteractions(rabbitTemplate);
+    }
+
+    @Test
+    void saveDictionary_PrivateToPublic_PublishesPublicEvent() {
+        // Arrange
+        DictionaryRequestDTO requestDTO = requestDTO("dict1");
+        Dictionary saved = dictionary("dict1", true);
+
+        when(dictionaryRepository.findById("dict1")).thenReturn(Optional.of(dictionary("dict1", false)));
+        when(dictionaryMapper.toDictionary(requestDTO)).thenReturn(saved);
+        when(dictionaryRepository.saveAndFlush(saved)).thenReturn(saved);
+        when(dictionaryMapper.toDictionaryResponseDTO(saved)).thenReturn(new DictionaryResponseDTO());
+
+        // Act
+        dictionaryService.saveDictionary(requestDTO);
+
+        // Assert
+        ArgumentCaptor<DictionaryVisibilityEvent> captor = ArgumentCaptor.forClass(DictionaryVisibilityEvent.class);
+        verify(rabbitTemplate).convertAndSend(eq(RabbitMQConfig.EXCHANGE),
+                eq(ROUTING_KEY_DICTIONARY_VISIBILITY_PUBLIC), captor.capture());
+
+        DictionaryVisibilityEvent event = captor.getValue();
+        assertEquals("dict1", event.getDictionaryId());
+        assertEquals("user1", event.getUserId());
+        assertTrue(event.getIsPublic());
+    }
+
+    @Test
+    void saveDictionary_PublicToPrivate_PublishesPrivateEvent() {
+        // Arrange
+        DictionaryRequestDTO requestDTO = requestDTO("dict1");
+        Dictionary saved = dictionary("dict1", false);
+
+        when(dictionaryRepository.findById("dict1")).thenReturn(Optional.of(dictionary("dict1", true)));
+        when(dictionaryMapper.toDictionary(requestDTO)).thenReturn(saved);
+        when(dictionaryRepository.saveAndFlush(saved)).thenReturn(saved);
+        when(dictionaryMapper.toDictionaryResponseDTO(saved)).thenReturn(new DictionaryResponseDTO());
+
+        // Act
+        dictionaryService.saveDictionary(requestDTO);
+
+        // Assert
+        ArgumentCaptor<DictionaryVisibilityEvent> captor = ArgumentCaptor.forClass(DictionaryVisibilityEvent.class);
+        verify(rabbitTemplate).convertAndSend(eq(RabbitMQConfig.EXCHANGE),
+                eq(ROUTING_KEY_DICTIONARY_VISIBILITY_PRIVATE), captor.capture());
+        assertEquals(false, captor.getValue().getIsPublic());
+    }
+
+    @Test
+    void saveDictionary_PublicDictionaryResaved_PublishesNothing() {
+        // A rename of an already-public dictionary must not re-announce it — ms_marketplace
+        // would create a second listing for the same dictionary
+        // Arrange
+        DictionaryRequestDTO requestDTO = requestDTO("dict1");
+        Dictionary saved = dictionary("dict1", true);
+
+        when(dictionaryRepository.findById("dict1")).thenReturn(Optional.of(dictionary("dict1", true)));
+        when(dictionaryMapper.toDictionary(requestDTO)).thenReturn(saved);
+        when(dictionaryRepository.saveAndFlush(saved)).thenReturn(saved);
+        when(dictionaryMapper.toDictionaryResponseDTO(saved)).thenReturn(new DictionaryResponseDTO());
+
+        // Act
+        dictionaryService.saveDictionary(requestDTO);
+
+        // Assert
+        verifyNoInteractions(rabbitTemplate);
+    }
+
+    @Test
+    void saveDictionary_PrivateDictionaryResaved_PublishesNothing() {
+        // Arrange
+        DictionaryRequestDTO requestDTO = requestDTO("dict1");
+        Dictionary saved = dictionary("dict1", false);
+
+        when(dictionaryRepository.findById("dict1")).thenReturn(Optional.of(dictionary("dict1", false)));
+        when(dictionaryMapper.toDictionary(requestDTO)).thenReturn(saved);
+        when(dictionaryRepository.saveAndFlush(saved)).thenReturn(saved);
+        when(dictionaryMapper.toDictionaryResponseDTO(saved)).thenReturn(new DictionaryResponseDTO());
+
+        // Act
+        dictionaryService.saveDictionary(requestDTO);
+
+        // Assert
+        verifyNoInteractions(rabbitTemplate);
+    }
+
+    @Test
+    void saveDictionary_StoredVisibilityIsNull_TreatedAsPrivate() {
+        // A row with a null is_public must not be read as "was public" — going public from null
+        // has to still announce itself
+        // Arrange
+        DictionaryRequestDTO requestDTO = requestDTO("dict1");
+        Dictionary saved = dictionary("dict1", true);
+
+        when(dictionaryRepository.findById("dict1")).thenReturn(Optional.of(dictionary("dict1", null)));
+        when(dictionaryMapper.toDictionary(requestDTO)).thenReturn(saved);
+        when(dictionaryRepository.saveAndFlush(saved)).thenReturn(saved);
+        when(dictionaryMapper.toDictionaryResponseDTO(saved)).thenReturn(new DictionaryResponseDTO());
+
+        // Act
+        dictionaryService.saveDictionary(requestDTO);
+
+        // Assert
+        verify(rabbitTemplate).convertAndSend(eq(RabbitMQConfig.EXCHANGE),
+                eq(ROUTING_KEY_DICTIONARY_VISIBILITY_PUBLIC), any(DictionaryVisibilityEvent.class));
+    }
+
+    private static DictionaryRequestDTO requestDTO(String dictionaryId) {
+        DictionaryRequestDTO requestDTO = new DictionaryRequestDTO();
+        requestDTO.setDictionaryId(dictionaryId);
+        return requestDTO;
+    }
+
+    private static Dictionary dictionary(String dictionaryId, Boolean isPublic) {
+        return Dictionary.builder()
+                .dictionaryId(dictionaryId)
+                .userId("user1")
+                .name("Test Dictionary")
+                .isPublic(isPublic)
+                .fromLang("EN")
+                .toLang("DE")
+                .build();
     }
 
     @Test
