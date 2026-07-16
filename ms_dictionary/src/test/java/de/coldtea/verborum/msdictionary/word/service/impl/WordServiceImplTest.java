@@ -1,5 +1,7 @@
 package de.coldtea.verborum.msdictionary.word.service.impl;
 
+import de.coldtea.verborum.msdictionary.common.config.RabbitMQConfig;
+import de.coldtea.verborum.msdictionary.common.event.WordCreatedEvent;
 import de.coldtea.verborum.msdictionary.common.exception.RecordNotFoundException;
 import de.coldtea.verborum.msdictionary.common.mapper.WordMapper;
 import de.coldtea.verborum.msdictionary.dictionary.entity.Dictionary;
@@ -11,16 +13,20 @@ import de.coldtea.verborum.msdictionary.word.repository.WordRepository;
 import de.coldtea.verborum.msdictionary.word.dto.WordRequestDTO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
+import static de.coldtea.verborum.msdictionary.common.config.RabbitMQConfig.ROUTING_KEY_WORD_CREATED;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 class WordServiceImplTest {
@@ -33,6 +39,9 @@ class WordServiceImplTest {
 
     @Mock
     private WordMapper wordMapper;
+
+    @Mock
+    private RabbitTemplate rabbitTemplate;
 
     @InjectMocks
     private WordServiceImpl wordService;
@@ -51,8 +60,10 @@ class WordServiceImplTest {
         List<WordBundleRequestDTO> wordBundles = new ArrayList<>();
         wordBundles.add(new WordBundleRequestDTO(dictionaryId, wordList));
 
-        when(dictionaryRepository.findById(dictionaryId)).thenReturn(Optional.of(new Dictionary()));
-        when(wordMapper.toWord(dictionaryId, new WordRequestDTO())).thenReturn(new Word());
+        when(dictionaryRepository.findById(dictionaryId)).thenReturn(Optional.of(dictionary(dictionaryId)));
+        when(wordMapper.toWord(dictionaryId, new WordRequestDTO())).thenReturn(word("word1", dictionaryId));
+        // already stored, so this test stays about the save itself — publishing is covered below
+        when(wordRepository.findAllById(List.of("word1"))).thenReturn(List.of(word("word1", dictionaryId)));
 
         // Act
         assertDoesNotThrow(() -> wordService.saveWords(wordBundles));
@@ -60,6 +71,98 @@ class WordServiceImplTest {
         // Assert
         verify(dictionaryRepository).findById(dictionaryId);
         verify(wordRepository).saveAllAndFlush(any());
+        verifyNoInteractions(rabbitTemplate);
+    }
+
+    @Test
+    void saveWords_NewWord_PublishesWordCreatedEvent() {
+        // Arrange
+        String dictionaryId = "1";
+        List<WordBundleRequestDTO> wordBundles = List.of(new WordBundleRequestDTO(dictionaryId, List.of(new WordRequestDTO())));
+
+        when(dictionaryRepository.findById(dictionaryId)).thenReturn(Optional.of(dictionary(dictionaryId)));
+        when(dictionaryRepository.findAllById(List.of(dictionaryId))).thenReturn(List.of(dictionary(dictionaryId)));
+        when(wordMapper.toWord(eq(dictionaryId), any(WordRequestDTO.class))).thenReturn(word("word1", dictionaryId));
+        when(wordRepository.findAllById(List.of("word1"))).thenReturn(List.of());
+
+        // Act
+        wordService.saveWords(wordBundles);
+
+        // Assert
+        ArgumentCaptor<WordCreatedEvent> captor = ArgumentCaptor.forClass(WordCreatedEvent.class);
+        verify(rabbitTemplate).convertAndSend(eq(RabbitMQConfig.EXCHANGE), eq(ROUTING_KEY_WORD_CREATED), captor.capture());
+
+        WordCreatedEvent event = captor.getValue();
+        assertEquals("word1", event.getWordId());
+        assertEquals(dictionaryId, event.getDictionaryId());
+        assertEquals("house", event.getWord());
+        assertEquals("Haus", event.getTranslation());
+        // userId/fromLang/toLang are carried over from the Dictionary, not the Word
+        assertEquals("user1", event.getUserId());
+        assertEquals("EN", event.getFromLang());
+        assertEquals("DE", event.getToLang());
+    }
+
+    @Test
+    void saveWords_ExistingWord_PublishesNothing() {
+        // saveWords() backs PUT too — editing a word must not re-announce it as created, or
+        // ms_autofil counts the same translation twice
+        // Arrange
+        String dictionaryId = "1";
+        List<WordBundleRequestDTO> wordBundles = List.of(new WordBundleRequestDTO(dictionaryId, List.of(new WordRequestDTO())));
+
+        when(dictionaryRepository.findById(dictionaryId)).thenReturn(Optional.of(dictionary(dictionaryId)));
+        when(wordMapper.toWord(eq(dictionaryId), any(WordRequestDTO.class))).thenReturn(word("word1", dictionaryId));
+        when(wordRepository.findAllById(List.of("word1"))).thenReturn(List.of(word("word1", dictionaryId)));
+
+        // Act
+        wordService.saveWords(wordBundles);
+
+        // Assert
+        verify(wordRepository).saveAllAndFlush(any());
+        verifyNoInteractions(rabbitTemplate);
+    }
+
+    @Test
+    void saveWords_MixedNewAndExisting_PublishesOnlyForNewWord() {
+        // Arrange
+        String dictionaryId = "1";
+        List<WordBundleRequestDTO> wordBundles = List.of(
+                new WordBundleRequestDTO(dictionaryId, List.of(new WordRequestDTO(), new WordRequestDTO())));
+
+        when(dictionaryRepository.findById(dictionaryId)).thenReturn(Optional.of(dictionary(dictionaryId)));
+        when(dictionaryRepository.findAllById(List.of(dictionaryId))).thenReturn(List.of(dictionary(dictionaryId)));
+        when(wordMapper.toWord(eq(dictionaryId), any(WordRequestDTO.class)))
+                .thenReturn(word("existing", dictionaryId), word("brandNew", dictionaryId));
+        when(wordRepository.findAllById(List.of("existing", "brandNew")))
+                .thenReturn(List.of(word("existing", dictionaryId)));
+
+        // Act
+        wordService.saveWords(wordBundles);
+
+        // Assert
+        ArgumentCaptor<WordCreatedEvent> captor = ArgumentCaptor.forClass(WordCreatedEvent.class);
+        verify(rabbitTemplate, times(1)).convertAndSend(eq(RabbitMQConfig.EXCHANGE), eq(ROUTING_KEY_WORD_CREATED), captor.capture());
+        assertEquals("brandNew", captor.getValue().getWordId());
+    }
+
+    @Test
+    void saveWords_DictionaryVanishesBeforePublish_ThrowsRecordNotFound() {
+        // The dictionary is validated early in convertToWordStream, but a concurrent delete could
+        // land before the event payload is built. That must surface as a clean RecordNotFound,
+        // not an NPE
+        // Arrange
+        String dictionaryId = "1";
+        List<WordBundleRequestDTO> wordBundles = List.of(new WordBundleRequestDTO(dictionaryId, List.of(new WordRequestDTO())));
+
+        when(dictionaryRepository.findById(dictionaryId)).thenReturn(Optional.of(dictionary(dictionaryId)));
+        when(wordMapper.toWord(eq(dictionaryId), any(WordRequestDTO.class))).thenReturn(word("word1", dictionaryId));
+        when(wordRepository.findAllById(List.of("word1"))).thenReturn(List.of());
+        when(dictionaryRepository.findAllById(List.of(dictionaryId))).thenReturn(List.of());
+
+        // Act & Assert
+        assertThrows(RecordNotFoundException.class, () -> wordService.saveWords(wordBundles));
+        verifyNoInteractions(rabbitTemplate);
     }
 
     @Test
@@ -301,6 +404,24 @@ class WordServiceImplTest {
         assertTrue(result.isEmpty());
         verify(wordRepository).findAllById(wordIds);
         verifyNoInteractions(wordMapper);
+    }
+
+    private static Dictionary dictionary(String dictionaryId) {
+        return Dictionary.builder()
+                .dictionaryId(dictionaryId)
+                .userId("user1")
+                .fromLang("EN")
+                .toLang("DE")
+                .build();
+    }
+
+    private static Word word(String wordId, String dictionaryId) {
+        return Word.builder()
+                .wordId(wordId)
+                .dictionaryId(dictionaryId)
+                .word("house")
+                .translation("Haus")
+                .build();
     }
 }
 

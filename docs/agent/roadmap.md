@@ -205,10 +205,28 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
     on `JacksonUtils.enhancedObjectMapper()` with that feature disabled. On the wire:
     `"eventTimestamp":"2026-07-16T15:38:13.8569117"`. Any new service's `RabbitMQConfig` must do
     the same or its events will disagree — see `rabbitmq.md`.
-- [ ] `P1-05` **Publish `word.created` event from ms_dictionary (V2 prep)**
+- [x] `P1-05` **Publish `word.created` event from ms_dictionary (V2 prep)**
   - Create `common/event/WordCreatedEvent.java`
   - Modify `WordServiceImpl.saveWords()` to publish per word saved
   - Done when: adding words sends messages visible in RabbitMQ Management UI
+  - Done 2026-07-16: event DTO per the shape in `rabbitmq.md`; one message per newly created word.
+    Verified live: a POST of two new words emitted 2 events, a PUT editing one of them emitted
+    nothing, and a mixed batch (one existing + one new) emitted exactly 1.
+  - Publishes for **newly created words only**. `saveWords()` backs both POST and PUT, so
+    `saveWords()` reads which of the incoming ids already exist before saving and filters to the
+    genuinely new ones. This matters more than it does for P1-03: ms_autofil (P6-03) aggregates a
+    per-translation *count*, so re-announcing an edited word would silently inflate the frequency
+    data it ranks suggestions by.
+  - `userId`, `fromLang` and `toLang` are not on `Word` — they are read from the word's
+    `Dictionary` and carried in the payload so ms_autofil can bucket by language pair without
+    calling back. `publishWordCreatedEvents()` fetches them with a single batched `findAllById`
+    over the distinct dictionary ids, rather than one query per word. (`findAllById` builds a real
+    `IN` query — unlike `findById` it does *not* read through the persistence context, so this is
+    one query per batch, not zero.)
+  - Known gap for P6-03: editing a word's translation publishes nothing, so ms_autofil never
+    learns a correction — it keeps counting the original. Decide there whether a `word.updated`
+    event is needed, and note that the fix has to *decrement* the old translation, not just add
+    the new one.
 
 ---
 
@@ -384,6 +402,13 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
 - [ ] `P6-03` **Consume `word.created` events and aggregate by language pair**
   - Store: `{ word, fromLang, toLang, translations: [{translation, count}] }`
   - Done when: adding words populates the suggestion store
+  - Read the P1-05 notes first. `word.created` fires only for genuinely new words, so the counts
+    here are not self-correcting:
+    1. Editing a word's translation publishes nothing — this store keeps counting the original
+       and never learns the correction. If a `word.updated` event is added, it must *decrement*
+       the old translation as well as add the new one, or counts drift upward forever.
+    2. The listener must be idempotent. A redelivery of `word.created` must not increment twice —
+       counts are the whole product here, and a DLQ replay would quietly skew rankings.
 - [ ] `P6-04` **Implement AutofilController**
   - `GET /autofil?word=Haus&from=DE&to=EN` → returns ranked translation suggestions
   - Done when: endpoint returns community translations ordered by frequency

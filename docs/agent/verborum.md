@@ -166,13 +166,21 @@ throwing sends the message here after the configured retries rather than redeliv
 The DLX is a fanout on purpose — dead-lettered messages keep their original routing key, which a
 direct DLX would fail to match and drop. See `docs/agent/rabbitmq.md`.
 
-**Current wiring state (2026-07-16):** ms_dictionary declares the exchange and the dead letter
-infrastructure (roadmap P1-02) and publishes `dictionary.visibility.public` /
-`dictionary.visibility.private` (P1-03) and `dictionary.deleted` (P1-04). `word.created` is still
-to come (P1-05). Nothing consumes any of them yet — ms_marketplace does not exist, and a topic
-exchange discards a message with no bound queue, so these are fire-and-forget until P4-03.
-ms_dictionary has no consumer queue until it starts consuming `user.deleted` (P2-10). All services
-declare the same exchange; declarations are idempotent, so whichever service starts first creates it.
+**Current wiring state (2026-07-16):** Phase 1 is complete. ms_dictionary declares the exchange and
+the dead letter infrastructure (roadmap P1-02) and publishes every event it owns:
+`dictionary.visibility.public` / `dictionary.visibility.private` (P1-03), `dictionary.deleted`
+(P1-04) and `word.created` (P1-05). Nothing consumes any of them yet — ms_marketplace and
+ms_autofil do not exist, and a topic exchange discards a message with no bound queue, so these are
+fire-and-forget until P4-03. ms_dictionary has no consumer queue until it starts consuming
+`user.deleted` (P2-10). All services declare the same exchange; declarations are idempotent, so
+whichever service starts first creates it.
+
+**Every ms_dictionary event fires on change only, never on a plain re-save.** `saveDictionary()`
+and `saveWords()` each back both POST and PUT, so both compare against stored state first:
+visibility events fire only when `is_public` flips, and `word.created` only for word ids that did
+not already exist. Without this, a rename would give ms_marketplace a duplicate listing and an edit
+would make ms_autofil double-count a translation. The trade-off is that edits are invisible to
+consumers — see the P1-03 and P1-05 notes in `roadmap.md` for the two gaps this leaves.
 
 **Event payloads are JSON with ISO-8601 timestamps** (`"eventTimestamp":"2026-07-16T15:38:13.85"`).
 This is a wire contract, not a local preference — every service's `RabbitMQConfig` must build its
