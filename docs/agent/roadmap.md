@@ -77,14 +77,35 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
     with `AbstractMethodError` and the whole suite exits red; they also ship in the prod jar
   - Done when: versions/scopes removed (Boot manages them), `mvnw test` passes in both modules
   - Done 2026-07-12. All 16 unit tests green, `mvnw test` passes in both modules. The
-    `contextLoads` `@SpringBootTest` in each module is `@Disabled` because it needs the
+    `contextLoads` `@SpringBootTest` in each module was `@Disabled` because it needs the
     docker-compose Postgres running — re-enable once a DB is available in CI/dev
+  - 2026-07-16: Docker is now installed, so both `contextLoads` tests are re-enabled and pass
+    against the compose Postgres. Full suite: 24 tests, 0 failures, 0 skipped. They need
+    `docker compose up -d` first — a plain `mvnw test` on a machine with no DB will now fail
+    rather than skip.
 - [x] `P0-13` **Un-pin `postgresql` 42.3.8** (ms_dictionary AND ms_user)
   - Overrides Boot-managed driver and is affected by CVE-2024-1597; drop the `<version>` tag
   - Done when: both modules build with the Boot-managed driver version
   - Done 2026-07-12. Note: Boot 3.2.2 itself manages 42.6.0 (also affected by CVE-2024-1597),
     so both poms set `<postgresql.version>42.6.2</postgresql.version>` — Boot's sanctioned
     override property. Remove the property once the Boot parent is bumped to ≥3.2.3
+
+<!-- Tasks P0-14 … P0-15 added 2026-07-16, found while smoke-testing the live service -->
+- [x] `P0-14` **Return 400 instead of 500 for a malformed request body** (ms_dictionary AND ms_user)
+  - A body that does not parse (e.g. a JSON object where `POST /words` expects an array) throws
+    `HttpMessageNotReadableException`, which had no handler and fell through to the generic
+    `Exception` handler → 500. A client error was being reported as a server error
+  - Done 2026-07-16: `HttpMessageNotReadableException` handler added to `GlobalExceptionHandler`
+    in both services; verified live — the payload that returned 500 now returns 400
+- [x] `P0-15` **Populate `path` in `Response` and `ErrorResponse`** (ms_dictionary AND ms_user)
+  - Both used `request.getContextPath()`, which is `""` unless a servlet context path is set
+    (none is), so every response carried `"path": ""`. Also, the three `*_DELETED_SUCCESSFULLY`
+    constants lacked the trailing space the `SAVED`/`UPDATED` ones have, producing messages like
+    `"Deleted successfully3d88b7cb-..."`
+  - Done 2026-07-16: added `ResponseUtils.extractPath(WebRequest)` (strips the `uri=` prefix from
+    `getDescription(false)`), used by `buildResponse` and `buildErrorResponse` in both services;
+    trailing space added to the delete constants. Verified live — `"path": "/words"` on a 400,
+    `"path": "/dictionaries/{id}"` and `"Deleted successfully e5ecb5c3-..."` on a delete
 
 ---
 
@@ -93,15 +114,43 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
 > ms_user and ms_marketplace cannot publish/consume events without this.
 > Depends on: Phase 0 complete
 
-- [ ] `P1-01` **Add RabbitMQ to docker-compose**
+- [x] `P1-01` **Add RabbitMQ to docker-compose**
   - Create a root-level `docker-compose.yml` that includes RabbitMQ + all service DBs
   - See `docs/agent/rabbitmq.md` for the RabbitMQ service definition
   - Done when: `docker-compose up` starts Postgres (5432), RabbitMQ (5672), and Management UI (15672)
-- [ ] `P1-02` **Add RabbitMQ dependency and config to ms_dictionary**
+  - 2026-07-16: root `docker-compose.yml` written — RabbitMQ (5672/15672, verborum/verborum),
+    `db_dictionary` (5432, vdbdictionary), `db_user` (5433, vdbprofile), one Adminer (8080),
+    named volumes + healthchecks.
+  - Done 2026-07-16: Docker installed on the dev machine and `docker compose up -d` verified —
+    all four containers healthy, Management UI 200 on 15672, AMQP open on 5672, Adminer 200 on
+    8080, and both services' Liquibase changesets ran clean against the new Postgres containers.
+  - Note: the root compose and the per-service compose files bind the same host ports —
+    run one or the other, never both.
+  - Note: `version:` is obsolete in current Compose and logs a warning on every run — harmless,
+    remove the attribute when next touching this file.
+- [x] `P1-02` **Add RabbitMQ dependency and config to ms_dictionary**
   - Add `spring-boot-starter-amqp` to `pom.xml`
   - Create `common/config/RabbitMQConfig.java` with exchange, DLQ declarations
   - Add RabbitMQ connection properties to `application.properties`
   - Done when: ms_dictionary starts without errors with RabbitMQ running
+  - Done 2026-07-16: `RabbitMQConfig` declares `verborum.events` (topic, durable), the
+    `verborum.events.dlx` direct exchange, the `verborum.dead-letter` queue and its binding,
+    plus a `Jackson2JsonMessageConverter` and a `RabbitTemplate` using it. Routing key constants
+    for the P1-03…P1-05 events are defined here too. Connection + listener retry properties added
+    to `application.properties`. Verified live against the broker: app starts clean and both
+    exchanges, the DLQ and the binding show up in the Management API. No consumer queue yet —
+    ms_dictionary is publisher-only until P2-10.
+  - Note: credentials are plain `verborum`/`verborum` in `application.properties`, matching the
+    existing datasource convention. Move to env vars alongside the Phase 3 secret work.
+  - Design change 2026-07-16: the DLX is a **fanout**, not the `DirectExchange` the old
+    `rabbitmq.md` template showed. RabbitMQ preserves a message's original routing key when
+    dead-lettering, so a direct DLX bound only on `verborum.dead-letter` would drop a failed
+    `user.deleted` as unroutable — silently, exactly where you most need the message. Fanout
+    ignores the routing key, so a consumer queue only needs `x-dead-letter-exchange`.
+    `rabbitmq.md` is updated to match. Verified: publishing to the DLX with routing key
+    `user.deleted` lands in `verborum.dead-letter`. This matters at P2-10, the first consumer
+    queue — do not revert the DLX to direct without adding `x-dead-letter-routing-key` to every
+    consumer queue.
 - [ ] `P1-03` **Publish `dictionary.visibility.public/private` events from ms_dictionary**
   - Create `common/event/DictionaryVisibilityEvent.java`
   - Modify `DictionaryServiceImpl.saveDictionary()` to publish when `is_public` changes

@@ -9,6 +9,9 @@ Full CRUD for **Dictionaries** and **Words** — the core vocabulary store.
 ## Facts
 - **Port:** 8085
 - **DB:** `vdbdictionary` (PostgreSQL) — docker-compose in this module (Postgres + Adminer)
+- **RabbitMQ:** only the **root** `docker-compose.yml` runs a broker — this module's compose file
+  has Postgres + Adminer but no RabbitMQ. Use the root compose for anything touching events.
+  The two bind the same host ports, so run one or the other, never both.
 - **Base package:** `de.coldtea.verborum.msdictionary`
 - **Status:** Functionally complete, NOT production-ready (no security yet — see Phase 3)
 

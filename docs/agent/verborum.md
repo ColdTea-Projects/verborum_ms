@@ -160,6 +160,18 @@ Validated via custom `@SupportedLanguage` annotation + `SupportedLanguageValidat
 | `dictionary.imported` | ms_marketplace | ms_user | User imports a public dictionary |
 | `word.created` | ms_dictionary | ms_autofil (V2) | New word added |
 
+**Dead letter infrastructure:** `verborum.events.dlx` (type: `fanout`) → queue `verborum.dead-letter`.
+Consumer queues are declared with `x-dead-letter-exchange` pointing at it, so a listener that keeps
+throwing sends the message here after the configured retries rather than redelivering forever.
+The DLX is a fanout on purpose — dead-lettered messages keep their original routing key, which a
+direct DLX would fail to match and drop. See `docs/agent/rabbitmq.md`.
+
+**Current wiring state (2026-07-16):** ms_dictionary declares the exchange and the dead letter
+infrastructure (roadmap P1-02) but does not publish or consume anything yet — the events in the
+table above are still to come (P1-03 … P1-05). ms_dictionary has no consumer queue until it starts
+consuming `user.deleted` (P2-10). All services declare the same exchange; declarations are
+idempotent, so whichever service starts first creates it.
+
 See `docs/agent/rabbitmq.md` for implementation details.
 
 ---
@@ -187,4 +199,10 @@ spring.liquibase.change-log=classpath:db/changelog/db.changelog-master.json
 supported.languages=EN,DE,FR,ES,IT,TR,AZ,LT
 ```
 
-Each service has its own `docker-compose.yml` with a Postgres + Adminer setup.
+Each service has its own `docker-compose.yml` with a Postgres + Adminer setup, for working on
+that service in isolation.
+
+The root `docker-compose.yml` brings up the whole local backend in one command: RabbitMQ
+(5672, Management UI on 15672, `verborum`/`verborum`), `vdbdictionary` on 5432, `vdbprofile`
+on 5433, and a single Adminer on 8080. It binds the same host ports as the per-service files,
+so run the root compose or a service compose — never both at once.

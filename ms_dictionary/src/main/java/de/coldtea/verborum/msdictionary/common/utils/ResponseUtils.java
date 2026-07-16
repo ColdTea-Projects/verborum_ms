@@ -18,9 +18,13 @@ public class ResponseUtils {
         return new ResponseEntity<>(Response.builder()
                 .status(status.value())
                 .message(message + dictionaryOrWord)
-                .path(request.getContextPath())
+                .path(extractPath(request))
                 .timestamp(OffsetDateTime.now())
                 .build(), status);
+    }
+
+    public static String extractPath(WebRequest request) {
+        return request.getDescription(false).replaceFirst("^uri=", "");
     }
 
     public static String getListOfWords(List<WordRequestDTO> words) {

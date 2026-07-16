@@ -1,9 +1,11 @@
 package de.coldtea.verborum.msuser.common.exception;
 
 import de.coldtea.verborum.msuser.common.response.ErrorResponse;
+import de.coldtea.verborum.msuser.common.utils.ResponseUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -28,6 +30,13 @@ public class GlobalExceptionHandler {
         return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, Exception.class.getSimpleName(), ex.getMessage(), request);
     }
 
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ResponseEntity<ErrorResponse> handleHttpMessageNotReadableException(HttpMessageNotReadableException ex, WebRequest request) {
+        log.error(HttpMessageNotReadableException.class.getCanonicalName(), ex);
+        return buildErrorResponse(HttpStatus.BAD_REQUEST, HttpMessageNotReadableException.class.getSimpleName(), ex.getMessage(), request);
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleMethodArgumentNotValidException(MethodArgumentNotValidException ex,
                                                                                  WebRequest request) {
@@ -48,7 +57,7 @@ public class GlobalExceptionHandler {
                         .status(status.value())
                         .error(simpleName)
                         .errorDetail(ex)
-                        .path(request.getContextPath())
+                        .path(ResponseUtils.extractPath(request))
                         .timestamp(OffsetDateTime.now())
                         .build(),
                 status

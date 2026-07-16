@@ -14,8 +14,12 @@ public class ResponseUtils {
         return new ResponseEntity<>(Response.builder()
                 .status(status.value())
                 .message(message + detail)
-                .path(request.getContextPath())
+                .path(extractPath(request))
                 .timestamp(OffsetDateTime.now())
                 .build(), status);
+    }
+
+    public static String extractPath(WebRequest request) {
+        return request.getDescription(false).replaceFirst("^uri=", "");
     }
 }

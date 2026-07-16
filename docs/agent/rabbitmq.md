@@ -104,10 +104,15 @@ public class RabbitMQConfig {
                 .with("dictionary.visibility.#");  // # matches zero or more words
     }
 
-    // Dead Letter Queue for failed messages
+    // Dead Letter Queue for failed messages.
+    // The DLX is a FANOUT, deliberately. RabbitMQ keeps a message's original routing key when it
+    // dead-letters it (a failed `user.deleted` still carries `user.deleted`), so a direct DLX
+    // would only catch it if the queue also set `x-dead-letter-routing-key` — forget that on one
+    // queue and its failed messages are dropped as unroutable, silently. Fanout ignores the
+    // routing key, so naming the DLX in `x-dead-letter-exchange` is always sufficient.
     @Bean
-    public DirectExchange deadLetterExchange() {
-        return new DirectExchange(EXCHANGE + ".dlx");
+    public FanoutExchange deadLetterExchange() {
+        return new FanoutExchange(EXCHANGE + ".dlx", true, false);
     }
 
     @Bean
@@ -116,10 +121,9 @@ public class RabbitMQConfig {
     }
 
     @Bean
-    public Binding deadLetterBinding() {
-        return BindingBuilder.bind(deadLetterQueue())
-                .to(deadLetterExchange())
-                .with("verborum.dead-letter");
+    public Binding deadLetterBinding(Queue deadLetterQueue, FanoutExchange deadLetterExchange) {
+        return BindingBuilder.bind(deadLetterQueue)
+                .to(deadLetterExchange);   // fanout: no routing key
     }
 }
 ```
@@ -283,6 +287,9 @@ public class RabbitMQConfig {
 - If a listener throws an exception, the message is routed to the DLQ after retry
 - Log the error before re-throwing so it appears in service logs
 - Monitor the DLQ via RabbitMQ Management UI (localhost:15672)
+- `x-dead-letter-exchange` is all a consumer queue needs — the DLX is a fanout, so it catches the
+  message whatever its original routing key. Do not "fix" the DLX to a direct exchange without
+  also adding `x-dead-letter-routing-key` to every consumer queue; see the note in the config above.
 
 Configure retry in `application.properties`:
 ```properties

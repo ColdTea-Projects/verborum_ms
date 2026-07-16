@@ -1,0 +1,73 @@
+version: '3.8'
+
+# Root compose — brings up the full local backend infrastructure in one command:
+#   RabbitMQ + every service database + a single Adminer.
+# The per-service compose files (ms_dictionary/, ms_user/) still work standalone for
+# working on one service in isolation. Do not run both at once — the host ports clash.
+
+services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: verborum-rabbitmq
+    ports:
+      - "5672:5672"     # AMQP protocol
+      - "15672:15672"   # Management UI
+    environment:
+      RABBITMQ_DEFAULT_USER: verborum
+      RABBITMQ_DEFAULT_PASS: verborum
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  db_dictionary:
+    image: postgres:14-alpine
+    container_name: verborum-db-dictionary
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: coldtea
+      POSTGRES_PASSWORD: qwerty
+      POSTGRES_DB: vdbdictionary
+    volumes:
+      - db_dictionary_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U coldtea -d vdbdictionary"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  db_user:
+    image: postgres:14-alpine
+    container_name: verborum-db-user
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: coldtea
+      POSTGRES_PASSWORD: qwerty
+      POSTGRES_DB: vdbprofile
+    volumes:
+      - db_user_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U coldtea -d vdbprofile"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  admin:
+    image: adminer
+    container_name: verborum-adminer
+    restart: always
+    depends_on:
+      - db_dictionary
+      - db_user
+    ports:
+      - "8080:8080"
+
+volumes:
+  rabbitmq_data:
+  db_dictionary_data:
+  db_user_data:

@@ -1,10 +1,12 @@
 package de.coldtea.verborum.msdictionary.common.exception;
 
 import de.coldtea.verborum.msdictionary.common.response.ErrorResponse;
+import de.coldtea.verborum.msdictionary.common.utils.ResponseUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -38,6 +40,13 @@ public class GlobalExceptionHandler {
         return buildErrorResponse(HttpStatus.BAD_REQUEST, InvalidLanguageCodeException.class.getSimpleName(), ex.getMessage(), request);
     }
 
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ResponseEntity<ErrorResponse> handleHttpMessageNotReadableException(HttpMessageNotReadableException ex, WebRequest request) {
+        log.error(HttpMessageNotReadableException.class.getCanonicalName(), ex);
+        return buildErrorResponse(HttpStatus.BAD_REQUEST, HttpMessageNotReadableException.class.getSimpleName(), ex.getMessage(), request);
+    }
+
     @ExceptionHandler(RecordNotFoundException.class)
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public ResponseEntity<ErrorResponse> handleRecordNotFoundException(RecordNotFoundException ex, WebRequest request) {
@@ -51,7 +60,7 @@ public class GlobalExceptionHandler {
                         .status(badRequest.value())
                         .error(simpleName)
                         .errorDetail(ex)
-                        .path(request.getContextPath())
+                        .path(ResponseUtils.extractPath(request))
                         .timestamp(OffsetDateTime.now())
                         .build(),
                 badRequest
