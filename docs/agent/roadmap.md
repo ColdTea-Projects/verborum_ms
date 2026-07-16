@@ -178,10 +178,33 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
        Nothing consumes these events yet, so this is not live — but it becomes real at P4-03,
        and that is the task that should switch publishing to
        `@TransactionalEventListener(phase = AFTER_COMMIT)`.
-- [ ] `P1-04` **Publish `dictionary.deleted` event from ms_dictionary**
+- [x] `P1-04` **Publish `dictionary.deleted` event from ms_dictionary**
   - Create `common/event/DictionaryDeletedEvent.java`
   - Modify `DictionaryServiceImpl.deleteDictionary()` to publish on delete
   - Done when: deleting a dictionary sends a message visible in RabbitMQ Management UI
+  - Done 2026-07-16: `rabbitmq.md` gives no payload shape for this event, so it mirrors the
+    minimal `UserDeletedEvent` — `dictionaryId`, `userId`, `eventTimestamp`. The dictionary is
+    already gone when a consumer reads the event, so there is nothing to call back for; carrying
+    `userId` lets a consumer scope the removal without a lookup.
+  - `deleteDictionary()` now reads the dictionary before deleting (it needs `userId` for the
+    payload). A delete of an unknown id publishes nothing rather than announcing a deletion that
+    never happened. Verified live: delete emits `dictionary.deleted`, unknown id emits nothing.
+  - Pre-existing behaviour left alone: DELETE of an unknown id still returns 200, not 404,
+    because `deleteById` is a silent no-op in Spring Data JPA 3.x. Arguably wrong, but changing
+    it is an API change and out of scope here. (Confirmed for the pinned 3.2.2: `deleteById`
+    compiles to `findById(id).ifPresent(this::delete)` — it throws no
+    `EmptyResultDataAccessException`, unlike Spring Data JPA 2.x. Verified live: a DELETE of an
+    unknown id returns 200 and publishes nothing.)
+  - The null-check sits *after* the word deletion on purpose: words can outlive a missing
+    dictionary row (there is no DB-level FK), so the cleanup has to run even when the dictionary
+    is already gone. Moving the guard above it would silently regress P0-09's orphan cleanup.
+  - 2026-07-16: event timestamps are pinned to ISO-8601. `Jackson2JsonMessageConverter` registers
+    `JavaTimeModule` but leaves `WRITE_DATES_AS_TIMESTAMPS` on, which rendered `eventTimestamp` as
+    `[2026,7,16,15,17,53,415040500]`. Harmless while every consumer is a Java service using this
+    same converter, brittle for anything else. `RabbitMQConfig.jsonMessageConverter()` now builds
+    on `JacksonUtils.enhancedObjectMapper()` with that feature disabled. On the wire:
+    `"eventTimestamp":"2026-07-16T15:38:13.8569117"`. Any new service's `RabbitMQConfig` must do
+    the same or its events will disagree — see `rabbitmq.md`.
 - [ ] `P1-05` **Publish `word.created` event from ms_dictionary (V2 prep)**
   - Create `common/event/WordCreatedEvent.java`
   - Modify `WordServiceImpl.saveWords()` to publish per word saved

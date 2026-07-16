@@ -1,5 +1,7 @@
 package de.coldtea.verborum.msdictionary.common.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import org.springframework.amqp.core.Binding;
 import org.springframework.amqp.core.BindingBuilder;
 import org.springframework.amqp.core.FanoutExchange;
@@ -9,6 +11,7 @@ import org.springframework.amqp.core.TopicExchange;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
+import org.springframework.amqp.support.converter.JacksonUtils;
 import org.springframework.amqp.support.converter.MessageConverter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -64,9 +67,21 @@ public class RabbitMQConfig {
                 .to(deadLetterExchange);
     }
 
+    /**
+     * Spring AMQP's enhanced mapper already registers `JavaTimeModule`, but it leaves
+     * `WRITE_DATES_AS_TIMESTAMPS` on, which renders an event's `LocalDateTime` as a numeric array
+     * (`[2026,7,16,15,17,53,415040500]`). Pinned to ISO-8601 instead: the wire format is readable
+     * in the Management UI and portable to any consumer that is not a Java service using this
+     * same converter.
+     * <p>
+     * Deliberately not Boot's auto-configured `ObjectMapper` — that one is shared with the web
+     * layer, and event serialization should not shift because someone tunes the REST JSON.
+     */
     @Bean
     public MessageConverter jsonMessageConverter() {
-        return new Jackson2JsonMessageConverter();
+        ObjectMapper objectMapper = JacksonUtils.enhancedObjectMapper();
+        objectMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+        return new Jackson2JsonMessageConverter(objectMapper);
     }
 
     @Bean

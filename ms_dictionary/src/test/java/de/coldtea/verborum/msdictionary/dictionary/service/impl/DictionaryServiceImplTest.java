@@ -9,6 +9,7 @@ import de.coldtea.verborum.msdictionary.dictionary.repository.DictionaryReposito
 import de.coldtea.verborum.msdictionary.word.repository.WordRepository;
 
 import de.coldtea.verborum.msdictionary.common.config.RabbitMQConfig;
+import de.coldtea.verborum.msdictionary.common.event.DictionaryDeletedEvent;
 import de.coldtea.verborum.msdictionary.common.event.DictionaryVisibilityEvent;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -24,6 +25,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
+import static de.coldtea.verborum.msdictionary.common.config.RabbitMQConfig.ROUTING_KEY_DICTIONARY_DELETED;
 import static de.coldtea.verborum.msdictionary.common.config.RabbitMQConfig.ROUTING_KEY_DICTIONARY_VISIBILITY_PRIVATE;
 import static de.coldtea.verborum.msdictionary.common.config.RabbitMQConfig.ROUTING_KEY_DICTIONARY_VISIBILITY_PUBLIC;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -271,6 +273,42 @@ class DictionaryServiceImplTest {
         // Assert
         verify(wordRepository).deleteByDictionaryIdIn(List.of(dictionaryId));
         verify(dictionaryRepository).deleteById(dictionaryId);
+    }
+
+    @Test
+    void deleteDictionary_PublishesDeletedEvent() {
+        // Arrange
+        when(dictionaryRepository.findById("dict1")).thenReturn(Optional.of(dictionary("dict1", true)));
+
+        // Act
+        dictionaryService.deleteDictionary("dict1");
+
+        // Assert
+        ArgumentCaptor<DictionaryDeletedEvent> captor = ArgumentCaptor.forClass(DictionaryDeletedEvent.class);
+        verify(rabbitTemplate).convertAndSend(eq(RabbitMQConfig.EXCHANGE),
+                eq(ROUTING_KEY_DICTIONARY_DELETED), captor.capture());
+
+        DictionaryDeletedEvent event = captor.getValue();
+        assertEquals("dict1", event.getDictionaryId());
+        assertEquals("user1", event.getUserId());
+        verify(wordRepository).deleteByDictionaryIdIn(List.of("dict1"));
+        verify(dictionaryRepository).deleteById("dict1");
+    }
+
+    @Test
+    void deleteDictionary_UnknownDictionary_PublishesNothingButStillCleansUpWords() {
+        // Deleting something that was never there must not announce a deletion. The word cleanup
+        // must still run though — words outlive a missing dictionary row (no FK), and this is
+        // what removes them
+        // Arrange
+        when(dictionaryRepository.findById("dict1")).thenReturn(Optional.empty());
+
+        // Act
+        dictionaryService.deleteDictionary("dict1");
+
+        // Assert
+        verifyNoInteractions(rabbitTemplate);
+        verify(wordRepository).deleteByDictionaryIdIn(List.of("dict1"));
     }
 
     @Test

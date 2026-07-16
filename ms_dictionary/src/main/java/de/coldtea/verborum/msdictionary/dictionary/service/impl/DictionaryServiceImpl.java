@@ -1,5 +1,6 @@
 package de.coldtea.verborum.msdictionary.dictionary.service.impl;
 
+import de.coldtea.verborum.msdictionary.common.event.DictionaryDeletedEvent;
 import de.coldtea.verborum.msdictionary.common.event.DictionaryVisibilityEvent;
 import de.coldtea.verborum.msdictionary.common.exception.RecordNotFoundException;
 import de.coldtea.verborum.msdictionary.common.mapper.DictionaryMapper;
@@ -18,6 +19,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static de.coldtea.verborum.msdictionary.common.config.RabbitMQConfig.EXCHANGE;
+import static de.coldtea.verborum.msdictionary.common.config.RabbitMQConfig.ROUTING_KEY_DICTIONARY_DELETED;
 import static de.coldtea.verborum.msdictionary.common.config.RabbitMQConfig.ROUTING_KEY_DICTIONARY_VISIBILITY_PRIVATE;
 import static de.coldtea.verborum.msdictionary.common.config.RabbitMQConfig.ROUTING_KEY_DICTIONARY_VISIBILITY_PUBLIC;
 import static de.coldtea.verborum.msdictionary.common.constants.ErrorMessageConstants.DICTIONARY_WAS_NOT_FOUND_ID;
@@ -85,9 +87,31 @@ public class DictionaryServiceImpl implements DictionaryService {
     @Transactional
     @Override
     public void deleteDictionary(String dictionaryId) {
-        // Words reference the dictionary without a DB-level FK — delete them explicitly
+        // Read before deleting: the event carries userId, and an absent dictionary must not
+        // announce a deletion that never happened. deleteById() is a silent no-op on a missing
+        // row in Spring Data JPA 3.x, so this stays a 200 either way
+        Dictionary dictionary = dictionaryRepository.findById(dictionaryId).orElse(null);
+
+        // Words reference the dictionary without a DB-level FK — delete them explicitly.
+        // Deliberately runs even when the dictionary row is already gone: words can be orphaned
+        // (no FK to stop it), and this is what cleans them up. Do not move the null-check above
+        // this line
         wordRepository.deleteByDictionaryIdIn(List.of(dictionaryId));
         dictionaryRepository.deleteById(dictionaryId);
+
+        if (dictionary == null) {
+            return;
+        }
+
+        rabbitTemplate.convertAndSend(
+                EXCHANGE,
+                ROUTING_KEY_DICTIONARY_DELETED,
+                DictionaryDeletedEvent.builder()
+                        .dictionaryId(dictionary.getDictionaryId())
+                        .userId(dictionary.getUserId())
+                        .eventTimestamp(LocalDateTime.now())
+                        .build()
+        );
     }
 
     @Override

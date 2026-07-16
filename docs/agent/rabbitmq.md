@@ -152,6 +152,17 @@ public class DictionaryVisibilityEvent {
     private LocalDateTime eventTimestamp;
 }
 
+// common/event/DictionaryDeletedEvent.java
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class DictionaryDeletedEvent {
+    private String dictionaryId;
+    private String userId;
+    private LocalDateTime eventTimestamp;
+}
+
 // common/event/UserDeletedEvent.java
 @Data
 @Builder
@@ -265,19 +276,31 @@ public class RabbitMQConfig {
 
     @Bean
     public MessageConverter jsonMessageConverter() {
-        return new Jackson2JsonMessageConverter();
+        // enhancedObjectMapper() registers JavaTimeModule but leaves WRITE_DATES_AS_TIMESTAMPS
+        // ON, which renders an event's LocalDateTime as [2026,7,16,15,17,53,415040500].
+        // Pin to ISO-8601 — readable in the Management UI, portable to non-Java consumers.
+        ObjectMapper objectMapper = JacksonUtils.enhancedObjectMapper();
+        objectMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+        return new Jackson2JsonMessageConverter(objectMapper);
     }
 
     @Bean
-    public RabbitTemplate rabbitTemplate(ConnectionFactory connectionFactory) {
+    public RabbitTemplate rabbitTemplate(ConnectionFactory connectionFactory, MessageConverter jsonMessageConverter) {
         RabbitTemplate template = new RabbitTemplate(connectionFactory);
-        template.setMessageConverter(jsonMessageConverter());
+        template.setMessageConverter(jsonMessageConverter);
         return template;
     }
 
     // ... rest of config
 }
 ```
+
+`JacksonUtils` lives in `org.springframework.amqp.support.converter` (not `...amqp.support`).
+
+**Every service must configure the converter this way.** Timestamp format is part of the wire
+contract: a publisher writing ISO-8601 and a consumer expecting the array form (or vice versa)
+disagree at the boundary. Do not swap in Boot's auto-configured `ObjectMapper` here either — it is
+shared with the web layer, and event serialization should not shift when someone tunes REST JSON.
 
 ---
 

@@ -168,11 +168,16 @@ direct DLX would fail to match and drop. See `docs/agent/rabbitmq.md`.
 
 **Current wiring state (2026-07-16):** ms_dictionary declares the exchange and the dead letter
 infrastructure (roadmap P1-02) and publishes `dictionary.visibility.public` /
-`dictionary.visibility.private` (P1-03). `dictionary.deleted` and `word.created` are still to come
-(P1-04, P1-05). Nothing consumes the visibility events yet — ms_marketplace does not exist, and a
-topic exchange discards a message with no bound queue, so these are fire-and-forget until P4-03.
+`dictionary.visibility.private` (P1-03) and `dictionary.deleted` (P1-04). `word.created` is still
+to come (P1-05). Nothing consumes any of them yet — ms_marketplace does not exist, and a topic
+exchange discards a message with no bound queue, so these are fire-and-forget until P4-03.
 ms_dictionary has no consumer queue until it starts consuming `user.deleted` (P2-10). All services
 declare the same exchange; declarations are idempotent, so whichever service starts first creates it.
+
+**Event payloads are JSON with ISO-8601 timestamps** (`"eventTimestamp":"2026-07-16T15:38:13.85"`).
+This is a wire contract, not a local preference — every service's `RabbitMQConfig` must build its
+`Jackson2JsonMessageConverter` the same way or publishers and consumers will disagree on the
+timestamp format. See `docs/agent/rabbitmq.md`.
 
 **Visibility events fire on change only.** `DictionaryServiceImpl.saveDictionary()` backs both POST
 and PUT, so it compares `is_public` against the stored row and publishes only on an actual flip.
