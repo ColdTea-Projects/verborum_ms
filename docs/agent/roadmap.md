@@ -140,8 +140,15 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
     to `application.properties`. Verified live against the broker: app starts clean and both
     exchanges, the DLQ and the binding show up in the Management API. No consumer queue yet —
     ms_dictionary is publisher-only until P2-10.
-  - Note: credentials are plain `verborum`/`verborum` in `application.properties`, matching the
-    existing datasource convention. Move to env vars alongside the Phase 3 secret work.
+  - Note: credentials were plain `verborum`/`verborum` in `application.properties`, matching the
+    existing datasource convention.
+  - 2026-07-19: resolved ahead of the Phase 3 secret work. Every host and credential in both
+    services' `application.properties` is now `${ENV_VAR:current-value}` — datasource URL/user/
+    password, RabbitMQ host/port/user/password, server port, and the Keycloak issuer, JWK set,
+    realm, auth-server URL and admin client-id. Defaults are the previous literals, so local dev
+    is unchanged and no env vars are required to run today. This is the prerequisite for
+    containerizing: in a container `localhost` resolves to the container itself, so these values
+    must be overridable from outside the jar before any service can be Dockerized.
   - Design change 2026-07-16: the DLX is a **fanout**, not the `DirectExchange` the old
     `rabbitmq.md` template showed. RabbitMQ preserves a message's original routing key when
     dead-lettering, so a direct DLX bound only on `verborum.dead-letter` would drop a failed
