@@ -58,7 +58,7 @@ spring.datasource.username=coldtea
 spring.datasource.password=qwerty
 spring.liquibase.change-log=classpath:db/changelog/db.changelog-master.json
 spring.security.oauth2.resourceserver.jwt.issuer-uri=http://localhost:8180/realms/verborum
-supported.languages=EN,DE,FR,ES,IT,TR,AZ,LT
+supported.languages=EN,DE,FR,ES,IT,PT,NL,TR,AZ,LT,PL,UK,AR,FA,JA,ZH,KO,EL,RU
 management.endpoints.web.exposure.include=*
 ```
 

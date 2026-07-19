@@ -142,7 +142,7 @@ Note: DELETE `/dictionaries/{dictionaryId}` also deletes all words of that dicti
 
 ## Supported Languages
 `EN, DE, FR, ES, IT, TR, AZ, LT`
-Configured in `application.properties` as `supported.languages=EN,DE,FR,ES,IT,TR,AZ,LT`
+Configured in `application.properties` as `supported.languages=EN,DE,FR,ES,IT,PT,NL,TR,AZ,LT,PL,UK,AR,FA,JA,ZH,KO,EL,RU`
 Validated via custom `@SupportedLanguage` annotation + `SupportedLanguageValidator`.
 
 ---
@@ -217,7 +217,7 @@ spring.datasource.url=jdbc:postgresql://localhost:5432/<dbname>
 spring.datasource.username=coldtea
 spring.datasource.password=qwerty
 spring.liquibase.change-log=classpath:db/changelog/db.changelog-master.json
-supported.languages=EN,DE,FR,ES,IT,TR,AZ,LT
+supported.languages=EN,DE,FR,ES,IT,PT,NL,TR,AZ,LT,PL,UK,AR,FA,JA,ZH,KO,EL,RU
 ```
 
 Each service has its own `docker-compose.yml` with a Postgres + Adminer setup, for working on
