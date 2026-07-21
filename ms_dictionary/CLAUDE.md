@@ -19,7 +19,7 @@ Full CRUD for **Dictionaries** and **Words** — the core vocabulary store.
 - `Dictionary` (`dictionaries`) — `dictionaryId`, `userId` (fk_user_id), `name`, `isPublic`,
   `fromLang`, `toLang`, timestamps
 - `Word` (`words`) — `wordId`, `dictionaryId` (fk_dictionary_id), `word`, `wordMeta` (json),
-  `translation`, `translationMeta` (json), timestamps
+  `translation`, `translationMeta` (json), `level` (int, nullable), timestamps
 
 ## Events
 - **Publishes:** `dictionary.visibility.public/private`, `dictionary.deleted`,
@@ -39,5 +39,13 @@ Full CRUD for **Dictionaries** and **Words** — the core vocabulary store.
   as a string (e.g. `["kaufen","erwerben"]`), also stored opaquely. They were widened from
   `VARCHAR(255)` to `TEXT` in `2026/07/21-01-changelog.json` so multi-meaning entries are not
   truncated.
+- `word.level` is the per-user mastery of a word (mirrors the mobile local `level`). Nullable and
+  optional on upload so older clients keep working (`null` = not provided; treat as `0` client-side);
+  stored opaquely. Added in `2026/07/21-02-changelog.json`. Not carried on `word.created`.
+- Entity timestamps are `OffsetDateTime` over `timestamptz` columns (`2026/07/21-03-changelog.json`),
+  serialized as ISO-8601 UTC (`...Z`) under JSON keys **`createdAt`** / **`updatedAt`** (the entity
+  fields were renamed from `creationTimestamp`/`updateTimestamp`; DB columns stay `creation_dt`/
+  `update_dt`). Server-authoritative. NB: the `Response`/`ErrorResponse` envelope `timestamp` is a
+  different field and uses the server's local offset — see `docs/integration/…` §4.4.
 - Deleting a dictionary also deletes its words in the service layer (no DB-level FK).
 - **No security** on any endpoint yet (task P3-03). Do not expose publicly until then.

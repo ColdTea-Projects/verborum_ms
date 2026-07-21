@@ -7,7 +7,7 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.GenericGenerator;
 import org.hibernate.annotations.UpdateTimestamp;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.List;
 
 @Getter
@@ -43,11 +43,13 @@ public class Dictionary {
 //    @ToString.Exclude
 //    private List<Word> words;
 
+    // Zone-aware timestamps. Stored as timestamptz, serialized to ISO-8601 WITH offset. JSON keys
+    // are createdAt / updatedAt to match the clients. Server-authoritative — set by Hibernate.
     @CreationTimestamp
     @Column(name = "creation_dt", nullable = false, updatable = false)
-    private LocalDateTime creationTimestamp;
+    private OffsetDateTime createdAt;
 
     @UpdateTimestamp
     @Column(name = "update_dt")
-    private LocalDateTime updateTimestamp;
+    private OffsetDateTime updatedAt;
 }

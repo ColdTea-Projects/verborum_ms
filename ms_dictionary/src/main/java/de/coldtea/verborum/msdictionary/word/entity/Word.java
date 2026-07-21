@@ -11,7 +11,7 @@ import org.hibernate.annotations.UpdateTimestamp;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
 @Getter
 @Setter
@@ -60,16 +60,26 @@ public class Word {
     @Column(name = "translation_meta", columnDefinition = "json")
     private String translationMeta;
 
+    // Per-user mastery/proficiency for this word (how well the user knows it). Client-owned:
+    // the mobile practice engine sets it, the backend stores it opaquely. Nullable on purpose —
+    // clients that predate this field simply omit it (null = "not provided"; treat as 0 client-side).
+    @Column(name = "level")
+    private Integer level;
+
 //    @ManyToOne
 //    @JsonBackReference
 //    private Dictionary dictionary;
 
+    // Zone-aware timestamps. Stored as timestamptz, serialized to ISO-8601 WITH offset
+    // (e.g. "2026-07-21T12:34:56.789+04:00") so every client can resolve the absolute instant.
+    // JSON keys are createdAt / updatedAt to match the clients. Server-authoritative — set by
+    // Hibernate, ignored on write.
     @CreationTimestamp
     @Column(name = "creation_dt", nullable = false, updatable = false)
-    private LocalDateTime creationTimestamp;
+    private OffsetDateTime createdAt;
 
     @UpdateTimestamp
     @Column(name = "update_dt")
-    private LocalDateTime updateTimestamp;
+    private OffsetDateTime updatedAt;
 
 }

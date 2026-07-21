@@ -129,6 +129,26 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
     language/meta contract) and `docs/ops/dockerization-and-environments.md` (containerization plan)
     added as the single source of truth referenced by the Android and future KMP repos
 
+<!-- P0-19 added 2026-07-21 after aligning the word/dictionary schema with the mobile client -->
+- [x] `P0-19` **Add word `level`, and fix timestamp names/zones to match the clients** (ms_dictionary)
+  - The mobile client stores a per-word `level` (mastery) and expects `createdAt`/`updatedAt` as
+    zone-aware timestamps; the backend had no `level` and exposed `creationTimestamp`/
+    `updateTimestamp` as zoneless `LocalDateTime` (ambiguous instant across dev/prod)
+  - Done 2026-07-21:
+    - `level` (INT, nullable) added to `Word`, `WordRequestDTO`, `WordResponseDTO` +
+      `2026/07/21-02-changelog.json`. Nullable/optional so older clients keep uploading; `null` =
+      not provided (treat as `0` client-side). Not on the `word.created` event.
+    - `Word` and `Dictionary` timestamps changed `LocalDateTime` → `OffsetDateTime`, columns
+      `creation_dt`/`update_dt` → `timestamptz` (`2026/07/21-03-changelog.json`), and the read-DTO
+      fields renamed to `createdAt`/`updatedAt`. On the wire: ISO-8601 UTC, e.g.
+      `"2026-07-21T09:34:42.622774Z"`. DB column names unchanged.
+    - Verified live: POST with `level` stores/returns it; POST without `level` still returns 201
+      (null); GET emits `createdAt`/`updatedAt` with a `Z`. 36 tests green. Docs updated
+      (`verborum.md`, integration §4.3/§4.4, `ms_dictionary/CLAUDE.md`).
+  - Note: this renames the (recently added, never correctly consumed) `creationTimestamp`/
+    `updateTimestamp` keys — a coordinated change with the mobile client, done together with this.
+    The `Response`/`ErrorResponse` envelope `timestamp` (OffsetDateTime, local offset) is unchanged.
+
 ---
 
 ## Phase 1 — Add RabbitMQ Infrastructure

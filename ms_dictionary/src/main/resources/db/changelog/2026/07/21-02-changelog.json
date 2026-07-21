@@ -1,0 +1,34 @@
+{
+  "databaseChangeLog": [
+    {
+      "changeSet": {
+        "id": "20260721-02-word-level",
+        "author": "claude",
+        "comment": "Add per-user mastery level to words (matches the client's local 'level' field). Nullable on purpose: additive change, so clients that predate this field keep uploading successfully; null means 'not provided' and clients treat it as 0.",
+        "changes": [
+          {
+            "addColumn": {
+              "tableName": "words",
+              "columns": [
+                {
+                  "column": {
+                    "name": "level",
+                    "type": "INT"
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        "rollback": [
+          {
+            "dropColumn": {
+              "tableName": "words",
+              "columnName": "level"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

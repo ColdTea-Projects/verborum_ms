@@ -4,7 +4,7 @@ import static de.coldtea.verborum.msdictionary.common.constants.DTOMessageConsta
 import jakarta.validation.constraints.NotBlank;
 import lombok.*;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
 @Data
 @NoArgsConstructor
@@ -30,8 +30,8 @@ public class DictionaryResponseDTO {
     @NotBlank(message = DICTIONARY_TO_LANG)
     private String toLang;
 
-    private LocalDateTime creationTimestamp;
+    private OffsetDateTime createdAt;
 
-    private LocalDateTime updateTimestamp;
+    private OffsetDateTime updatedAt;
 
 }

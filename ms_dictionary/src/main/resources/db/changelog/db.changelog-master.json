@@ -153,6 +153,16 @@
       "include": {
         "file": "db/changelog/2026/07/21-01-changelog.json"
       }
+    },
+    {
+      "include": {
+        "file": "db/changelog/2026/07/21-02-changelog.json"
+      }
+    },
+    {
+      "include": {
+        "file": "db/changelog/2026/07/21-03-changelog.json"
+      }
     }
   ]
 }

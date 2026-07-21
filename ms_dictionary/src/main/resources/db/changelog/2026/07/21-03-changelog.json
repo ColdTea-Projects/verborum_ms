@@ -1,0 +1,25 @@
+{
+  "databaseChangeLog": [
+    {
+      "changeSet": {
+        "id": "20260721-03-timestamps-with-timezone",
+        "author": "claude",
+        "comment": "Make creation_dt/update_dt zone-aware (timestamp -> timestamptz) on words and dictionaries, so the API serializes ISO-8601 WITH offset and clients can resolve the absolute instant. Existing naked values are interpreted as UTC (dev data is throwaway; no prod data yet).",
+        "changes": [
+          {
+            "sql": {
+              "sql": "ALTER TABLE words ALTER COLUMN creation_dt TYPE timestamptz USING creation_dt AT TIME ZONE 'UTC'; ALTER TABLE words ALTER COLUMN update_dt TYPE timestamptz USING update_dt AT TIME ZONE 'UTC'; ALTER TABLE dictionaries ALTER COLUMN creation_dt TYPE timestamptz USING creation_dt AT TIME ZONE 'UTC'; ALTER TABLE dictionaries ALTER COLUMN update_dt TYPE timestamptz USING update_dt AT TIME ZONE 'UTC';"
+            }
+          }
+        ],
+        "rollback": [
+          {
+            "sql": {
+              "sql": "ALTER TABLE words ALTER COLUMN creation_dt TYPE timestamp USING creation_dt AT TIME ZONE 'UTC'; ALTER TABLE words ALTER COLUMN update_dt TYPE timestamp USING update_dt AT TIME ZONE 'UTC'; ALTER TABLE dictionaries ALTER COLUMN creation_dt TYPE timestamp USING creation_dt AT TIME ZONE 'UTC'; ALTER TABLE dictionaries ALTER COLUMN update_dt TYPE timestamp USING update_dt AT TIME ZONE 'UTC';"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
