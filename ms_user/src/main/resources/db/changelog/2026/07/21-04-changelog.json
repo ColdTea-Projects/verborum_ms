@@ -1,0 +1,25 @@
+{
+  "databaseChangeLog": [
+    {
+      "changeSet": {
+        "id": "20260721-04-timestamps-with-timezone",
+        "author": "claude",
+        "comment": "Make ms_user timestamps zone-aware (timestamp -> timestamptz), matching ms_dictionary: users.creation_dt/update_dt, user_stats.update_dt, vault_entries.imported_at. Existing naked values are interpreted as UTC (dev data is throwaway; no prod data yet).",
+        "changes": [
+          {
+            "sql": {
+              "sql": "ALTER TABLE users ALTER COLUMN creation_dt TYPE timestamptz USING creation_dt AT TIME ZONE 'UTC'; ALTER TABLE users ALTER COLUMN update_dt TYPE timestamptz USING update_dt AT TIME ZONE 'UTC'; ALTER TABLE user_stats ALTER COLUMN update_dt TYPE timestamptz USING update_dt AT TIME ZONE 'UTC'; ALTER TABLE vault_entries ALTER COLUMN imported_at TYPE timestamptz USING imported_at AT TIME ZONE 'UTC';"
+            }
+          }
+        ],
+        "rollback": [
+          {
+            "sql": {
+              "sql": "ALTER TABLE users ALTER COLUMN creation_dt TYPE timestamp USING creation_dt AT TIME ZONE 'UTC'; ALTER TABLE users ALTER COLUMN update_dt TYPE timestamp USING update_dt AT TIME ZONE 'UTC'; ALTER TABLE user_stats ALTER COLUMN update_dt TYPE timestamp USING update_dt AT TIME ZONE 'UTC'; ALTER TABLE vault_entries ALTER COLUMN imported_at TYPE timestamp USING imported_at AT TIME ZONE 'UTC';"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

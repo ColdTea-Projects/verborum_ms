@@ -17,11 +17,12 @@ Keycloak), Dictionary Vault (imported public dictionaries), and User Stats.
   role-mapping fix (P2-11).
 
 ## Entities
-- `User` (`users`) — `userId` (PK, client UUID), `keycloakId`, `email`, `displayName`, timestamps.
-  `keycloak_id` is NOT NULL + UNIQUE (the 1:1 link to the Keycloak subject, and the value the other
-  services store as `fk_user_id`). `email` is NOT NULL + UNIQUE (product rule: one profile per email;
-  Keycloak stays the identity authority). Migration: `2026/07/21-01-changelog.json`.
-- `UserStats` (`user_stats`) — `userId` (PK), `totalWords`, `totalDictionaries`, `updateTimestamp`.
+- `User` (`users`) — `userId` (PK, client UUID), `keycloakId`, `email`, `displayName`,
+  `createdAt`/`updatedAt`. `keycloak_id` is NOT NULL + UNIQUE (the 1:1 link to the Keycloak subject,
+  and the value the other services store as `fk_user_id`). `email` is NOT NULL + UNIQUE (product
+  rule: one profile per email; Keycloak stays the identity authority). Migration:
+  `2026/07/21-01-changelog.json`.
+- `UserStats` (`user_stats`) — `userId` (PK), `totalWords`, `totalDictionaries`, `updatedAt`.
   1:1 with `User`: `user_id` is both PK and a real FK to `users(user_id)` with **ON DELETE CASCADE**
   (deleting a user removes its stats row). This intra-service FK is intentional — unlike the
   cross-service / split-ready `word → dictionary` case, `UserStats` is a same-DB satellite of `User`.
@@ -32,6 +33,11 @@ Keycloak), Dictionary Vault (imported public dictionaries), and User Stats.
   **no DB FK** (this is the genuine cross-service case the "no FK" convention is for). A composite
   **UNIQUE (fk_user_id, fk_dictionary_id)** keeps a vault a set (no duplicate imports) and backs
   P2-09 import idempotency. Migration: `2026/07/21-03-changelog.json`.
+
+All timestamps are zone-aware: `OffsetDateTime` over `timestamptz` columns (`2026/07/21-04-changelog.json`),
+serialized as ISO-8601 UTC (`...Z`), matching ms_dictionary. `User` exposes JSON keys
+`createdAt`/`updatedAt`; `VaultEntry` keeps the semantic name `importedAt`. DB column names are
+unchanged (`creation_dt`/`update_dt`/`imported_at`).
 
 ## API — UserController (`/users`)
 - `POST /users/` create profile · `PUT /users/` update · `GET /users/{userId}` (404 if missing) ·

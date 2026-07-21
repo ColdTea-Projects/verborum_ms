@@ -149,6 +149,20 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
     `updateTimestamp` keys — a coordinated change with the mobile client, done together with this.
     The `Response`/`ErrorResponse` envelope `timestamp` (OffsetDateTime, local offset) is unchanged.
 
+<!-- P0-20 added 2026-07-21 — mirror the P0-19 timestamp treatment into ms_user for consistency -->
+- [x] `P0-20` **Mirror zone-aware timestamps into ms_user** (ms_user)
+  - After P0-19 made ms_dictionary timestamps zone-aware, ms_user still used zoneless
+    `LocalDateTime`. Aligned for cross-service consistency before ms_user gets a live client
+  - Done 2026-07-21: `User`, `UserStats`, `VaultEntry` timestamps changed `LocalDateTime` →
+    `OffsetDateTime`; columns `users.creation_dt/update_dt`, `user_stats.update_dt`,
+    `vault_entries.imported_at` → `timestamptz` (`2026/07/21-04-changelog.json`). `User` read-DTO
+    fields renamed to `createdAt`/`updatedAt` (same wire contract as ms_dictionary); `VaultEntry`
+    keeps the semantic `importedAt`. DB column names unchanged. Verified: Liquibase applies the
+    changeset on boot, all four columns are `timestamptz`, and the full suite (6 tests) is green. The
+    wire JSON is identical by construction to the P0-19 output already verified live in ms_dictionary
+    (same Boot/Jackson/Hibernate, OffsetDateTime over timestamptz → ISO-8601 UTC `...Z`); not
+    re-curled because ms_user endpoints require a JWT (secured, unlike ms_dictionary).
+
 ---
 
 ## Phase 1 — Add RabbitMQ Infrastructure

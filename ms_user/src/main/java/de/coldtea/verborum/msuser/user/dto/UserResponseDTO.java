@@ -3,7 +3,7 @@ package de.coldtea.verborum.msuser.user.dto;
 import jakarta.validation.constraints.NotBlank;
 import lombok.*;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
 import static de.coldtea.verborum.msuser.common.constants.DTOMessageConstants.*;
 
@@ -24,8 +24,8 @@ public class UserResponseDTO {
 
     private String displayName;
 
-    private LocalDateTime creationTimestamp;
+    private OffsetDateTime createdAt;
 
-    private LocalDateTime updateTimestamp;
+    private OffsetDateTime updatedAt;
 
 }

@@ -5,7 +5,7 @@ import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
 @Getter
 @Setter
@@ -34,11 +34,13 @@ public class User {
     @Column(name = "display_name")
     private String displayName;
 
+    // Zone-aware timestamps (timestamptz), serialized as ISO-8601 UTC under JSON keys
+    // createdAt / updatedAt — same contract as ms_dictionary. Server-authoritative.
     @CreationTimestamp
     @Column(name = "creation_dt", nullable = false, updatable = false)
-    private LocalDateTime creationTimestamp;
+    private OffsetDateTime createdAt;
 
     @UpdateTimestamp
     @Column(name = "update_dt")
-    private LocalDateTime updateTimestamp;
+    private OffsetDateTime updatedAt;
 }

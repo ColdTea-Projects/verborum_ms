@@ -4,7 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
 @Getter
 @Setter
@@ -31,7 +31,9 @@ public class VaultEntry {
     @Column(name = "fk_dictionary_id", nullable = false)
     private String dictionaryId;
 
+    // Zone-aware (timestamptz), serialized as ISO-8601 UTC. Kept as importedAt (semantic name)
+    // rather than createdAt — it marks when the dictionary was imported into the vault.
     @CreationTimestamp
     @Column(name = "imported_at", nullable = false, updatable = false)
-    private LocalDateTime importedAt;
+    private OffsetDateTime importedAt;
 }

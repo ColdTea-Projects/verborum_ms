@@ -4,7 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.UpdateTimestamp;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
 @Getter
 @Setter
@@ -28,7 +28,8 @@ public class UserStats {
     @Column(name = "total_dictionaries")
     private Integer totalDictionaries;
 
+    // Zone-aware (timestamptz), serialized as ISO-8601 UTC under JSON key updatedAt.
     @UpdateTimestamp
     @Column(name = "update_dt")
-    private LocalDateTime updateTimestamp;
+    private OffsetDateTime updatedAt;
 }
