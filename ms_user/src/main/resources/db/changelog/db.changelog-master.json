@@ -1,3 +1,9 @@
 {
-  "databaseChangeLog": []
+  "databaseChangeLog": [
+    {
+      "include": {
+        "file": "db/changelog/2026/07/21-01-changelog.json"
+      }
+    }
+  ]
 }

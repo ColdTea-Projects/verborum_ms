@@ -272,10 +272,16 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
 - [x] `P2-02` **Create `docker-compose.yml` for ms_user**
   - Postgres on port 5433, Adminer on port 8081, DB name: `vdbprofile`
   - Done when: `docker-compose up` in `ms_user/` starts the DB
-- [ ] `P2-03` **Design and create User entity + Liquibase migration**
+- [x] `P2-03` **Design and create User entity + Liquibase migration**
   - Entity: `User` — fields: `userId`, `keycloakId`, `email`, `displayName`, `creationTimestamp`, `updateTimestamp`
   - Changeset file: `db/changelog/{YEAR}/{MONTH}/{date}-01-changelog.json`
   - Done when: table `users` is created in `vdbprofile` on startup
+  - Done 2026-07-21: `user/entity/User.java` + changeset `2026/07/21-01-changelog.json` (registered
+    in master). `keycloak_id` NOT NULL + UNIQUE (1:1 Keycloak-subject link; the cross-service join
+    key, since other services store the JWT subject as `fk_user_id`). `email` NOT NULL + UNIQUE
+    (product rule: one profile per email; Keycloak remains the identity authority). `display_name`
+    nullable. Verified live: Liquibase created `users` in `vdbprofile` on boot with both unique
+    constraints. Repository/DTOs/mapper/endpoints are P2-06.
 - [ ] `P2-04` **Design and create UserStats entity + migration**
   - Entity: `UserStats` — fields: `userId` (PK, FK to user), `totalWords`, `totalDictionaries`, `updatedAt`
   - Done when: table `user_stats` is created

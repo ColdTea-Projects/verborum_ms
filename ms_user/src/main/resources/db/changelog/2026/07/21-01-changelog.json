@@ -1,0 +1,74 @@
+{
+  "databaseChangeLog": [
+    {
+      "changeSet": {
+        "id": "20260721-01-create-users",
+        "author": "claude (P2-03)",
+        "objectQuotingStrategy": "QUOTE_ONLY_RESERVED_WORDS",
+        "changes": [
+          {
+            "createTable": {
+              "tableName": "users",
+              "columns": [
+                {
+                  "column": {
+                    "name": "user_id",
+                    "type": "VARCHAR(255)",
+                    "constraints": {
+                      "nullable": false,
+                      "primaryKey": true,
+                      "primaryKeyName": "pk_users"
+                    }
+                  }
+                },
+                {
+                  "column": {
+                    "name": "keycloak_id",
+                    "type": "VARCHAR(255)",
+                    "constraints": {
+                      "nullable": false,
+                      "unique": true,
+                      "uniqueConstraintName": "uq_users_keycloak_id"
+                    }
+                  }
+                },
+                {
+                  "column": {
+                    "name": "email",
+                    "type": "VARCHAR(255)",
+                    "constraints": {
+                      "nullable": false,
+                      "unique": true,
+                      "uniqueConstraintName": "uq_users_email"
+                    }
+                  }
+                },
+                {
+                  "column": {
+                    "name": "display_name",
+                    "type": "VARCHAR(255)"
+                  }
+                },
+                {
+                  "column": {
+                    "name": "creation_dt",
+                    "type": "DATETIME",
+                    "constraints": {
+                      "nullable": false
+                    }
+                  }
+                },
+                {
+                  "column": {
+                    "name": "update_dt",
+                    "type": "DATETIME"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

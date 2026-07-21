@@ -11,11 +11,16 @@ Keycloak), Dictionary Vault (imported public dictionaries), and User Stats.
 - **Port:** 8086
 - **DB:** `vdbprofile` (PostgreSQL) — docker-compose in this module (Postgres on 5433 + Adminer on 8081)
 - **Base package:** `de.coldtea.verborum.msuser`
-- **Status:** Empty, secured scaffold only. No entities, DTOs, or endpoints yet (roadmap P2-01 done;
-  P2-02 through P2-09 remain).
+- **Status:** Secured scaffold with the first entity. `User` entity + migration exist (roadmap P2-03
+  done); no DTOs, repository, or endpoints yet. P2-04, P2-05 (UserStats, VaultEntry) and P2-06+ remain.
+
+## Entities
+- `User` (`users`) — `userId` (PK, client UUID), `keycloakId`, `email`, `displayName`, timestamps.
+  `keycloak_id` is NOT NULL + UNIQUE (the 1:1 link to the Keycloak subject, and the value the other
+  services store as `fk_user_id`). `email` is NOT NULL + UNIQUE (product rule: one profile per email;
+  Keycloak stays the identity authority). Migration: `2026/07/21-01-changelog.json`.
 
 ## Planned entities (not yet implemented — see roadmap Phase 2)
-- `User` (`users`) — `userId`, `keycloakId`, `email`, `displayName`, timestamps
 - `UserStats` (`user_stats`) — `userId` (PK, FK to user), `totalWords`, `totalDictionaries`, `updatedAt`
 - `VaultEntry` (`vault_entries`) — `vaultEntryId`, `userId`, `dictionaryId`, `importedAt`
   (tracks imported public dictionaries per user)
@@ -34,5 +39,6 @@ Keycloak), Dictionary Vault (imported public dictionaries), and User Stats.
   sourced from the `KEYCLOAK_ADMIN_CLIENT_SECRET` environment variable — never hardcode it.
 
 ## Service-specific quirks
-- None yet — this is a fresh scaffold. Follow the `new-entity` skill to add `User` next
-  (roadmap task `P2-03`).
+- The cross-service user key is `keycloak_id`, not `user_id`. Dictionaries/words store the JWT
+  subject in `fk_user_id`, which equals a User's `keycloak_id` — so joins from other services'
+  data land on `keycloak_id`. Keep it NOT NULL + UNIQUE.
