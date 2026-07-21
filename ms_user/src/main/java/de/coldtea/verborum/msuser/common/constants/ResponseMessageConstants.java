@@ -6,6 +6,11 @@ package de.coldtea.verborum.msuser.common.constants;
  */
 public final class ResponseMessageConstants {
 
+    //UserController — trailing space is required: buildResponse concatenates message + detail
+    public static final String USER_SAVED_SUCCESSFULLY = "Saved successfully user ";
+    public static final String USER_UPDATED_SUCCESSFULLY = "Updated successfully user ";
+    public static final String USER_DELETED_SUCCESSFULLY = "Deleted successfully ";
+
     private ResponseMessageConstants() {
     }
 }

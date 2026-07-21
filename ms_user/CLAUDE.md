@@ -11,9 +11,10 @@ Keycloak), Dictionary Vault (imported public dictionaries), and User Stats.
 - **Port:** 8086
 - **DB:** `vdbprofile` (PostgreSQL) — docker-compose in this module (Postgres on 5433 + Adminer on 8081)
 - **Base package:** `de.coldtea.verborum.msuser`
-- **Status:** Secured scaffold with the first two entities. `User` and `UserStats` entities +
-  migrations exist (roadmap P2-03, P2-04 done); no DTOs, repository, or endpoints yet.
-  P2-05 (VaultEntry) and P2-06+ remain.
+- **Status:** All three Phase-2 entities exist (`User`, `UserStats`, `VaultEntry`; P2-03/04/05 done)
+  and the User REST API is implemented (P2-06). Remaining: VaultController (P2-07), the RabbitMQ
+  events (P2-08 publish `user.deleted`, P2-09 consume `dictionary.imported`), and the Keycloak
+  role-mapping fix (P2-11).
 
 ## Entities
 - `User` (`users`) — `userId` (PK, client UUID), `keycloakId`, `email`, `displayName`, timestamps.
@@ -25,10 +26,19 @@ Keycloak), Dictionary Vault (imported public dictionaries), and User Stats.
   (deleting a user removes its stats row). This intra-service FK is intentional — unlike the
   cross-service / split-ready `word → dictionary` case, `UserStats` is a same-DB satellite of `User`.
   Migration: `2026/07/21-02-changelog.json`.
+- `VaultEntry` (`vault_entries`) — `vaultEntryId` (PK), `userId`, `dictionaryId`, `importedAt`.
+  `fk_user_id` is a real FK to `users(user_id)` with **ON DELETE CASCADE** (same intra-service
+  satellite case). `fk_dictionary_id` is a **cross-service** ref to ms_dictionary — plain String,
+  **no DB FK** (this is the genuine cross-service case the "no FK" convention is for). A composite
+  **UNIQUE (fk_user_id, fk_dictionary_id)** keeps a vault a set (no duplicate imports) and backs
+  P2-09 import idempotency. Migration: `2026/07/21-03-changelog.json`.
 
-## Planned entities (not yet implemented — see roadmap Phase 2)
-- `VaultEntry` (`vault_entries`) — `vaultEntryId`, `userId`, `dictionaryId`, `importedAt`
-  (tracks imported public dictionaries per user)
+## API — UserController (`/users`)
+- `POST /users/` create profile · `PUT /users/` update · `GET /users/{userId}` (404 if missing) ·
+  `DELETE /users/{userId}`. Mirrors DictionaryController: `Response` envelope on mutations, DTO on
+  read, `saveUser` backs both POST and PUT. `userId` is still client-supplied here — switching to the
+  JWT subject is P3-05. DELETE relies on the DB cascade to clear stats/vault; the `user.deleted`
+  event is P2-08.
 
 ## Events (planned — requires RabbitMQ, see roadmap Phase 1 and `docs/agent/rabbitmq.md`)
 - **Publishes:** `user.deleted` (consumed by ms_dictionary, ms_marketplace to cascade-delete)

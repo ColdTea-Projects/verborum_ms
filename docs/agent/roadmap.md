@@ -294,17 +294,41 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
     `@UpdateTimestamp`, matching the naming used across the services. Verified live: Liquibase created
     `user_stats` in `vdbprofile` with `pk_user_stats` and FK `fk_user_stats_user` (ON DELETE CASCADE);
     a stats row is auto-deleted when its user is deleted. Repository/DTOs/endpoints are later phases.
-- [ ] `P2-05` **Design and create VaultEntry entity + migration**
+- [x] `P2-05` **Design and create VaultEntry entity + migration**
   - Entity: `VaultEntry` — tracks imported public dictionaries per user
   - Fields: `vaultEntryId`, `userId`, `dictionaryId`, `importedAt`
   - Done when: table `vault_entries` is created
-- [ ] `P2-06` **Implement UserController + UserService**
+  - Done 2026-07-21: `vault/entity/VaultEntry.java` + changeset `2026/07/21-03-changelog.json`
+    (registered in master). `fk_user_id` is a real FK to `users(user_id)` with `ON DELETE CASCADE`
+    (same intra-service satellite rationale as P2-04). `fk_dictionary_id` is a **cross-service** ref
+    (ms_dictionary) — plain String, **no DB FK**, the genuine case the "no FK" convention exists for.
+    Added a composite **UNIQUE (fk_user_id, fk_dictionary_id)** so a vault is a set (no duplicate
+    imports) — this also backs P2-09 idempotency. `importedAt` uses `@CreationTimestamp`. Verified
+    live: table created with `pk_vault_entries`, FK `fk_vault_entries_user` (cascade), and the unique
+    constraint; a duplicate (user, dictionary) insert is rejected and a user delete cascades to
+    remove the vault rows.
+- [x] `P2-06` **Implement UserController + UserService**
   - Endpoints:
     - `POST /users/` — create user profile (called after Keycloak registration)
     - `GET /users/{userId}` — get user profile
     - `PUT /users/` — update user profile
     - `DELETE /users/{userId}` — delete user (also triggers `user.deleted` event)
   - Done when: all endpoints work, unit tests pass
+  - Done 2026-07-21: full `user` slice added mirroring the ms_dictionary `dictionary` slice —
+    `UserController`, `UserService`/`UserServiceImpl`, `UserRepository`, `UserRequestDTO`/
+    `UserResponseDTO`, `common/mapper/UserMapper` (MapStruct). `saveUser` backs both POST and PUT.
+    Added the exception/validator scaffolding ms_user was missing (`RecordNotFoundException`,
+    `InvalidUUIDException`, `ValidUUID`/`UUIDValidator`) plus their `GlobalExceptionHandler` handlers,
+    and populated the three constants classes. 5 `UserServiceImplTest` cases pass.
+  - The `user.deleted` event is NOT part of this task — it is P2-08 (ms_user has no RabbitMQ wiring
+    yet). DELETE currently relies on the DB `ON DELETE CASCADE` to clear stats/vault; the event that
+    lets ms_dictionary/ms_marketplace cascade their own data comes with P2-08.
+  - `userId` is still taken from the request body, not the JWT — switching to the token subject is
+    P3-05, deliberately not done here to stay within Phase 2 scope.
+  - Note (latent, pre-existing in ms_dictionary too): `@ValidUUID` has no `@Constraint(validatedBy=…)`
+    meta-annotation, so Bean Validation never invokes `UUIDValidator` — the annotation is inert in
+    both services. Mirrored as-is here to keep behaviour identical; wiring it up (and deciding the
+    resulting 400s are wanted) should be a separate, both-services task, not a silent divergence.
 - [ ] `P2-07` **Implement VaultController + VaultService**
   - Endpoints:
     - `GET /users/{userId}/vault` — list imported dictionaries

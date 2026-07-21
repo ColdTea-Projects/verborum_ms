@@ -6,6 +6,8 @@ package de.coldtea.verborum.msuser.common.constants;
  */
 public final class ErrorMessageConstants {
 
+    public static final String USER_WAS_NOT_FOUND_ID = "User was not found. ID: ";
+
     private ErrorMessageConstants() {
     }
 }

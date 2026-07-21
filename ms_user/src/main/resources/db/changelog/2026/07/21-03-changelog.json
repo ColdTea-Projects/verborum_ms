@@ -1,0 +1,68 @@
+{
+  "databaseChangeLog": [
+    {
+      "changeSet": {
+        "id": "20260721-03-create-vault-entries",
+        "author": "claude (P2-05)",
+        "objectQuotingStrategy": "QUOTE_ONLY_RESERVED_WORDS",
+        "changes": [
+          {
+            "createTable": {
+              "tableName": "vault_entries",
+              "columns": [
+                {
+                  "column": {
+                    "name": "vault_entry_id",
+                    "type": "VARCHAR(255)",
+                    "constraints": {
+                      "nullable": false,
+                      "primaryKey": true,
+                      "primaryKeyName": "pk_vault_entries"
+                    }
+                  }
+                },
+                {
+                  "column": {
+                    "name": "fk_user_id",
+                    "type": "VARCHAR(255)",
+                    "constraints": {
+                      "nullable": false,
+                      "foreignKeyName": "fk_vault_entries_user",
+                      "references": "users(user_id)",
+                      "deleteCascade": true
+                    }
+                  }
+                },
+                {
+                  "column": {
+                    "name": "fk_dictionary_id",
+                    "type": "VARCHAR(255)",
+                    "constraints": {
+                      "nullable": false
+                    }
+                  }
+                },
+                {
+                  "column": {
+                    "name": "imported_at",
+                    "type": "DATETIME",
+                    "constraints": {
+                      "nullable": false
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "addUniqueConstraint": {
+              "tableName": "vault_entries",
+              "columnNames": "fk_user_id, fk_dictionary_id",
+              "constraintName": "uq_vault_entries_user_dictionary"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
