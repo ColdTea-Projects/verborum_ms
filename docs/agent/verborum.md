@@ -93,13 +93,39 @@ update_dt       TIMESTAMP    Auto-set by Hibernate @UpdateTimestamp
 ```
 word_id             VARCHAR PK   UUID string, provided by client
 fk_dictionary_id    VARCHAR      UUID of parent dictionary (no DB-level FK)
-word                VARCHAR      The word in from_lang
-word_meta           JSON         JSON object, optional keys: partOfSpeech, example, notes (extra keys allowed)
-translation         VARCHAR      The translation in to_lang
+word                TEXT         JSON array of per-meaning surface forms (see contract below)
+word_meta           JSON         JSON object (see contract below)
+translation         TEXT         JSON array of per-meaning surface forms (same contract as word)
 translation_meta    JSON         Same JSON contract as word_meta
 creation_dt         TIMESTAMP
 update_dt           TIMESTAMP
 ```
+
+**Word / translation content contract** (canonical; owned by the clients, stored opaquely by the
+backend — full spec in `docs/integration/frontend-backend-integration.md` §4.2 and the Android
+doc §4). `word` and `translation` each hold a **JSON array of per-meaning surface forms** as a
+string — one entry per meaning, article included where the language composes one:
+`["der Apfel"]`, `["kaufen","erwerben"]`, `["l'eau"]`. Blank meanings are dropped.
+
+`word_meta` / `translation_meta` each hold **one JSON object**:
+```json
+{
+  "lang": "de",           // lowercase two-letter code of this side's language
+  "type": "verb",         // part of speech; absent for free text
+  "genders": ["m", ""],   // codes m/f/n/c, index-aligned to the surfaces array; omitted if none
+  "fields": {             // grammatical form key -> list of values, index-aligned per meaning
+    "past": ["kaufte", "erwarb"],
+    "aux": ["haben", "haben"]
+  }
+}
+```
+All lists are **index-aligned** to the surfaces array; keys empty in every meaning are omitted;
+**unknown keys must be ignored** (schema-evolution rule). Field keys in use: `reading, plural,
+feminine, comparative, superlative, present, past, past3, participle, aux, aspect, root, stem,
+measure, class, polite`.
+
+> The earlier `partOfSpeech` / `example` / `notes` shape documented here was a placeholder written
+> before the client schema existed. No client ever used it. The contract above is the real one.
 
 ### User Profile (ms_user — to be designed)
 ```
@@ -141,9 +167,12 @@ Note: DELETE `/dictionaries/{dictionaryId}` also deletes all words of that dicti
 ---
 
 ## Supported Languages
-`EN, DE, FR, ES, IT, TR, AZ, LT`
-Configured in `application.properties` as `supported.languages=EN,DE,FR,ES,IT,PT,NL,TR,AZ,LT,PL,UK,AR,FA,JA,ZH,KO,EL,RU`
+19 codes: `EN, DE, FR, ES, IT, PT, NL, TR, AZ, LT, PL, UK, AR, FA, JA, ZH, KO, EL, RU`
+Configured in `application.properties` (both services) as
+`supported.languages=EN,DE,FR,ES,IT,PT,NL,TR,AZ,LT,PL,UK,AR,FA,JA,ZH,KO,EL,RU`
 Validated via custom `@SupportedLanguage` annotation + `SupportedLanguageValidator`.
+The validator uppercases before matching, so clients may send lowercase codes (e.g. `de`).
+This is the single source of truth — every client's language enum must be a subset of it.
 
 ---
 

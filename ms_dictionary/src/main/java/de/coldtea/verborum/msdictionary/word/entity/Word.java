@@ -29,12 +29,26 @@ public class Word {
     @Column(name = "fk_dictionary_id")
     private String dictionaryId;
 
+    // Canonical client contract (see docs/integration/frontend-backend-integration.md §4.2 and
+    // the Android doc §4). Stored opaquely by the backend. word / translation each hold a JSON
+    // ARRAY of per-meaning surface forms as a string — one entry per meaning, article included
+    // where the language composes one: e.g. ["der Apfel"], ["kaufen","erwerben"], ["l'eau"].
+    // Column type is TEXT (see 2026/07/21-01-changelog.json) so multi-meaning entries are not
+    // truncated; JSON validity is not enforced at the DB.
     @Column(name = "word")
     private String word;
 
-    // JSON contract for word_meta / translation_meta: a JSON object with optional keys
-    // "partOfSpeech" (string), "example" (string), "notes" (string); additional keys allowed.
-    // The value must be valid JSON — the DB column type is json (see 2026/07/12-01-changelog.json).
+    // Canonical client contract for word_meta / translation_meta: one JSON OBJECT
+    //   { "lang": "de",          // lowercase two-letter code of this side's language
+    //     "type": "verb",        // part of speech; absent for free text
+    //     "genders": ["m",""],   // codes m/f/n/c, index-aligned to the surfaces array; omitted if none
+    //     "fields": {            // grammatical form key -> list of values, index-aligned per meaning
+    //       "past": ["kaufte","erwarb"], "aux": ["haben","haben"] } }
+    // All lists are index-aligned to the surfaces array; keys empty in every meaning are omitted;
+    // unknown keys must be ignored (schema-evolution rule). Field keys in use: reading, plural,
+    // feminine, comparative, superlative, present, past, past3, participle, aux, aspect, root,
+    // stem, measure, class, polite. The value must be valid JSON — column type is json
+    // (see 2026/07/12-01-changelog.json).
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "word_meta", columnDefinition = "json")
     private String wordMeta;

@@ -31,7 +31,13 @@ Full CRUD for **Dictionaries** and **Words** — the core vocabulary store.
   Joins are done via explicit repository calls. Do not activate the relationship without
   discussion.
 - `wordMeta` / `translationMeta` are `json` columns in Postgres, mapped as `String` in Java
-  via `@JdbcTypeCode(SqlTypes.JSON)`. The value must be valid JSON (object with optional keys
-  `partOfSpeech`, `example`, `notes`) or the insert fails at the DB.
+  via `@JdbcTypeCode(SqlTypes.JSON)`. The value must be valid JSON or the insert fails at the DB.
+  The canonical shape is a JSON object `{lang, type?, genders?, fields?}` with all lists
+  index-aligned to the surfaces array — owned by the clients, stored opaquely here. See
+  `Word.java` and `docs/integration/frontend-backend-integration.md` §4.2 for the full contract.
+- `word` / `translation` are `TEXT` columns holding a **JSON array of per-meaning surface forms**
+  as a string (e.g. `["kaufen","erwerben"]`), also stored opaquely. They were widened from
+  `VARCHAR(255)` to `TEXT` in `2026/07/21-01-changelog.json` so multi-meaning entries are not
+  truncated.
 - Deleting a dictionary also deletes its words in the service layer (no DB-level FK).
 - **No security** on any endpoint yet (task P3-03). Do not expose publicly until then.

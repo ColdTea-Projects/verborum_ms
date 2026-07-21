@@ -107,6 +107,28 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
     trailing space added to the delete constants. Verified live — `"path": "/words"` on a 400,
     `"path": "/dictionaries/{id}"` and `"Deleted successfully e5ecb5c3-..."` on a delete
 
+<!-- Tasks P0-16 … P0-18 added 2026-07-21 after reviewing the client-team docs (Android
+     Development, Frontend–Backend Integration, Dockerization & Environments) -->
+- [x] `P0-16` **Extend `supported.languages` to the 19-code list** (ms_dictionary AND ms_user)
+  - The Android client selects 10 languages today and expands to 19; the backend validator was
+    still the original 8, so PT/NL dictionaries failed upload and sat permanently unsynced
+  - Done (commit `053dce0`): both services' `application.properties` now list
+    `EN,DE,FR,ES,IT,PT,NL,TR,AZ,LT,PL,UK,AR,FA,JA,ZH,KO,EL,RU`. The validator uppercases before
+    matching, so the client's lowercase codes pass. This unblocks Android roadmap A1.
+- [x] `P0-17` **Correct the word/meta doc fiction + widen `word`/`translation` to `TEXT`**
+  - `Word.java`, `verborum.md`, and `ms_dictionary/CLAUDE.md` documented a placeholder meta shape
+    (`partOfSpeech`/`example`/`notes`) written before the client schema existed — no client used
+    it. Web/iOS/ms_autofil implementing against it would build the wrong parser
+  - Done 2026-07-21: all three now document the canonical client contract — `word`/`translation`
+    are a JSON array of per-meaning surfaces; `word_meta`/`translation_meta` is
+    `{lang, type?, genders?, fields?}` with lists index-aligned to the surfaces array, unknown
+    keys ignored. New changeset `2026/07/21-01-changelog.json` widens `word`/`translation` from
+    `VARCHAR(255)` to `TEXT` (multi-meaning entries can exceed 255). Storage stays opaque.
+- [x] `P0-18` **Land the client-integration and ops docs into the repo**
+  - Done 2026-07-21: `docs/integration/frontend-backend-integration.md` (cross-client API/auth/
+    language/meta contract) and `docs/ops/dockerization-and-environments.md` (containerization plan)
+    added as the single source of truth referenced by the Android and future KMP repos
+
 ---
 
 ## Phase 1 — Add RabbitMQ Infrastructure
@@ -329,6 +351,15 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
     `KEYCLOAK_ADMIN_CLIENT_SECRET` via the env endpoint
   - Restrict to `health,info` (or secure the rest with a role)
   - Done when: `/actuator/env` is not publicly reachable in any service
+- [ ] `P3-07` **Document the auth contract in `security.md`** (added 2026-07-21, recommended by the
+    Integration doc §11)
+  - `docs/integration/frontend-backend-integration.md` §6 is the normative cross-client auth spec
+    (realm `verborum`, Authorization Code + PKCE, Keycloak clients `verborum-app`/`verborum-web`,
+    token policy, guest-data migration). `security.md` should carry a matching section so the
+    backend and clients cannot drift on realm names, client ids, scopes, or token lifetimes
+  - Do this alongside P3-01/P3-02 (realm + client configuration) so the doc and the actual Keycloak
+    setup are designed together
+  - Done when: `security.md` has an auth-contract section consistent with Integration §6
 
 ---
 
@@ -416,6 +447,32 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
        the old translation as well as add the new one, or counts drift upward forever.
     2. The listener must be idempotent. A redelivery of `word.created` must not increment twice —
        counts are the whole product here, and a DLQ replay would quietly skew rankings.
+    3. **Multi-meaning shape (added 2026-07-21).** `word`/`translation` are no longer single strings
+       — they are JSON arrays of per-meaning surfaces (see the canonical contract in
+       `docs/integration/frontend-backend-integration.md` §4.2), and the meta object carries the
+       language per side. So "aggregate by translation" is ambiguous: a `word.created` for
+       `["kaufen","erwerben"]` → `["to buy","to purchase"]` is several word↔translation facts, not
+       one. Decide here whether to explode each meaning into its own suggestion row and how to key
+       them (surface form only, or surface + `type`). The `word.created` payload and its parser must
+       be designed together with this decision — the backend stops treating word/meta as opaque at
+       exactly this task. Lock the event shape before more consumers depend on it.
 - [ ] `P6-04` **Implement AutofilController**
   - `GET /autofil?word=Haus&from=DE&to=EN` → returns ranked translation suggestions
   - Done when: endpoint returns community translations ordered by frequency
+
+---
+
+## Deferred / Backlog
+> Known, low-urgency work with a clear trigger. Not blocking any phase; pull into a phase when its
+> trigger fires.
+
+- [ ] `BL-01` **Delta sync endpoint** (added 2026-07-21)
+  - `GET /dictionaries/{userId}` and `GET /words/user/{userId}` return the user's entire corpus, and
+    the Android sync engine re-fetches all of it on every download-merge. Fine at
+    personal-vocabulary scale; wasteful on metered mobile connections and as corpora grow (e.g. after
+    marketplace imports land in a user's vault)
+  - Fix: add `?since=<ISO-8601>` returning only rows with `update_dt` newer than the timestamp. The
+    `createdAt`/`updatedAt` fields are already on every response (commit `e9b3de6`), so this is a
+    purely additive, backward-compatible change — existing full-fetch callers are unaffected
+  - Trigger: sync payload sizes or read traffic become a measured problem, or marketplace import
+    (Phase 4) starts adding large dictionaries to vaults

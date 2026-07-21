@@ -1,0 +1,25 @@
+{
+  "databaseChangeLog": [
+    {
+      "changeSet": {
+        "id": "20260721-01-word-translation-text",
+        "author": "claude",
+        "comment": "Widen word and translation from VARCHAR(255) to TEXT. Clients store a JSON array of per-meaning surface forms (e.g. [\"kaufen\",\"erwerben\"]) in these columns; a multi-meaning entry, especially in CJK/Arabic scripts with composed articles, can exceed 255 chars and fail to insert. TEXT keeps storage opaque (no JSON validity enforced) while removing the length limit.",
+        "changes": [
+          {
+            "sql": {
+              "sql": "ALTER TABLE words ALTER COLUMN word TYPE TEXT; ALTER TABLE words ALTER COLUMN translation TYPE TEXT;"
+            }
+          }
+        ],
+        "rollback": [
+          {
+            "sql": {
+              "sql": "ALTER TABLE words ALTER COLUMN word TYPE VARCHAR(255); ALTER TABLE words ALTER COLUMN translation TYPE VARCHAR(255);"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
