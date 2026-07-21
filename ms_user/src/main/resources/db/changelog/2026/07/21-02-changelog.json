@@ -1,0 +1,52 @@
+{
+  "databaseChangeLog": [
+    {
+      "changeSet": {
+        "id": "20260721-02-create-user-stats",
+        "author": "claude (P2-04)",
+        "objectQuotingStrategy": "QUOTE_ONLY_RESERVED_WORDS",
+        "changes": [
+          {
+            "createTable": {
+              "tableName": "user_stats",
+              "columns": [
+                {
+                  "column": {
+                    "name": "user_id",
+                    "type": "VARCHAR(255)",
+                    "constraints": {
+                      "nullable": false,
+                      "primaryKey": true,
+                      "primaryKeyName": "pk_user_stats",
+                      "foreignKeyName": "fk_user_stats_user",
+                      "references": "users(user_id)",
+                      "deleteCascade": true
+                    }
+                  }
+                },
+                {
+                  "column": {
+                    "name": "total_words",
+                    "type": "INT"
+                  }
+                },
+                {
+                  "column": {
+                    "name": "total_dictionaries",
+                    "type": "INT"
+                  }
+                },
+                {
+                  "column": {
+                    "name": "update_dt",
+                    "type": "DATETIME"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

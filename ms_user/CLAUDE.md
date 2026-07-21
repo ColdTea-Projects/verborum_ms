@@ -11,17 +11,22 @@ Keycloak), Dictionary Vault (imported public dictionaries), and User Stats.
 - **Port:** 8086
 - **DB:** `vdbprofile` (PostgreSQL) — docker-compose in this module (Postgres on 5433 + Adminer on 8081)
 - **Base package:** `de.coldtea.verborum.msuser`
-- **Status:** Secured scaffold with the first entity. `User` entity + migration exist (roadmap P2-03
-  done); no DTOs, repository, or endpoints yet. P2-04, P2-05 (UserStats, VaultEntry) and P2-06+ remain.
+- **Status:** Secured scaffold with the first two entities. `User` and `UserStats` entities +
+  migrations exist (roadmap P2-03, P2-04 done); no DTOs, repository, or endpoints yet.
+  P2-05 (VaultEntry) and P2-06+ remain.
 
 ## Entities
 - `User` (`users`) — `userId` (PK, client UUID), `keycloakId`, `email`, `displayName`, timestamps.
   `keycloak_id` is NOT NULL + UNIQUE (the 1:1 link to the Keycloak subject, and the value the other
   services store as `fk_user_id`). `email` is NOT NULL + UNIQUE (product rule: one profile per email;
   Keycloak stays the identity authority). Migration: `2026/07/21-01-changelog.json`.
+- `UserStats` (`user_stats`) — `userId` (PK), `totalWords`, `totalDictionaries`, `updateTimestamp`.
+  1:1 with `User`: `user_id` is both PK and a real FK to `users(user_id)` with **ON DELETE CASCADE**
+  (deleting a user removes its stats row). This intra-service FK is intentional — unlike the
+  cross-service / split-ready `word → dictionary` case, `UserStats` is a same-DB satellite of `User`.
+  Migration: `2026/07/21-02-changelog.json`.
 
 ## Planned entities (not yet implemented — see roadmap Phase 2)
-- `UserStats` (`user_stats`) — `userId` (PK, FK to user), `totalWords`, `totalDictionaries`, `updatedAt`
 - `VaultEntry` (`vault_entries`) — `vaultEntryId`, `userId`, `dictionaryId`, `importedAt`
   (tracks imported public dictionaries per user)
 

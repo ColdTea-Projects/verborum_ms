@@ -282,9 +282,18 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
     (product rule: one profile per email; Keycloak remains the identity authority). `display_name`
     nullable. Verified live: Liquibase created `users` in `vdbprofile` on boot with both unique
     constraints. Repository/DTOs/mapper/endpoints are P2-06.
-- [ ] `P2-04` **Design and create UserStats entity + migration**
+- [x] `P2-04` **Design and create UserStats entity + migration**
   - Entity: `UserStats` — fields: `userId` (PK, FK to user), `totalWords`, `totalDictionaries`, `updatedAt`
   - Done when: table `user_stats` is created
+  - Done 2026-07-21: `userstats/entity/UserStats.java` + changeset `2026/07/21-02-changelog.json`
+    (registered in master). `user_id` is PK **and** a real FK to `users(user_id)` with
+    `ON DELETE CASCADE` — chosen over the `word → dictionary` "no DB FK" convention because
+    `UserStats` is a 1:1 same-DB satellite of `User` (not a split-ready/cross-service ref), so the FK
+    is the correct model and gives free, correct cleanup on user deletion. The 1:1 is NOT mapped as a
+    JPA association (project convention). `updatedAt` is `updateTimestamp`/`update_dt` with
+    `@UpdateTimestamp`, matching the naming used across the services. Verified live: Liquibase created
+    `user_stats` in `vdbprofile` with `pk_user_stats` and FK `fk_user_stats_user` (ON DELETE CASCADE);
+    a stats row is auto-deleted when its user is deleted. Repository/DTOs/endpoints are later phases.
 - [ ] `P2-05` **Design and create VaultEntry entity + migration**
   - Entity: `VaultEntry` — tracks imported public dictionaries per user
   - Fields: `vaultEntryId`, `userId`, `dictionaryId`, `importedAt`
