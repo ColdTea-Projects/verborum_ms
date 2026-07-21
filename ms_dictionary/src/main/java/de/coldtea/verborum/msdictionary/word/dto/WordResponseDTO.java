@@ -3,7 +3,7 @@ package de.coldtea.verborum.msdictionary.word.dto;
 import jakarta.validation.constraints.NotBlank;
 import lombok.*;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
 import static de.coldtea.verborum.msdictionary.common.constants.DTOMessageConstants.*;
 
@@ -31,8 +31,10 @@ public class WordResponseDTO {
     @NotBlank(message = WORD_WORD_TRANSLATION_META)
     private String translationMeta;
 
-    private LocalDateTime creationTimestamp;
+    private Integer level;
 
-    private LocalDateTime updateTimestamp;
+    private OffsetDateTime createdAt;
+
+    private OffsetDateTime updatedAt;
 
 }

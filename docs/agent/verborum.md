@@ -85,8 +85,8 @@ name            VARCHAR      Display name
 is_public       BOOLEAN      Whether visible on Marketplace
 from_lang       VARCHAR      Language code e.g. "EN"
 to_lang         VARCHAR      Language code e.g. "DE"
-creation_dt     TIMESTAMP    Auto-set by Hibernate @CreationTimestamp
-update_dt       TIMESTAMP    Auto-set by Hibernate @UpdateTimestamp
+creation_dt     TIMESTAMPTZ  Auto-set by Hibernate @CreationTimestamp; JSON key createdAt
+update_dt       TIMESTAMPTZ  Auto-set by Hibernate @UpdateTimestamp; JSON key updatedAt
 ```
 
 ### Word (`words` table in ms_dictionary)
@@ -97,9 +97,23 @@ word                TEXT         JSON array of per-meaning surface forms (see co
 word_meta           JSON         JSON object (see contract below)
 translation         TEXT         JSON array of per-meaning surface forms (same contract as word)
 translation_meta    JSON         Same JSON contract as word_meta
-creation_dt         TIMESTAMP
-update_dt           TIMESTAMP
+level               INT          Per-user mastery level (nullable; client-owned) — see note below
+creation_dt         TIMESTAMPTZ  Auto-set by Hibernate @CreationTimestamp; JSON key createdAt
+update_dt           TIMESTAMPTZ  Auto-set by Hibernate @UpdateTimestamp; JSON key updatedAt
 ```
+
+**`level`** is the per-user practice/mastery of a word, mirroring the mobile client's local `level`.
+Client-owned and stored opaquely. **Nullable and optional** on upload: a client that predates the
+field simply omits it (backend stores `null`; treat `null` as `0` client-side). Sent on `POST`/`PUT`
+`/words` (in each `WordRequestDTO`) and returned on reads. It is deliberately *not* on the
+`word.created` event (autofil counts translations, not mastery).
+
+**Timestamps are zone-aware.** `creation_dt`/`update_dt` are `timestamptz`, exposed on read DTOs as
+JSON keys **`createdAt`** / **`updatedAt`** (renamed from the earlier `creationTimestamp`/
+`updateTimestamp`), serialized as ISO-8601 with a zone — normalized to UTC, e.g.
+`"2026-07-21T09:34:42.622774Z"`. Server-authoritative: Hibernate sets them, they are ignored on
+write, and only appear on GET reads. (The `Response`/`ErrorResponse` envelope `timestamp` is a
+separate field and carries the server's local offset, e.g. `+04:00` — do not confuse the two.)
 
 **Word / translation content contract** (canonical; owned by the clients, stored opaquely by the
 backend — full spec in `docs/integration/frontend-backend-integration.md` §4.2 and the Android

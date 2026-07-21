@@ -134,6 +134,26 @@ what web/iOS must reproduce exactly:
 > nothing broke at runtime, but the docs now describe the schema above. The `word`/`translation`
 > columns were also widened `VARCHAR(255)` → `TEXT` so multi-meaning entries cannot be truncated.
 
+### 4.3 Word `level` (per-user mastery)
+A word carries an integer **`level`** — the user's practice/mastery of that word, mirroring the
+mobile client's local `level`. It rides on the word row (`POST`/`PUT /words`, returned on reads).
+**Optional and nullable** on upload: a client that does not yet send it keeps working, and the
+backend stores `null` — a client should treat `null` as `0`. Not carried on the `word.created`
+event. (Backend column added 2026-07-21.)
+
+### 4.4 Timestamps — names, zone, and format (contract)
+Read DTOs (`DictionaryResponseDTO`, `WordResponseDTO`) expose two timestamps with the JSON keys
+**`createdAt`** and **`updatedAt`**. Both are **zone-aware ISO-8601, normalized to UTC** with a `Z`
+suffix, e.g. `"2026-07-21T09:34:42.622774Z"`.
+- These are **server-authoritative**: Hibernate sets them; clients do **not** send them on upload
+  (request DTOs have no timestamp fields), and any client-supplied value would be ignored.
+- Parse them as an instant (UTC). Do **not** assume local time and do **not** map by the older names
+  `creationTimestamp`/`updateTimestamp` — those were renamed to `createdAt`/`updatedAt`
+  (2026-07-21) and are gone.
+- Separate field, do not confuse: the mutation/error **envelope** (`Response`/`ErrorResponse`) has
+  its own `timestamp` field that carries the server's **local offset** (e.g. `+04:00`). Only the
+  read-DTO `createdAt`/`updatedAt` are the record's timestamps.
+
 ---
 
 ## 5. Sync & Offline Model
@@ -243,7 +263,9 @@ a new listing may take a moment. Do not design UI that assumes synchronous propa
 ## 10. Compatibility Rules
 
 1. **Additive-only** API evolution: new fields, new endpoints; never repurpose or remove while any
-   client version is live.
+   client version is live. Narrow exception: a field may be renamed only if **no client build has
+   ever correctly consumed the old name** (i.e. removing it breaks nothing). The one exercised
+   precedent is the `creationTimestamp`/`updateTimestamp` → `createdAt`/`updatedAt` rename in §4.4.
 2. Meta schema evolves by **adding keys**; parsers ignore unknown keys (already true on Android;
    mandatory for web/iOS).
 3. Language list grows backend-first (§4.1).

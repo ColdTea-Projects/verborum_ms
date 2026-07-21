@@ -28,4 +28,8 @@ public class WordRequestDTO {
     @NotBlank(message = WORD_WORD_TRANSLATION_META)
     private String translationMeta;
 
+    // Per-user mastery level. Optional so clients that predate the field keep working (additive
+    // change); when absent it is stored as null. Client-owned value.
+    private Integer level;
+
 }
