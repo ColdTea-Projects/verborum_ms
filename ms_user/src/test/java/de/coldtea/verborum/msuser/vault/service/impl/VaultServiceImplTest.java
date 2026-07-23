@@ -3,6 +3,7 @@ package de.coldtea.verborum.msuser.vault.service.impl;
 import de.coldtea.verborum.msuser.common.exception.RecordNotFoundException;
 import de.coldtea.verborum.msuser.common.mapper.VaultEntryMapper;
 import de.coldtea.verborum.msuser.user.entity.User;
+import de.coldtea.verborum.msuser.common.exception.ForbiddenOperationException;
 import de.coldtea.verborum.msuser.user.repository.UserRepository;
 import de.coldtea.verborum.msuser.vault.dto.VaultEntryRequestDTO;
 import de.coldtea.verborum.msuser.vault.dto.VaultEntryResponseDTO;
@@ -18,6 +19,7 @@ import org.mockito.MockitoAnnotations;
 import java.util.List;
 import java.util.Optional;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
@@ -29,6 +31,8 @@ class VaultServiceImplTest {
 
     private static final String USER_ID = "1";
     private static final String DICTIONARY_ID = "2";
+    /** The JWT subject of the caller — in ms_user that is the profile's keycloakId (P3-05). */
+    private static final String CALLER_KC_ID = "kc-1";
 
     @Mock
     private VaultEntryRepository vaultEntryRepository;
@@ -45,6 +49,11 @@ class VaultServiceImplTest {
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
+
+        // Every caller-facing vault method resolves the profile to check ownership, so the default
+        // fixture is "the vault belongs to the caller". The forbidden cases re-stub this.
+        when(userRepository.findById(USER_ID))
+                .thenReturn(Optional.of(User.builder().userId(USER_ID).keycloakId(CALLER_KC_ID).build()));
     }
 
     @Test
@@ -57,7 +66,7 @@ class VaultServiceImplTest {
         when(vaultEntryMapper.toVaultEntryResponseDTO(vaultEntry)).thenReturn(responseDTO);
 
         // Act
-        List<VaultEntryResponseDTO> result = vaultService.getVaultEntriesByUser(USER_ID);
+        List<VaultEntryResponseDTO> result = vaultService.getVaultEntriesByUser(USER_ID, CALLER_KC_ID);
 
         // Assert
         assertEquals(List.of(responseDTO), result);
@@ -71,7 +80,7 @@ class VaultServiceImplTest {
         when(vaultEntryRepository.findByUserId(USER_ID)).thenReturn(List.of());
 
         // Act
-        List<VaultEntryResponseDTO> result = vaultService.getVaultEntriesByUser(USER_ID);
+        List<VaultEntryResponseDTO> result = vaultService.getVaultEntriesByUser(USER_ID, CALLER_KC_ID);
 
         // Assert
         assertEquals(List.of(), result);
@@ -92,7 +101,7 @@ class VaultServiceImplTest {
         when(vaultEntryMapper.toVaultEntryResponseDTO(vaultEntry)).thenReturn(responseDTO);
 
         // Act
-        VaultEntryResponseDTO result = vaultService.addVaultEntry(USER_ID, requestDTO);
+        VaultEntryResponseDTO result = vaultService.addVaultEntry(USER_ID, requestDTO, CALLER_KC_ID);
 
         // Assert
         assertEquals(responseDTO, result);
@@ -111,12 +120,12 @@ class VaultServiceImplTest {
         when(vaultEntryMapper.toVaultEntryResponseDTO(existingEntry)).thenReturn(responseDTO);
 
         // Act
-        VaultEntryResponseDTO result = vaultService.addVaultEntry(USER_ID, requestDTO);
+        VaultEntryResponseDTO result = vaultService.addVaultEntry(USER_ID, requestDTO, CALLER_KC_ID);
 
         // Assert
         assertEquals(responseDTO, result);
         verify(vaultEntryRepository, never()).saveAndFlush(any());
-        verifyNoInteractions(userRepository);
+        verify(userRepository, never()).existsById(anyString());
     }
 
     @Test
@@ -128,7 +137,7 @@ class VaultServiceImplTest {
         when(userRepository.existsById(USER_ID)).thenReturn(false);
 
         // Act & Assert
-        assertThrows(RecordNotFoundException.class, () -> vaultService.addVaultEntry(USER_ID, requestDTO));
+        assertThrows(RecordNotFoundException.class, () -> vaultService.addVaultEntry(USER_ID, requestDTO, CALLER_KC_ID));
         verify(vaultEntryRepository, never()).saveAndFlush(any());
         verifyNoInteractions(vaultEntryMapper);
     }
@@ -192,9 +201,63 @@ class VaultServiceImplTest {
     @Test
     void deleteVaultEntry_Success() {
         // Act
-        vaultService.deleteVaultEntry(USER_ID, DICTIONARY_ID);
+        vaultService.deleteVaultEntry(USER_ID, DICTIONARY_ID, CALLER_KC_ID);
 
         // Assert
         verify(vaultEntryRepository).deleteByUserIdAndDictionaryId(USER_ID, DICTIONARY_ID);
+    }
+
+    @Test
+    void getVaultEntriesByUser_AnotherUsersVault_IsForbidden() {
+        // Arrange
+        givenTheVaultBelongsToSomeoneElse();
+
+        // Act & Assert
+        assertThrows(ForbiddenOperationException.class,
+                () -> vaultService.getVaultEntriesByUser(USER_ID, CALLER_KC_ID));
+        verifyNoInteractions(vaultEntryRepository);
+    }
+
+    @Test
+    void addVaultEntry_AnotherUsersVault_IsForbidden() {
+        // Arrange
+        givenTheVaultBelongsToSomeoneElse();
+
+        // Act & Assert
+        assertThrows(ForbiddenOperationException.class,
+                () -> vaultService.addVaultEntry(USER_ID, new VaultEntryRequestDTO(DICTIONARY_ID), CALLER_KC_ID));
+        verifyNoInteractions(vaultEntryRepository);
+    }
+
+    @Test
+    void deleteVaultEntry_AnotherUsersVault_IsForbidden() {
+        // Arrange
+        givenTheVaultBelongsToSomeoneElse();
+
+        // Act & Assert
+        assertThrows(ForbiddenOperationException.class,
+                () -> vaultService.deleteVaultEntry(USER_ID, DICTIONARY_ID, CALLER_KC_ID));
+        verifyNoInteractions(vaultEntryRepository);
+    }
+
+    /** importDictionary is the event path and takes no caller, so it stays reachable — by design. */
+    @Test
+    void importDictionary_IsNotOwnershipChecked() {
+        // Arrange
+        String keycloakId = "kc-someone-else";
+        User user = User.builder().userId("other").keycloakId(keycloakId).build();
+
+        when(userRepository.findByKeycloakId(keycloakId)).thenReturn(Optional.of(user));
+        when(vaultEntryRepository.findByUserIdAndDictionaryId("other", DICTIONARY_ID))
+                .thenReturn(Optional.of(new VaultEntry()));
+        when(vaultEntryMapper.toVaultEntryResponseDTO(any())).thenReturn(new VaultEntryResponseDTO());
+
+        // Act & Assert — no exception: ms_marketplace, not a user, is the actor here
+        assertDoesNotThrow(() -> vaultService.importDictionary(keycloakId, DICTIONARY_ID));
+    }
+
+    private void givenTheVaultBelongsToSomeoneElse() {
+        when(userRepository.findById(USER_ID))
+                .thenReturn(Optional.of(User.builder().userId(USER_ID).keycloakId("kc-someone-else").build()));
     }
 }

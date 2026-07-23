@@ -21,6 +21,8 @@ import java.util.stream.Stream;
 
 import static de.coldtea.verborum.msdictionary.common.constants.ResponseMessageConstants.*;
 import static de.coldtea.verborum.msdictionary.common.utils.ResponseUtils.getListOfWords;
+import static de.coldtea.verborum.msdictionary.common.utils.SecurityUtils.getCurrentUserId;
+import static de.coldtea.verborum.msdictionary.common.utils.SecurityUtils.requireSelf;
 
 @RestController
 @RequestMapping("/words")
@@ -32,7 +34,7 @@ public class WordController {
 
     @PostMapping("")
     public ResponseEntity<Response> createWords(@Valid @RequestBody List<WordBundleRequestDTO> bundles, WebRequest request) {
-        wordService.saveWords(bundles);
+        wordService.saveWords(bundles, getCurrentUserId());
 
         String listOfWords = getListOfWords(listUtils.flatMap(bundles, WordBundleRequestDTO::getWordStream));
 
@@ -41,7 +43,7 @@ public class WordController {
 
     @PutMapping("")
     public ResponseEntity<Response> updateWords(@Valid @RequestBody List<WordBundleRequestDTO> bundles, WebRequest request) {
-        wordService.saveWords(bundles);
+        wordService.saveWords(bundles, getCurrentUserId());
 
         String listOfWords = getListOfWords(listUtils.flatMap(bundles, WordBundleRequestDTO::getWordStream));
 
@@ -78,8 +80,13 @@ public class WordController {
         return wordService.getWordsByLanguageTo(language);
     }
 
+    /**
+     * The path variable is kept for backward compatibility, but it must name the caller — a token
+     * cannot read another user's words (P3-05).
+     */
     @GetMapping("/user/{userId}")
     public List<WordResponseDTO> getWordsByUser(@PathVariable String userId) {
+        requireSelf(userId);
         return wordService.getWordsByUserId(userId);
     }
 

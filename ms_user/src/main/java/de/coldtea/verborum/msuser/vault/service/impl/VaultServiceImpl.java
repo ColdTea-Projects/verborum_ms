@@ -1,5 +1,6 @@
 package de.coldtea.verborum.msuser.vault.service.impl;
 
+import de.coldtea.verborum.msuser.common.exception.ForbiddenOperationException;
 import de.coldtea.verborum.msuser.common.exception.RecordNotFoundException;
 import de.coldtea.verborum.msuser.common.mapper.VaultEntryMapper;
 import de.coldtea.verborum.msuser.user.entity.User;
@@ -16,6 +17,7 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.UUID;
 
+import static de.coldtea.verborum.msuser.common.constants.ErrorMessageConstants.NOT_THE_OWNER;
 import static de.coldtea.verborum.msuser.common.constants.ErrorMessageConstants.USER_WAS_NOT_FOUND_ID;
 import static de.coldtea.verborum.msuser.common.constants.ErrorMessageConstants.USER_WAS_NOT_FOUND_KEYCLOAK_ID;
 
@@ -30,9 +32,11 @@ public class VaultServiceImpl implements VaultService {
     private final VaultEntryMapper vaultEntryMapper;
 
     @Override
-    public List<VaultEntryResponseDTO> getVaultEntriesByUser(String userId) {
-        // No user-existence check: an unknown user simply has an empty vault, mirroring
-        // ms_dictionary's GET /dictionaries/{userId}, which also returns a plain list.
+    public List<VaultEntryResponseDTO> getVaultEntriesByUser(String userId, String callerKeycloakId) {
+        requireOwnProfile(userId, callerKeycloakId);
+
+        // No user-existence check beyond the ownership guard: an unknown user simply has an empty
+        // vault, mirroring ms_dictionary's GET /dictionaries/{userId}.
         return vaultEntryRepository.findByUserId(userId)
                 .stream()
                 .map(vaultEntryMapper::toVaultEntryResponseDTO)
@@ -41,7 +45,17 @@ public class VaultServiceImpl implements VaultService {
 
     @Transactional
     @Override
-    public VaultEntryResponseDTO addVaultEntry(String userId, VaultEntryRequestDTO vaultEntryRequestDTO) {
+    public VaultEntryResponseDTO addVaultEntry(String userId, VaultEntryRequestDTO vaultEntryRequestDTO, String callerKeycloakId) {
+        requireOwnProfile(userId, callerKeycloakId);
+        return addVaultEntry(userId, vaultEntryRequestDTO);
+    }
+
+    /**
+     * Ownership-free overload for the two callers that are not a logged-in user: the ownership guard
+     * above, and importDictionary (driven by a marketplace event, where the actor is another
+     * service).
+     */
+    private VaultEntryResponseDTO addVaultEntry(String userId, VaultEntryRequestDTO vaultEntryRequestDTO) {
         // Idempotent by design: a vault is a set, enforced by UNIQUE (fk_user_id, fk_dictionary_id).
         // Re-importing the same dictionary returns the existing entry instead of failing, which is
         // also the behaviour P2-09 needs when RabbitMQ redelivers a dictionary.imported event.
@@ -70,9 +84,24 @@ public class VaultServiceImpl implements VaultService {
                 .build());
     }
 
+    /**
+     * A vault belongs to a profile, and the token identifies that profile by `keycloakId` — so the
+     * guard resolves the profile and compares, rather than comparing the path's userId directly
+     * (the JWT subject is never ms_user's own primary key).
+     */
+    private void requireOwnProfile(String userId, String callerKeycloakId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RecordNotFoundException(USER_WAS_NOT_FOUND_ID + userId));
+
+        if (!callerKeycloakId.equals(user.getKeycloakId())) {
+            throw new ForbiddenOperationException(NOT_THE_OWNER);
+        }
+    }
+
     @Transactional
     @Override
-    public void deleteVaultEntry(String userId, String dictionaryId) {
+    public void deleteVaultEntry(String userId, String dictionaryId, String callerKeycloakId) {
+        requireOwnProfile(userId, callerKeycloakId);
         // A delete of an entry that is not in the vault is a silent no-op (200), matching
         // DictionaryServiceImpl.deleteDictionary and UserServiceImpl.deleteUser.
         vaultEntryRepository.deleteByUserIdAndDictionaryId(userId, dictionaryId);

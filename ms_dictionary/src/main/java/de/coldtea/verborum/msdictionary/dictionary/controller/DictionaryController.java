@@ -15,6 +15,8 @@ import java.util.List;
 
 import static de.coldtea.verborum.msdictionary.common.constants.ResponseMessageConstants.*;
 import static de.coldtea.verborum.msdictionary.common.utils.ResponseUtils.buildResponse;
+import static de.coldtea.verborum.msdictionary.common.utils.SecurityUtils.getCurrentUserId;
+import static de.coldtea.verborum.msdictionary.common.utils.SecurityUtils.requireSelf;
 
 @RestController
 @RequestMapping("/dictionaries")
@@ -26,14 +28,14 @@ public class DictionaryController {
     @PostMapping("/")
     public ResponseEntity<Response> createDictionary(@Valid @RequestBody DictionaryRequestDTO dictionary, WebRequest request) {
 
-        DictionaryResponseDTO dictionaryResponseDTO = dictionaryService.saveDictionary(dictionary);
+        DictionaryResponseDTO dictionaryResponseDTO = dictionaryService.saveDictionary(dictionary, getCurrentUserId());
         return buildResponse(HttpStatus.CREATED, DICTIONARY_SAVED_SUCCESSFULLY, dictionaryResponseDTO.getDictionaryId(), request);
     }
 
     @PutMapping("/")
     public ResponseEntity<Response> updateDictionary(@Valid @RequestBody DictionaryRequestDTO dictionary, WebRequest request) {
 
-        dictionaryService.saveDictionary(dictionary);
+        dictionaryService.saveDictionary(dictionary, getCurrentUserId());
         return buildResponse(HttpStatus.CREATED, DICTIONARY_UPDATED_SUCCESSFULLY, dictionary.getDictionaryId(), request);
     }
 
@@ -44,8 +46,13 @@ public class DictionaryController {
     }
 
 
+    /**
+     * The path variable is kept for backward compatibility with existing clients, but it must name
+     * the caller — a token cannot list another user's dictionaries (P3-05).
+     */
     @GetMapping("/{userId}")
     public ResponseEntity<List<DictionaryResponseDTO>> getAllDictionariesByUser(@PathVariable String userId) {
+        requireSelf(userId);
         return new ResponseEntity<>(dictionaryService.getDictionariesByUser(userId), HttpStatus.OK);
     }
 

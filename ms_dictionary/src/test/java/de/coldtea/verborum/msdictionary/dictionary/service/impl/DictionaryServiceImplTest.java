@@ -1,5 +1,6 @@
 package de.coldtea.verborum.msdictionary.dictionary.service.impl;
 
+import de.coldtea.verborum.msdictionary.common.exception.ForbiddenOperationException;
 import de.coldtea.verborum.msdictionary.common.exception.RecordNotFoundException;
 import de.coldtea.verborum.msdictionary.common.mapper.DictionaryMapper;
 import de.coldtea.verborum.msdictionary.dictionary.dto.DictionaryRequestDTO;
@@ -36,6 +37,9 @@ import static org.mockito.Mockito.*;
 
 class DictionaryServiceImplTest {
 
+    /** The JWT subject of the caller. Matches the fixture dictionaries' userId (P3-05). */
+    private static final String OWNER = "user1";
+
     @Mock
     private DictionaryRepository dictionaryRepository;
 
@@ -70,7 +74,7 @@ class DictionaryServiceImplTest {
         when(dictionaryMapper.toDictionaryResponseDTO(dictionary)).thenReturn(responseDTO);
 
         // Act
-        DictionaryResponseDTO result = dictionaryService.saveDictionary(requestDTO);
+        DictionaryResponseDTO result = dictionaryService.saveDictionary(requestDTO, OWNER);
 
         // Assert
         assertEquals(responseDTO, result);
@@ -89,7 +93,7 @@ class DictionaryServiceImplTest {
         when(dictionaryRepository.saveAndFlush(dictionary)).thenThrow(new RuntimeException("Unable to save dictionary"));
 
         // Act & Assert
-        assertThrows(RuntimeException.class, () -> dictionaryService.saveDictionary(requestDTO));
+        assertThrows(RuntimeException.class, () -> dictionaryService.saveDictionary(requestDTO, OWNER));
         verify(dictionaryMapper).toDictionary(requestDTO);
         verify(dictionaryRepository).saveAndFlush(dictionary);
         verifyNoMoreInteractions(dictionaryMapper);
@@ -107,7 +111,7 @@ class DictionaryServiceImplTest {
         when(dictionaryMapper.toDictionaryResponseDTO(dictionary)).thenReturn(new DictionaryResponseDTO());
 
         // Act
-        dictionaryService.saveDictionary(requestDTO);
+        dictionaryService.saveDictionary(requestDTO, OWNER);
 
         // Assert
         ArgumentCaptor<DictionaryVisibilityEvent> captor = ArgumentCaptor.forClass(DictionaryVisibilityEvent.class);
@@ -135,7 +139,7 @@ class DictionaryServiceImplTest {
         when(dictionaryMapper.toDictionaryResponseDTO(dictionary)).thenReturn(new DictionaryResponseDTO());
 
         // Act
-        dictionaryService.saveDictionary(requestDTO);
+        dictionaryService.saveDictionary(requestDTO, OWNER);
 
         // Assert
         verifyNoInteractions(rabbitTemplate);
@@ -153,7 +157,7 @@ class DictionaryServiceImplTest {
         when(dictionaryMapper.toDictionaryResponseDTO(saved)).thenReturn(new DictionaryResponseDTO());
 
         // Act
-        dictionaryService.saveDictionary(requestDTO);
+        dictionaryService.saveDictionary(requestDTO, OWNER);
 
         // Assert
         ArgumentCaptor<DictionaryVisibilityEvent> captor = ArgumentCaptor.forClass(DictionaryVisibilityEvent.class);
@@ -178,7 +182,7 @@ class DictionaryServiceImplTest {
         when(dictionaryMapper.toDictionaryResponseDTO(saved)).thenReturn(new DictionaryResponseDTO());
 
         // Act
-        dictionaryService.saveDictionary(requestDTO);
+        dictionaryService.saveDictionary(requestDTO, OWNER);
 
         // Assert
         ArgumentCaptor<DictionaryVisibilityEvent> captor = ArgumentCaptor.forClass(DictionaryVisibilityEvent.class);
@@ -201,7 +205,7 @@ class DictionaryServiceImplTest {
         when(dictionaryMapper.toDictionaryResponseDTO(saved)).thenReturn(new DictionaryResponseDTO());
 
         // Act
-        dictionaryService.saveDictionary(requestDTO);
+        dictionaryService.saveDictionary(requestDTO, OWNER);
 
         // Assert
         verifyNoInteractions(rabbitTemplate);
@@ -219,7 +223,7 @@ class DictionaryServiceImplTest {
         when(dictionaryMapper.toDictionaryResponseDTO(saved)).thenReturn(new DictionaryResponseDTO());
 
         // Act
-        dictionaryService.saveDictionary(requestDTO);
+        dictionaryService.saveDictionary(requestDTO, OWNER);
 
         // Assert
         verifyNoInteractions(rabbitTemplate);
@@ -239,7 +243,7 @@ class DictionaryServiceImplTest {
         when(dictionaryMapper.toDictionaryResponseDTO(saved)).thenReturn(new DictionaryResponseDTO());
 
         // Act
-        dictionaryService.saveDictionary(requestDTO);
+        dictionaryService.saveDictionary(requestDTO, OWNER);
 
         // Assert
         verify(rabbitTemplate).convertAndSend(eq(RabbitMQConfig.EXCHANGE),
@@ -392,6 +396,51 @@ class DictionaryServiceImplTest {
         assertEquals(expectedResponse.size(), result.size());
         verify(dictionaryRepository).findByUserId(userId);
         verify(dictionaryMapper, times(dictionaries.size())).toDictionaryResponseDTO(any(Dictionary.class));
+    }
+
+    @Test
+    void saveDictionary_BodyNamingAnotherUser_IsForbidden() {
+        // Arrange — a client that sends the wrong owner must fail loudly, not have it rewritten
+        DictionaryRequestDTO requestDTO = requestDTO("dict1");
+        requestDTO.setUserId("someone-else");
+
+        // Act & Assert
+        assertThrows(ForbiddenOperationException.class, () -> dictionaryService.saveDictionary(requestDTO, OWNER));
+        verify(dictionaryRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void saveDictionary_OverwritingAnotherUsersDictionary_IsForbidden() {
+        // Arrange — the client supplies dictionaryId, so a POST could otherwise take over a row
+        DictionaryRequestDTO requestDTO = requestDTO("dict1");
+        Dictionary someoneElses = Dictionary.builder().dictionaryId("dict1").userId("someone-else").build();
+
+        when(dictionaryRepository.findById("dict1")).thenReturn(Optional.of(someoneElses));
+
+        // Act & Assert
+        assertThrows(ForbiddenOperationException.class, () -> dictionaryService.saveDictionary(requestDTO, OWNER));
+        verify(dictionaryRepository, never()).saveAndFlush(any());
+        verifyNoInteractions(rabbitTemplate);
+    }
+
+    @Test
+    void saveDictionary_OwnerComesFromTheToken() {
+        // Arrange — even with no userId in the body, the stored row belongs to the caller
+        DictionaryRequestDTO requestDTO = requestDTO("dict1");
+        Dictionary mapped = Dictionary.builder().dictionaryId("dict1").build();
+
+        when(dictionaryRepository.findById("dict1")).thenReturn(Optional.empty());
+        when(dictionaryMapper.toDictionary(requestDTO)).thenReturn(mapped);
+        when(dictionaryRepository.saveAndFlush(mapped)).thenReturn(mapped);
+        when(dictionaryMapper.toDictionaryResponseDTO(mapped)).thenReturn(new DictionaryResponseDTO());
+
+        // Act
+        dictionaryService.saveDictionary(requestDTO, OWNER);
+
+        // Assert
+        ArgumentCaptor<Dictionary> captor = ArgumentCaptor.forClass(Dictionary.class);
+        verify(dictionaryRepository).saveAndFlush(captor.capture());
+        assertEquals(OWNER, captor.getValue().getUserId());
     }
 
     @Test

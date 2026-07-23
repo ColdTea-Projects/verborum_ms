@@ -13,6 +13,7 @@ import org.springframework.web.context.request.WebRequest;
 
 import static de.coldtea.verborum.msuser.common.constants.ResponseMessageConstants.*;
 import static de.coldtea.verborum.msuser.common.utils.ResponseUtils.buildResponse;
+import static de.coldtea.verborum.msuser.common.utils.SecurityUtils.getCurrentKeycloakId;
 
 @RestController
 @RequestMapping("/users")
@@ -23,24 +24,24 @@ public class UserController {
 
     @PostMapping("/")
     public ResponseEntity<Response> createUser(@Valid @RequestBody UserRequestDTO user, WebRequest request) {
-        UserResponseDTO userResponseDTO = userService.saveUser(user);
+        UserResponseDTO userResponseDTO = userService.saveUser(user, getCurrentKeycloakId());
         return buildResponse(HttpStatus.CREATED, USER_SAVED_SUCCESSFULLY, userResponseDTO.getUserId(), request);
     }
 
     @PutMapping("/")
     public ResponseEntity<Response> updateUser(@Valid @RequestBody UserRequestDTO user, WebRequest request) {
-        userService.saveUser(user);
+        userService.saveUser(user, getCurrentKeycloakId());
         return buildResponse(HttpStatus.CREATED, USER_UPDATED_SUCCESSFULLY, user.getUserId(), request);
     }
 
     @GetMapping("/{userId}")
     public ResponseEntity<UserResponseDTO> getUserById(@PathVariable String userId) {
-        return new ResponseEntity<>(userService.getUserById(userId), HttpStatus.OK);
+        return new ResponseEntity<>(userService.getUserById(userId, getCurrentKeycloakId()), HttpStatus.OK);
     }
 
     @DeleteMapping("/{userId}")
     public ResponseEntity<Response> deleteUser(@PathVariable String userId, WebRequest request) {
-        userService.deleteUser(userId);
+        userService.deleteUser(userId, getCurrentKeycloakId());
         return buildResponse(HttpStatus.OK, USER_DELETED_SUCCESSFULLY, userId, request);
     }
 

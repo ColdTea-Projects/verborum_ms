@@ -1,6 +1,7 @@
 package de.coldtea.verborum.msdictionary.word.service.impl;
 
 import de.coldtea.verborum.msdictionary.common.event.WordCreatedEvent;
+import de.coldtea.verborum.msdictionary.common.exception.ForbiddenOperationException;
 import de.coldtea.verborum.msdictionary.common.exception.RecordNotFoundException;
 import de.coldtea.verborum.msdictionary.common.mapper.WordMapper;
 import de.coldtea.verborum.msdictionary.common.utils.ListUtils;
@@ -28,6 +29,7 @@ import java.util.stream.Stream;
 import static de.coldtea.verborum.msdictionary.common.config.RabbitMQConfig.EXCHANGE;
 import static de.coldtea.verborum.msdictionary.common.config.RabbitMQConfig.ROUTING_KEY_WORD_CREATED;
 import static de.coldtea.verborum.msdictionary.common.constants.ErrorMessageConstants.DICTIONARY_WAS_NOT_FOUND_ID;
+import static de.coldtea.verborum.msdictionary.common.constants.ErrorMessageConstants.NOT_THE_OWNER;
 
 @Service
 @RequiredArgsConstructor
@@ -42,8 +44,8 @@ public class WordServiceImpl implements WordService {
 
     @Transactional
     @Override
-    public void saveWords(List<WordBundleRequestDTO> bundles) {
-        List<Word> words = listUtils.flatMap(bundles, this::convertToWordStream);
+    public void saveWords(List<WordBundleRequestDTO> bundles, String ownerId) {
+        List<Word> words = listUtils.flatMap(bundles, bundle -> convertToWordStream(bundle, ownerId));
 
         // saveWords() backs both POST and PUT, so work out which ids are genuinely new before the
         // save overwrites the evidence. Re-announcing an edited word as created would have
@@ -148,9 +150,15 @@ public class WordServiceImpl implements WordService {
         return wordRepository.findAllById(wordIds).stream().map(wordMapper::toWordResponseDTO).toList();
     }
 
-    private Stream<Word> convertToWordStream(@NotNull WordBundleRequestDTO bundle){
-        dictionaryRepository.findById(bundle.getDictionaryId())
+    private Stream<Word> convertToWordStream(@NotNull WordBundleRequestDTO bundle, String ownerId){
+        Dictionary dictionary = dictionaryRepository.findById(bundle.getDictionaryId())
                 .orElseThrow(() -> new RecordNotFoundException(DICTIONARY_WAS_NOT_FOUND_ID + bundle.getDictionaryId()));
+
+        // P3-05: a word inherits its owner from its dictionary, so writing into a dictionary that is
+        // not yours is the same hole as claiming another userId outright
+        if (!ownerId.equals(dictionary.getUserId())) {
+            throw new ForbiddenOperationException(NOT_THE_OWNER);
+        }
 
         return listUtils.map(bundle.getWords(),
                 word -> wordMapper.toWord(bundle.getDictionaryId(), word)

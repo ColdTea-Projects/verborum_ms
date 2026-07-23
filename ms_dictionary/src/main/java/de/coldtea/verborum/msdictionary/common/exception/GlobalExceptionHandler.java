@@ -68,6 +68,13 @@ public class GlobalExceptionHandler {
         );
     }
 
+    @ExceptionHandler(ForbiddenOperationException.class)
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    public ResponseEntity<ErrorResponse> handleForbiddenOperationException(ForbiddenOperationException ex, WebRequest request) {
+        log.warn("{}: {}", ForbiddenOperationException.class.getCanonicalName(), ex.getMessage());
+        return buildErrorResponse(HttpStatus.FORBIDDEN, ForbiddenOperationException.class.getSimpleName(), ex.getMessage(), request);
+    }
+
     /**
      * A request for a path that does not map to anything. Without this handler it falls into the
      * generic `Exception` handler and a plain 404 is reported as a 500 — the same class of bug as

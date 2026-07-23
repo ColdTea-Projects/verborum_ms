@@ -10,7 +10,10 @@ import java.util.stream.Stream;
 
 public interface WordService {
 
-    void saveWords(List<WordBundleRequestDTO> wordList);
+    /**
+     * @param ownerId the caller's id from the JWT; every target dictionary must belong to it (P3-05)
+     */
+    void saveWords(List<WordBundleRequestDTO> wordList, String ownerId);
 
     void deleteWords(List<String> wordIdList);
 

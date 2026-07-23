@@ -6,7 +6,10 @@ import de.coldtea.verborum.msdictionary.dictionary.dto.DictionaryResponseDTO;
 import java.util.List;
 
 public interface DictionaryService {
-    DictionaryResponseDTO saveDictionary(DictionaryRequestDTO dictionaryDto);
+    /**
+     * @param ownerId the caller's id, taken from the JWT — never from the request body (P3-05)
+     */
+    DictionaryResponseDTO saveDictionary(DictionaryRequestDTO dictionaryDto, String ownerId);
     void deleteDictionary(String dictionaryId);
     List<DictionaryResponseDTO> getDictionariesByUser(String userId);
     DictionaryResponseDTO getDictionaryById(String dictionaryId);

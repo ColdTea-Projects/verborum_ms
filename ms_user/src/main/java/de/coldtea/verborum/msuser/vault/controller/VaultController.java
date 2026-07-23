@@ -15,6 +15,7 @@ import java.util.List;
 
 import static de.coldtea.verborum.msuser.common.constants.ResponseMessageConstants.*;
 import static de.coldtea.verborum.msuser.common.utils.ResponseUtils.buildResponse;
+import static de.coldtea.verborum.msuser.common.utils.SecurityUtils.getCurrentKeycloakId;
 
 @RestController
 @RequestMapping("/users/{userId}/vault")
@@ -25,14 +26,14 @@ public class VaultController {
 
     @GetMapping
     public ResponseEntity<List<VaultEntryResponseDTO>> getVaultEntriesByUser(@PathVariable String userId) {
-        return new ResponseEntity<>(vaultService.getVaultEntriesByUser(userId), HttpStatus.OK);
+        return new ResponseEntity<>(vaultService.getVaultEntriesByUser(userId, getCurrentKeycloakId()), HttpStatus.OK);
     }
 
     @PostMapping
     public ResponseEntity<Response> addVaultEntry(@PathVariable String userId,
                                                   @Valid @RequestBody VaultEntryRequestDTO vaultEntry,
                                                   WebRequest request) {
-        VaultEntryResponseDTO vaultEntryResponseDTO = vaultService.addVaultEntry(userId, vaultEntry);
+        VaultEntryResponseDTO vaultEntryResponseDTO = vaultService.addVaultEntry(userId, vaultEntry, getCurrentKeycloakId());
         return buildResponse(HttpStatus.CREATED, VAULT_ENTRY_SAVED_SUCCESSFULLY,
                 vaultEntryResponseDTO.getVaultEntryId(), request);
     }
@@ -41,7 +42,7 @@ public class VaultController {
     public ResponseEntity<Response> deleteVaultEntry(@PathVariable String userId,
                                                      @PathVariable String dictionaryId,
                                                      WebRequest request) {
-        vaultService.deleteVaultEntry(userId, dictionaryId);
+        vaultService.deleteVaultEntry(userId, dictionaryId, getCurrentKeycloakId());
         return buildResponse(HttpStatus.OK, VAULT_ENTRY_DELETED_SUCCESSFULLY, dictionaryId, request);
     }
 

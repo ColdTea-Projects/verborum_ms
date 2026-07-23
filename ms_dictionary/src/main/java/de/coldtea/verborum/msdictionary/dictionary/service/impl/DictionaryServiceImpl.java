@@ -2,6 +2,7 @@ package de.coldtea.verborum.msdictionary.dictionary.service.impl;
 
 import de.coldtea.verborum.msdictionary.common.event.DictionaryDeletedEvent;
 import de.coldtea.verborum.msdictionary.common.event.DictionaryVisibilityEvent;
+import de.coldtea.verborum.msdictionary.common.exception.ForbiddenOperationException;
 import de.coldtea.verborum.msdictionary.common.exception.RecordNotFoundException;
 import de.coldtea.verborum.msdictionary.common.mapper.DictionaryMapper;
 import de.coldtea.verborum.msdictionary.dictionary.dto.DictionaryRequestDTO;
@@ -17,12 +18,14 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 import static de.coldtea.verborum.msdictionary.common.config.RabbitMQConfig.EXCHANGE;
 import static de.coldtea.verborum.msdictionary.common.config.RabbitMQConfig.ROUTING_KEY_DICTIONARY_DELETED;
 import static de.coldtea.verborum.msdictionary.common.config.RabbitMQConfig.ROUTING_KEY_DICTIONARY_VISIBILITY_PRIVATE;
 import static de.coldtea.verborum.msdictionary.common.config.RabbitMQConfig.ROUTING_KEY_DICTIONARY_VISIBILITY_PUBLIC;
 import static de.coldtea.verborum.msdictionary.common.constants.ErrorMessageConstants.DICTIONARY_WAS_NOT_FOUND_ID;
+import static de.coldtea.verborum.msdictionary.common.constants.ErrorMessageConstants.NOT_THE_OWNER;
 
 @Service
 @RequiredArgsConstructor
@@ -39,14 +42,32 @@ public class DictionaryServiceImpl implements DictionaryService {
 
     @Transactional
     @Override
-    public DictionaryResponseDTO saveDictionary(DictionaryRequestDTO dictionaryRequestDTO) {
+    public DictionaryResponseDTO saveDictionary(DictionaryRequestDTO dictionaryRequestDTO, String ownerId) {
+        // P3-05: the owner comes from the token. A body naming someone else is rejected rather than
+        // silently rewritten, so a mis-migrated client fails loudly instead of writing under the
+        // wrong owner
+        if (dictionaryRequestDTO.getUserId() != null && !ownerId.equals(dictionaryRequestDTO.getUserId())) {
+            throw new ForbiddenOperationException(NOT_THE_OWNER);
+        }
+
+        Optional<Dictionary> existing = dictionaryRepository.findById(dictionaryRequestDTO.getDictionaryId());
+
+        // saveDictionary() backs POST and PUT, and the client supplies the id — so without this an
+        // authenticated caller could POST someone else's dictionaryId and take the row over
+        if (existing.isPresent() && !ownerId.equals(existing.get().getUserId())) {
+            throw new ForbiddenOperationException(NOT_THE_OWNER);
+        }
+
         // Read the current visibility before saving over it — a dictionary that is absent has
         // never been public, so it counts as private
-        boolean wasPublic = dictionaryRepository.findById(dictionaryRequestDTO.getDictionaryId())
-                .map(existing -> Boolean.TRUE.equals(existing.getIsPublic()))
+        boolean wasPublic = existing
+                .map(dictionary -> Boolean.TRUE.equals(dictionary.getIsPublic()))
                 .orElse(false);
 
-        Dictionary savedDictionary = dictionaryRepository.saveAndFlush(dictionaryMapper.toDictionary(dictionaryRequestDTO));
+        Dictionary dictionary = dictionaryMapper.toDictionary(dictionaryRequestDTO);
+        dictionary.setUserId(ownerId);
+
+        Dictionary savedDictionary = dictionaryRepository.saveAndFlush(dictionary);
 
         // Map before publishing so the send is the last thing that can happen in the transaction:
         // RabbitTemplate is not transactional, so anything that throws after it would roll back

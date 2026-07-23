@@ -2,6 +2,7 @@ package de.coldtea.verborum.msdictionary.word.service.impl;
 
 import de.coldtea.verborum.msdictionary.common.config.RabbitMQConfig;
 import de.coldtea.verborum.msdictionary.common.event.WordCreatedEvent;
+import de.coldtea.verborum.msdictionary.common.exception.ForbiddenOperationException;
 import de.coldtea.verborum.msdictionary.common.exception.RecordNotFoundException;
 import de.coldtea.verborum.msdictionary.common.mapper.WordMapper;
 import de.coldtea.verborum.msdictionary.dictionary.entity.Dictionary;
@@ -30,6 +31,9 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 class WordServiceImplTest {
+
+    /** The JWT subject of the caller. Matches the fixture dictionaries' userId (P3-05). */
+    private static final String OWNER = "user1";
 
     @Mock
     private WordRepository wordRepository;
@@ -66,7 +70,7 @@ class WordServiceImplTest {
         when(wordRepository.findAllById(List.of("word1"))).thenReturn(List.of(word("word1", dictionaryId)));
 
         // Act
-        assertDoesNotThrow(() -> wordService.saveWords(wordBundles));
+        assertDoesNotThrow(() -> wordService.saveWords(wordBundles, OWNER));
 
         // Assert
         verify(dictionaryRepository).findById(dictionaryId);
@@ -86,7 +90,7 @@ class WordServiceImplTest {
         when(wordRepository.findAllById(List.of("word1"))).thenReturn(List.of());
 
         // Act
-        wordService.saveWords(wordBundles);
+        wordService.saveWords(wordBundles, OWNER);
 
         // Assert
         ArgumentCaptor<WordCreatedEvent> captor = ArgumentCaptor.forClass(WordCreatedEvent.class);
@@ -116,7 +120,7 @@ class WordServiceImplTest {
         when(wordRepository.findAllById(List.of("word1"))).thenReturn(List.of(word("word1", dictionaryId)));
 
         // Act
-        wordService.saveWords(wordBundles);
+        wordService.saveWords(wordBundles, OWNER);
 
         // Assert
         verify(wordRepository).saveAllAndFlush(any());
@@ -138,7 +142,7 @@ class WordServiceImplTest {
                 .thenReturn(List.of(word("existing", dictionaryId)));
 
         // Act
-        wordService.saveWords(wordBundles);
+        wordService.saveWords(wordBundles, OWNER);
 
         // Assert
         ArgumentCaptor<WordCreatedEvent> captor = ArgumentCaptor.forClass(WordCreatedEvent.class);
@@ -161,7 +165,7 @@ class WordServiceImplTest {
         when(dictionaryRepository.findAllById(List.of(dictionaryId))).thenReturn(List.of());
 
         // Act & Assert
-        assertThrows(RecordNotFoundException.class, () -> wordService.saveWords(wordBundles));
+        assertThrows(RecordNotFoundException.class, () -> wordService.saveWords(wordBundles, OWNER));
         verifyNoInteractions(rabbitTemplate);
     }
 
@@ -177,7 +181,7 @@ class WordServiceImplTest {
         when(dictionaryRepository.findById(dictionaryId)).thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThrows(RecordNotFoundException.class, () -> wordService.saveWords(wordBundles));
+        assertThrows(RecordNotFoundException.class, () -> wordService.saveWords(wordBundles, OWNER));
     }
 
     @Test
@@ -404,6 +408,23 @@ class WordServiceImplTest {
         assertTrue(result.isEmpty());
         verify(wordRepository).findAllById(wordIds);
         verifyNoInteractions(wordMapper);
+    }
+
+    @Test
+    void saveWords_IntoAnotherUsersDictionary_IsForbidden() {
+        // Arrange — a word inherits its owner from its dictionary, so this is the same hole as
+        // claiming another userId outright
+        String dictionaryId = "1";
+        List<WordBundleRequestDTO> bundles = List.of(
+                new WordBundleRequestDTO(dictionaryId, List.of(new WordRequestDTO())));
+        Dictionary someoneElses = Dictionary.builder().dictionaryId(dictionaryId).userId("someone-else").build();
+
+        when(dictionaryRepository.findById(dictionaryId)).thenReturn(Optional.of(someoneElses));
+
+        // Act & Assert
+        assertThrows(ForbiddenOperationException.class, () -> wordService.saveWords(bundles, OWNER));
+        verify(wordRepository, never()).saveAllAndFlush(any());
+        verifyNoInteractions(rabbitTemplate);
     }
 
     private static Dictionary dictionary(String dictionaryId) {
