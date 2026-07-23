@@ -7,6 +7,7 @@ package de.coldtea.verborum.msuser.common.constants;
 public final class ErrorMessageConstants {
 
     public static final String USER_WAS_NOT_FOUND_ID = "User was not found. ID: ";
+    public static final String USER_WAS_NOT_FOUND_KEYCLOAK_ID = "User was not found. Keycloak ID: ";
 
     private ErrorMessageConstants() {
     }

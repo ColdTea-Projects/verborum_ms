@@ -419,11 +419,41 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
     — both ids present, timestamp ISO-8601 as required. Deleting an unknown id emitted nothing.
     The HTTP path (`DELETE /users/{userId}`) still cannot be curled: it requires a JWT and Keycloak
     arrives in Phase 3. Full suite: 14 tests green (3 of them new, covering the publish).
-- [ ] `P2-09` **Consume `dictionary.imported` event in ms_user**
+- [x] `P2-09` **Consume `dictionary.imported` event in ms_user**
   - Create `common/config/RabbitMQConfig.java` in ms_user
   - Create `common/listener/MarketplaceEventListener.java`
   - On `dictionary.imported` event: add a VaultEntry for the user
   - Done when: importing a dictionary via marketplace creates a vault entry
+  - Done 2026-07-23: durable queue `user.dictionary.imported` bound to `dictionary.imported` with
+    `x-dead-letter-exchange`, `common/listener/MarketplaceEventListener`, consumer-side
+    `common/event/DictionaryImportedEvent`, and `VaultService.importDictionary`. 5 new tests
+    (module suite now 19).
+  - **The event identifies the user by `keycloakId`, not ms_user's `userId`** — same rule as
+    `user.deleted` (P2-08). ms_marketplace only ever sees the JWT subject; `user_id` is private to
+    ms_user. `vault_entries.fk_user_id` is a real FK to `users(user_id)`, so `importDictionary`
+    resolves keycloakId → user_id (`UserRepository.findByKeycloakId`) before writing. **P4-07 must
+    publish `{dictionaryId, keycloakId, eventTimestamp}`** — that is the contract this consumer
+    defines.
+  - **Cross-service deserialization: the converter now uses a `DefaultJackson2JavaTypeMapper` with
+    `INFERRED` type precedence.** `Jackson2JsonMessageConverter` stamps outgoing messages with a
+    `__TypeId__` header carrying the publisher's FQCN, and by default the consumer trusts it — so
+    ms_marketplace's `…msmarketplace.common.event.DictionaryImportedEvent` would have failed here as
+    ClassNotFound on every message, permanently, straight to the DLQ. INFERRED makes the listener's
+    own parameter type win, so services only have to agree on JSON field names. Trusted packages are
+    pinned to `de.coldtea.verborum.*`. **ms_dictionary needs the same change at P2-10** — it has the
+    identical problem consuming ms_user's `user.deleted`.
+  - The listener logs and re-throws (per `rabbitmq.md`), so an unknown `keycloakId` is retried and
+    dead-lettered rather than silently acknowledged.
+  - Verified live 2026-07-23 against the running service and compose broker — the full path, no JWT
+    needed since publishing to the exchange is unauthenticated:
+    1. Published `dictionary.imported` **with a foreign `__TypeId__` header naming an ms_marketplace
+       class that does not exist in ms_user** → vault row created with the resolved `fk_user_id`
+       (`u-p209-1` from `kc-p209-1`) and a server-generated UUID. This is the INFERRED fix working.
+    2. Republished the identical event twice → still exactly one row, same `vault_entry_id`
+       (idempotency via P2-07's `addVaultEntry`), nothing dead-lettered.
+    3. Published with an unknown `keycloakId` → retried, then landed in `verborum.dead-letter`.
+    Test rows and the DLQ message were cleaned up afterwards; deleting the seeded user also removed
+    its vault row, re-confirming the P2-05 FK cascade.
 - [ ] `P2-10` **Consume `user.deleted` event in ms_dictionary**
   - Add queue + binding to ms_dictionary's `RabbitMQConfig`
   - Create `common/listener/UserEventListener.java` in ms_dictionary
@@ -432,6 +462,9 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
   - **Match on the event's `keycloakId`, not its `userId`** — ms_dictionary's `fk_user_id` holds the
     JWT subject, which equals ms_user's `keycloak_id`. See the P2-08 note; matching on `userId`
     silently deletes nothing.
+  - **Copy the `INFERRED` type-mapper fix from ms_user's `RabbitMQConfig` (P2-09) first.** Without
+    it, ms_user's `__TypeId__` header (`de.coldtea.verborum.msuser.common.event.UserDeletedEvent`)
+    is a class ms_dictionary does not have, and every message fails to deserialize.
   - The listener must be idempotent (a redelivery must not fail) and this is the task where P1-03's
     pre-commit publish race stops being theoretical for deletes — see P2-08.
 - [ ] `P2-11` **Fix Keycloak role mapping in ms_user `SecurityConfig`** (added 2026-07-12 after full review)

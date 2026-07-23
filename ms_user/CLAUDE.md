@@ -12,9 +12,9 @@ Keycloak), Dictionary Vault (imported public dictionaries), and User Stats.
 - **DB:** `vdbprofile` (PostgreSQL) — docker-compose in this module (Postgres on 5433 + Adminer on 8081)
 - **Base package:** `de.coldtea.verborum.msuser`
 - **Status:** All three Phase-2 entities exist (`User`, `UserStats`, `VaultEntry`; P2-03/04/05 done)
-  and both REST APIs are implemented — User (P2-06) and Vault (P2-07). RabbitMQ is wired and
-  `user.deleted` is published (P2-08). Remaining: consuming `dictionary.imported` (P2-09) and the
-  Keycloak role-mapping fix (P2-11).
+  and both REST APIs are implemented — User (P2-06) and Vault (P2-07). RabbitMQ is fully wired:
+  publishes `user.deleted` (P2-08) and consumes `dictionary.imported` (P2-09). Remaining for
+  Phase 2: the Keycloak role-mapping fix (P2-11).
 
 ## Entities
 - `User` (`users`) — `userId` (PK, client UUID), `keycloakId`, `email`, `displayName`,
@@ -66,9 +66,18 @@ unchanged (`creation_dt`/`update_dt`/`imported_at`).
     **`keycloakId`** — their `fk_user_id` is the JWT subject, which is this service's `keycloak_id`
     (see the quirk below). Matching on `userId` silently deletes nothing.
   - A delete of an unknown id publishes nothing and still returns 200.
-- **Consumes:** `dictionary.imported` (published by ms_marketplace on import → creates a VaultEntry).
-  Not wired yet — P2-09. Build the listener on `VaultService.addVaultEntry`, which is already
-  idempotent, so a redelivery cannot create a duplicate.
+- **Consumes:** `dictionary.imported` on the durable queue `user.dictionary.imported`
+  (`common/listener/MarketplaceEventListener` → `VaultService.importDictionary`, P2-09 done).
+  Nothing publishes it until ms_marketplace ships (P4-07), but the queue is bound already, so
+  imports are captured rather than discarded.
+  - The event is `{dictionaryId, keycloakId, eventTimestamp}` — **`keycloakId`, not `userId`**, for
+    the same reason as `user.deleted`. `importDictionary` resolves it to `user_id` before writing,
+    because `vault_entries.fk_user_id` is a real FK.
+  - Idempotent: it delegates to `addVaultEntry`, so a redelivery returns the existing entry.
+    An unknown `keycloakId` throws; the listener re-throws so the message is dead-lettered.
+- **Cross-service JSON:** `RabbitMQConfig`'s converter uses a `DefaultJackson2JavaTypeMapper` with
+  `INFERRED` type precedence. Without it the publisher's `__TypeId__` header (a class that does not
+  exist here) makes every inbound message fail as ClassNotFound. Any consuming service needs this.
 
 ## Security
 - `common/config/SecurityConfig.java` is already in place: stateless JWT resource server,

@@ -2,6 +2,7 @@ package de.coldtea.verborum.msuser.vault.service.impl;
 
 import de.coldtea.verborum.msuser.common.exception.RecordNotFoundException;
 import de.coldtea.verborum.msuser.common.mapper.VaultEntryMapper;
+import de.coldtea.verborum.msuser.user.entity.User;
 import de.coldtea.verborum.msuser.user.repository.UserRepository;
 import de.coldtea.verborum.msuser.vault.dto.VaultEntryRequestDTO;
 import de.coldtea.verborum.msuser.vault.dto.VaultEntryResponseDTO;
@@ -16,6 +17,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static de.coldtea.verborum.msuser.common.constants.ErrorMessageConstants.USER_WAS_NOT_FOUND_ID;
+import static de.coldtea.verborum.msuser.common.constants.ErrorMessageConstants.USER_WAS_NOT_FOUND_KEYCLOAK_ID;
 
 @Service
 @RequiredArgsConstructor
@@ -46,6 +48,26 @@ public class VaultServiceImpl implements VaultService {
         return vaultEntryRepository.findByUserIdAndDictionaryId(userId, vaultEntryRequestDTO.getDictionaryId())
                 .map(vaultEntryMapper::toVaultEntryResponseDTO)
                 .orElseGet(() -> createVaultEntry(userId, vaultEntryRequestDTO));
+    }
+
+    /**
+     * Event-driven entry point (P2-09): a marketplace import identifies the user by `keycloakId`,
+     * because that is the only user id ms_marketplace ever sees (the JWT subject). `fk_user_id` is a
+     * real FK to users(user_id), so resolve one to the other here rather than in the listener.
+     * <p>
+     * Delegates to addVaultEntry, so a redelivered event is harmless. An unknown keycloakId throws —
+     * the listener lets that propagate so the message is retried and finally dead-lettered instead
+     * of being dropped as if it had been handled.
+     */
+    @Transactional
+    @Override
+    public VaultEntryResponseDTO importDictionary(String keycloakId, String dictionaryId) {
+        User user = userRepository.findByKeycloakId(keycloakId)
+                .orElseThrow(() -> new RecordNotFoundException(USER_WAS_NOT_FOUND_KEYCLOAK_ID + keycloakId));
+
+        return addVaultEntry(user.getUserId(), VaultEntryRequestDTO.builder()
+                .dictionaryId(dictionaryId)
+                .build());
     }
 
     @Transactional

@@ -211,6 +211,12 @@ throwing sends the message here after the configured retries rather than redeliv
 The DLX is a fanout on purpose — dead-lettered messages keep their original routing key, which a
 direct DLX would fail to match and drop. See `docs/agent/rabbitmq.md`.
 
+**User-identifying events carry `keycloakId`.** This applies to `user.deleted` (below) and to
+`dictionary.imported`, whose payload is `{dictionaryId, keycloakId, eventTimestamp}` — fixed by the
+P2-09 consumer, and what ms_marketplace must publish at P4-07. ms_marketplace and ms_dictionary only
+ever see the JWT subject; ms_user's `user_id` is private to ms_user, which resolves
+keycloakId → user_id on the way in.
+
 **`user.deleted` carries both `userId` and `keycloakId`.** ms_dictionary and ms_marketplace store the
 JWT subject in `fk_user_id`, and that value is ms_user's `keycloak_id`, not its `user_id` — so a
 consumer cascading a user deletion must match on **`keycloakId`**. Matching on `userId` deletes
@@ -224,9 +230,19 @@ ms_autofil do not exist, and a topic exchange discards a message with no bound q
 fire-and-forget until P4-03. ms_dictionary has no consumer queue until it starts consuming
 `user.deleted` (P2-10). All services declare the same exchange; declarations are idempotent, so
 whichever service starts first creates it.
-As of 2026-07-23 (P2-08) ms_user is wired too: same exchange and dead letter infrastructure, and it
-publishes `user.deleted`. It is likewise publisher-only — nothing consumes that event until P2-10,
-and ms_user gets its own consumer queue at P2-09 (`dictionary.imported`).
+As of 2026-07-23 (P2-08, P2-09) ms_user is wired too: same exchange and dead letter infrastructure,
+publishing `user.deleted` and consuming `dictionary.imported` on the durable queue
+`user.dictionary.imported` — the first consumer queue in the system. Nothing publishes
+`dictionary.imported` until ms_marketplace ships (P4-07), but a bound durable queue captures those
+imports instead of letting the topic exchange discard them. `user.deleted` still has no consumer
+until P2-10.
+
+**Consuming services must set `INFERRED` type precedence on the message converter.**
+`Jackson2JsonMessageConverter` writes the publisher's fully-qualified class name into a `__TypeId__`
+header and trusts it on the way in — which cannot work across services, where that class does not
+exist and every message fails as ClassNotFound straight to the DLQ. With `INFERRED`, the
+`@RabbitListener` parameter type wins and services only agree on JSON field names. Done in ms_user
+(P2-09); required in ms_dictionary at P2-10. See `docs/agent/rabbitmq.md`.
 
 **Every ms_dictionary event fires on change only, never on a plain re-save.** `saveDictionary()`
 and `saveWords()` each back both POST and PUT, so both compare against stored state first:

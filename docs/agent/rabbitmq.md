@@ -178,6 +178,21 @@ public class UserDeletedEvent {
     private LocalDateTime eventTimestamp;
 }
 
+// common/event/DictionaryImportedEvent.java
+// Identifies the user by keycloakId for the same reason as UserDeletedEvent: ms_marketplace only
+// ever sees the JWT subject, and ms_user's own user_id is private to ms_user. The consumer
+// resolves keycloakId -> user_id before writing the vault entry. Contract fixed by P2-09; P4-07
+// must publish exactly these fields.
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class DictionaryImportedEvent {
+    private String dictionaryId;
+    private String keycloakId;
+    private LocalDateTime eventTimestamp;
+}
+
 // common/event/WordCreatedEvent.java  (V2 — for Autofil)
 @Data
 @Builder
@@ -301,6 +316,21 @@ public class RabbitMQConfig {
 ```
 
 `JacksonUtils` lives in `org.springframework.amqp.support.converter` (not `...amqp.support`).
+
+**Any service that CONSUMES must also set the type mapper to `INFERRED` precedence:**
+```java
+DefaultJackson2JavaTypeMapper typeMapper = new DefaultJackson2JavaTypeMapper();
+typeMapper.setTypePrecedence(Jackson2JavaTypeMapper.TypePrecedence.INFERRED);
+typeMapper.setTrustedPackages("de.coldtea.verborum.*");
+converter.setJavaTypeMapper(typeMapper);
+```
+`Jackson2JsonMessageConverter` stamps every outgoing message with a `__TypeId__` header holding the
+publisher's fully-qualified class name, and by default the consumer trusts that header. Between
+services that never works: the publisher's `…msmarketplace.common.event.DictionaryImportedEvent` does
+not exist in the consumer, so every message fails with ClassNotFound — permanently, straight to the
+DLQ, with an error that reads like a broker fault. `INFERRED` makes the `@RabbitListener` method's
+own parameter type win, so each service deserializes into its own copy of the event and only the
+JSON field names have to agree. Added in ms_user at P2-09; ms_dictionary needs it at P2-10.
 
 **Every service must configure the converter this way.** Timestamp format is part of the wire
 contract: a publisher writing ISO-8601 and a consumer expecting the array form (or vice versa)

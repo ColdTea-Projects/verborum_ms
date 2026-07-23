@@ -2,6 +2,7 @@ package de.coldtea.verborum.msuser.vault.service.impl;
 
 import de.coldtea.verborum.msuser.common.exception.RecordNotFoundException;
 import de.coldtea.verborum.msuser.common.mapper.VaultEntryMapper;
+import de.coldtea.verborum.msuser.user.entity.User;
 import de.coldtea.verborum.msuser.user.repository.UserRepository;
 import de.coldtea.verborum.msuser.vault.dto.VaultEntryRequestDTO;
 import de.coldtea.verborum.msuser.vault.dto.VaultEntryResponseDTO;
@@ -130,6 +131,62 @@ class VaultServiceImplTest {
         assertThrows(RecordNotFoundException.class, () -> vaultService.addVaultEntry(USER_ID, requestDTO));
         verify(vaultEntryRepository, never()).saveAndFlush(any());
         verifyNoInteractions(vaultEntryMapper);
+    }
+
+    @Test
+    void importDictionary_ResolvesKeycloakIdToUserId() {
+        // Arrange — the event carries keycloakId; fk_user_id must be ms_user's own user_id
+        String keycloakId = "kc-1";
+        User user = User.builder().userId(USER_ID).keycloakId(keycloakId).build();
+        VaultEntry vaultEntry = new VaultEntry();
+        VaultEntryResponseDTO responseDTO = new VaultEntryResponseDTO();
+
+        when(userRepository.findByKeycloakId(keycloakId)).thenReturn(Optional.of(user));
+        when(vaultEntryRepository.findByUserIdAndDictionaryId(USER_ID, DICTIONARY_ID)).thenReturn(Optional.empty());
+        when(userRepository.existsById(USER_ID)).thenReturn(true);
+        when(vaultEntryMapper.toVaultEntry(anyString(), eq(USER_ID), any(VaultEntryRequestDTO.class)))
+                .thenReturn(vaultEntry);
+        when(vaultEntryRepository.saveAndFlush(vaultEntry)).thenReturn(vaultEntry);
+        when(vaultEntryMapper.toVaultEntryResponseDTO(vaultEntry)).thenReturn(responseDTO);
+
+        // Act
+        VaultEntryResponseDTO result = vaultService.importDictionary(keycloakId, DICTIONARY_ID);
+
+        // Assert
+        assertEquals(responseDTO, result);
+        verify(vaultEntryRepository).findByUserIdAndDictionaryId(USER_ID, DICTIONARY_ID);
+        verify(vaultEntryRepository).saveAndFlush(vaultEntry);
+    }
+
+    @Test
+    void importDictionary_Redelivered_DoesNotDuplicate() {
+        // Arrange — a redelivered dictionary.imported must not create a second vault entry
+        String keycloakId = "kc-1";
+        User user = User.builder().userId(USER_ID).keycloakId(keycloakId).build();
+        VaultEntry existingEntry = new VaultEntry();
+        VaultEntryResponseDTO responseDTO = new VaultEntryResponseDTO();
+
+        when(userRepository.findByKeycloakId(keycloakId)).thenReturn(Optional.of(user));
+        when(vaultEntryRepository.findByUserIdAndDictionaryId(USER_ID, DICTIONARY_ID))
+                .thenReturn(Optional.of(existingEntry));
+        when(vaultEntryMapper.toVaultEntryResponseDTO(existingEntry)).thenReturn(responseDTO);
+
+        // Act
+        VaultEntryResponseDTO result = vaultService.importDictionary(keycloakId, DICTIONARY_ID);
+
+        // Assert
+        assertEquals(responseDTO, result);
+        verify(vaultEntryRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void importDictionary_UnknownKeycloakId() {
+        // Arrange
+        when(userRepository.findByKeycloakId("kc-unknown")).thenReturn(Optional.empty());
+
+        // Act & Assert — throws so the listener dead-letters instead of silently dropping
+        assertThrows(RecordNotFoundException.class, () -> vaultService.importDictionary("kc-unknown", DICTIONARY_ID));
+        verifyNoInteractions(vaultEntryRepository, vaultEntryMapper);
     }
 
     @Test
