@@ -775,11 +775,27 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
       `fromLang`, `toLang`, and `P4-06` needs a *paginated* language filter and a popularity sort.
       You cannot filter, sort or page in the database on fields you do not store, and re-reading
       would also hit the P3-08 ownership filter, which returns nothing to a service account.
-    - **Now recommended: keep the local copy — it is a read model — and add a `dictionary.updated`
-      event.** Fire it only when a *public* dictionary's marketplace-relevant fields change, upsert
-      on `dictionaryId`, and use the `updatedAt` already on `DictionaryVisibilityEvent` (rule 4) to
-      drop out-of-order deliveries. Marketplace then keeps serving when ms_dictionary is down.
-    - Still needs sign-off before coding.
+    - **DECIDED 2026-07-23 (signed off by the project owner): keep the local copy — it is a read
+      model — and add a `dictionary.updated` event.** Marketplace serves browse entirely from its own
+      table and never calls ms_dictionary at request time.
+    - The deciding argument was **independent deployment**: the services run together today, but that
+      is explicitly temporary (Phase 5), and a marketplace that cannot serve without ms_dictionary
+      inherits every one of its restarts and outages the moment they are deployed separately.
+      Alongside the two structural reasons: you cannot sort/filter/paginate on fields you do not
+      store (P4-06 needs both), and a service-account read would be blocked by the P3-08 ownership
+      filter.
+    - **What this obliges, all of it required for the decision to actually work:**
+      1. ms_dictionary publishes a new `dictionary.updated` when a **public** dictionary's
+         marketplace-relevant fields (`name`, `fromLang`, `toLang`) change. Today's publisher fires
+         only on a visibility *flip*, so a rename emits nothing — that is the gap being closed.
+      2. The consumer **upserts on `dictionaryId`**, never inserts (rule 3).
+      3. The consumer **honours `updatedAt`** and drops anything not newer than what it holds
+         (rule 4). The field is already on `DictionaryVisibilityEvent` as of 2026-07-23; the new
+         event must carry it too.
+      4. The reconciliation job ships **with** the projection (rule 6), not after the first drift.
+    - Reversible in one direction cheaply: if a detail view ever needs guaranteed-current data, read
+      that single dictionary live for that screen. Browse stays on the local copy. Nothing about this
+      decision has to be undone to do that.
   - **`P4-02` must ship with a reconciliation job** (rule 6): a periodic re-sync of public
     dictionaries into the projection. It is the backstop both for a lost event (the window
     AFTER_COMMIT deliberately accepts) and for drift if an update is ever missed. Write it with the
