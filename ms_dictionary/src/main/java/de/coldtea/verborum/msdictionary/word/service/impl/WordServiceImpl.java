@@ -18,7 +18,7 @@ import org.jetbrains.annotations.NotNull;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -97,7 +97,7 @@ public class WordServiceImpl implements WordService {
                             .translation(word.getTranslation())
                             .fromLang(dictionary.getFromLang())
                             .toLang(dictionary.getToLang())
-                            .eventTimestamp(LocalDateTime.now())
+                            .eventTimestamp(OffsetDateTime.now())
                             .build()
             );
         });

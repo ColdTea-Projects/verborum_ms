@@ -10,7 +10,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.*;
@@ -37,7 +37,7 @@ class MarketplaceEventListenerTest {
         DictionaryImportedEvent event = DictionaryImportedEvent.builder()
                 .dictionaryId(DICTIONARY_ID)
                 .keycloakId(KEYCLOAK_ID)
-                .eventTimestamp(LocalDateTime.now())
+                .eventTimestamp(OffsetDateTime.now())
                 .build();
 
         // Act
@@ -53,7 +53,7 @@ class MarketplaceEventListenerTest {
         DictionaryImportedEvent event = DictionaryImportedEvent.builder()
                 .dictionaryId(DICTIONARY_ID)
                 .keycloakId(KEYCLOAK_ID)
-                .eventTimestamp(LocalDateTime.now())
+                .eventTimestamp(OffsetDateTime.now())
                 .build();
 
         when(vaultService.importDictionary(KEYCLOAK_ID, DICTIONARY_ID))

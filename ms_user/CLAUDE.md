@@ -48,7 +48,9 @@ unchanged (`creation_dt`/`update_dt`/`imported_at`).
   event is P2-08.
 
 ## API — VaultController (`/users/{userId}/vault`)
-- `GET` list the user's imported dictionaries (empty list for an unknown user) ·
+- `GET` list the user's imported dictionaries (**404** for an unknown or unowned profile — the P3-05
+  ownership guard loads the user to compare `keycloakId`, so the pre-P3-05 "empty list" behaviour is
+  gone; 404 also matches the P3-08 read rules) ·
   `POST` add one (body: `{"dictionaryId": "..."}`) · `DELETE /{dictionaryId}` remove one.
 - `vaultEntryId` is **server-generated** (`UUID.randomUUID()`), unlike every other entity's
   client-supplied id — a vault entry is a system-owned row, and P2-09 creates identical rows from a

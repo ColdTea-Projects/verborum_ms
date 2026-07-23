@@ -76,7 +76,7 @@ public class WordController {
     }
 
     @GetMapping("/language/to/{language}")
-    public List<WordResponseDTO> getWordsByLanguageTo(@PathVariable String language) {
+    public List<WordResponseDTO> getWordsByLanguageTo(@PathVariable @SupportedLanguage String language) {
         return wordService.getWordsByLanguageTo(language, getCurrentUserId());
     }
 

@@ -5,7 +5,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
 /**
  * Published on `user.deleted` when a profile is removed. Consumed by ms_dictionary (P2-10) and
@@ -17,9 +17,10 @@ import java.time.LocalDateTime;
  * <b>`keycloakId`</b>; matching on `userId` would silently delete nothing. `userId` is carried so a
  * consumer that does hold an ms_user reference (or a human reading the DLQ) can correlate the two.
  * <p>
- * `eventTimestamp` is `LocalDateTime` to match the events ms_dictionary already publishes — the
- * whole event wire format is shared, so this stays aligned rather than adopting the zone-aware
- * `OffsetDateTime` used on the REST DTOs. Serialized as ISO-8601; see RabbitMQConfig.
+ * `eventTimestamp` is zone-aware `OffsetDateTime`, serialized as ISO-8601 with an offset. It was
+ * `LocalDateTime` until the 2026-07-23 review pointed out that this is the same ambiguity P0-19/P0-20
+ * removed from the entity timestamps: once publisher and consumer run in containers with different
+ * default zones, a zoneless event timestamp is unusable for ordering or for reading a DLQ.
  */
 @Data
 @Builder
@@ -31,5 +32,5 @@ public class UserDeletedEvent {
 
     private String keycloakId;
 
-    private LocalDateTime eventTimestamp;
+    private OffsetDateTime eventTimestamp;
 }

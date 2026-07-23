@@ -5,7 +5,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
 /**
  * Published on `word.created`, once per newly created word. Consumed by ms_autofil (V2) to
@@ -34,5 +34,5 @@ public class WordCreatedEvent {
 
     private String toLang;
 
-    private LocalDateTime eventTimestamp;
+    private OffsetDateTime eventTimestamp;
 }

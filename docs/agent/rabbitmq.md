@@ -334,7 +334,13 @@ JSON field names have to agree. Added in ms_user at P2-09; ms_dictionary needs i
 
 **Every service must configure the converter this way.** Timestamp format is part of the wire
 contract: a publisher writing ISO-8601 and a consumer expecting the array form (or vice versa)
-disagree at the boundary. Do not swap in Boot's auto-configured `ObjectMapper` here either — it is
+disagree at the boundary.
+
+**`eventTimestamp` is `OffsetDateTime`, not `LocalDateTime`** (changed 2026-07-23). The samples above
+show `LocalDateTime` historically; every event now carries an offset, for the same reason P0-19/P0-20
+made the entity timestamps zone-aware — a zoneless timestamp is ambiguous the moment publisher and
+consumer run in containers with different default zones, which is exactly when you are reading the
+DLQ trying to work out what happened. Do not swap in Boot's auto-configured `ObjectMapper` here either — it is
 shared with the web layer, and event serialization should not shift when someone tunes REST JSON.
 
 ---

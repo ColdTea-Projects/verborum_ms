@@ -6,6 +6,8 @@ public final class ErrorMessageConstants {
     //Security (P3-05) — kept vague on purpose: the message must not reveal whether the
     //resource exists or who owns it
     public static final String NOT_THE_OWNER = "This resource does not belong to the authenticated user";
+    // Returned instead of an unhandled exception's own message, which would leak internals
+    public static final String INTERNAL_SERVER_ERROR = "Internal server error";
     public static final String NO_AUTHENTICATED_USER = "No authenticated user found";
 
 }

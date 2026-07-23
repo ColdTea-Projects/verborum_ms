@@ -5,7 +5,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
 /**
  * Published on `dictionary.deleted` when a dictionary is removed. Consumed by ms_marketplace to
@@ -25,5 +25,5 @@ public class DictionaryDeletedEvent {
 
     private String userId;
 
-    private LocalDateTime eventTimestamp;
+    private OffsetDateTime eventTimestamp;
 }

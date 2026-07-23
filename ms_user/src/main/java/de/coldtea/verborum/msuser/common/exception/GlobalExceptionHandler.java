@@ -13,6 +13,8 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
+import static de.coldtea.verborum.msuser.common.constants.ErrorMessageConstants.INTERNAL_SERVER_ERROR;
+
 import java.time.OffsetDateTime;
 import java.util.List;
 
@@ -24,11 +26,20 @@ import java.util.List;
 @Slf4j
 public class GlobalExceptionHandler {
 
+    /**
+     * Catch-all. <b>Does not put `ex.getMessage()` on the wire</b> — an unhandled exception is by
+     * definition one nobody vetted the message of, and those messages carry internals: a Postgres
+     * constraint violation names the table, column and constraint, an NPE names a field. The full
+     * exception is logged; the caller gets a fixed string.
+     * <p>
+     * The specific handlers below do return `ex.getMessage()`, and that is safe because their
+     * messages are our own constants.
+     */
     @ExceptionHandler(Exception.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public ResponseEntity<ErrorResponse> handleException(Exception ex, WebRequest request) {
         log.error(Exception.class.getCanonicalName(), ex);
-        return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, Exception.class.getSimpleName(), ex.getMessage(), request);
+        return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, Exception.class.getSimpleName(), INTERNAL_SERVER_ERROR, request);
     }
 
     @ExceptionHandler(RecordNotFoundException.class)

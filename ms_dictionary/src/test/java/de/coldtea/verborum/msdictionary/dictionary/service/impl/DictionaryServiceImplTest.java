@@ -501,10 +501,12 @@ class DictionaryServiceImplTest {
         // Act
         dictionaryService.deleteAllByUserId(keycloakId);
 
-        // Assert — words must go first: they have no DB-level FK to the dictionary
+        // Assert — words must go first: they have no DB-level FK to the dictionary. Both sides use
+        // a real bulk delete; deleteAllById would issue one DELETE per id (fixed 2026-07-23)
         InOrder inOrder = inOrder(wordRepository, dictionaryRepository);
         inOrder.verify(wordRepository).deleteByDictionaryIdIn(List.of("d1", "d2"));
-        inOrder.verify(dictionaryRepository).deleteAllById(List.of("d1", "d2"));
+        inOrder.verify(dictionaryRepository).deleteByDictionaryIdIn(List.of("d1", "d2"));
+        verify(dictionaryRepository, never()).deleteAllById(any());
     }
 
     @Test
@@ -518,7 +520,7 @@ class DictionaryServiceImplTest {
 
         // Assert — an empty IN (...) delete would be pointless, and must not blow up
         verify(wordRepository, never()).deleteByDictionaryIdIn(anyList());
-        verify(dictionaryRepository, never()).deleteAllById(anyList());
+        verify(dictionaryRepository, never()).deleteByDictionaryIdIn(anyList());
         verifyNoInteractions(rabbitTemplate);
     }
 

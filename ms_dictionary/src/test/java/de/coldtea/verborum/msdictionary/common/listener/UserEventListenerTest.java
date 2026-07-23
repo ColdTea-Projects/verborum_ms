@@ -9,7 +9,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.*;
@@ -34,7 +34,7 @@ class UserEventListenerTest {
         return UserDeletedEvent.builder()
                 .userId(USER_ID)
                 .keycloakId(KEYCLOAK_ID)
-                .eventTimestamp(LocalDateTime.now())
+                .eventTimestamp(OffsetDateTime.now())
                 .build();
     }
 

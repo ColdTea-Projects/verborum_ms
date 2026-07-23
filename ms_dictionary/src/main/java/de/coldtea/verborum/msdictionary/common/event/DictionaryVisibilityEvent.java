@@ -5,7 +5,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
 /**
  * Published on `dictionary.visibility.public` / `dictionary.visibility.private` when a
@@ -31,5 +31,5 @@ public class DictionaryVisibilityEvent {
 
     private String dictionaryName;
 
-    private LocalDateTime eventTimestamp;
+    private OffsetDateTime eventTimestamp;
 }

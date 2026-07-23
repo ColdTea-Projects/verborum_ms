@@ -383,8 +383,11 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
     same code path P2-09 needs when RabbitMQ redelivers an event — build the listener on
     `addVaultEntry` rather than writing a second insert.
   - POST checks `userRepository.existsById` and throws `RecordNotFoundException` (404) for an unknown
-    user, because `fk_user_id` is a real FK and would otherwise fail at the DB as a 500. GET does no
-    such check — an unknown user just has an empty vault, matching `GET /dictionaries/{userId}`.
+    user, because `fk_user_id` is a real FK and would otherwise fail at the DB as a 500. GET did no
+    such check — an unknown user just had an empty vault, matching `GET /dictionaries/{userId}`.
+    **Superseded by P3-05:** the ownership guard must load the profile to compare `keycloakId`, so
+    GET now 404s for an unknown or unowned profile. 404 is also the consistent answer next to the
+    P3-08 read rules. (Doc/code drift caught in the 2026-07-23 review.)
     DELETE of an entry not in the vault is a silent no-op returning 200, matching `deleteDictionary`
     and `deleteUser`.
   - Not verified live: ms_user endpoints require a JWT and Keycloak is not configured until Phase 3
@@ -592,6 +595,42 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
     deployed to their dev machine. `docs/integration/client-login-guide.md` is updated, but a heads-up
     matters more than a doc edit here
   - Done when: the Android/iOS repos know they must attach a bearer token to ms_dictionary calls
+- [x] `P3-09` **Post-review hardening** (added 2026-07-23 after an independent architecture review)
+  - An independent review of the whole repo (a second model, working only from the committed docs and
+    code) produced these. Each was verified against the source before being acted on.
+  - **Unhandled exceptions no longer put `ex.getMessage()` on the wire** (both services). The
+    catch-all handler returned the raw message, so a Postgres constraint violation would have handed
+    the caller table, column and constraint names in a 500 body. Now a fixed `"Internal server
+    error"`; the real exception is still logged. The specific handlers still return their message —
+    safe, because those are our own constants.
+  - **`GET /words/language/to/{language}` was missing `@SupportedLanguage`** while `/from/` had it, so
+    one of a symmetric pair 400'd on a bad code and the other silently returned an empty list.
+  - **`deleteAllByUserId` used `deleteAllById` for dictionaries** — which loads each entity and issues
+    one DELETE per id, not a bulk `DELETE … WHERE IN`. Deleting a user with hundreds of dictionaries
+    meant hundreds of round-trips holding locks in one transaction. Added
+    `DictionaryRepository.deleteByDictionaryIdIn`, mirroring what `WordRepository` already had. The
+    existing `InOrder` test caught the change, which is what it was for.
+  - **Event `eventTimestamp` is now `OffsetDateTime`**, not zoneless `LocalDateTime` — the same
+    ambiguity P0-19/P0-20 removed from entity timestamps, left behind on the event side. Harmless
+    today, misleading the moment publisher and consumer run in containers with different zones, which
+    is exactly when you are reading a DLQ. Wire format is still ISO-8601, now with an offset.
+    **Note:** an event published *before* this change and replayed from the DLQ afterwards will fail
+    to deserialize (no offset to parse). The DLQ is empty and this is dev-only, so nothing was lost.
+  - **Two doc/code drifts fixed**, both of which would have misled someone trusting the prose:
+    1. `GET /users/{userId}/vault` 404s for an unknown/unowned profile since P3-05, but
+       `ms_user/CLAUDE.md`, the P2-07 note **and a code comment inside the method** all still claimed
+       "empty list for an unknown user".
+    2. Integration §3.1 said a client-supplied `userId` "is ignored by the backend". It never was —
+       it is required (`@NotBlank`) and a mismatch is a 403.
+  - **Web-layer smoke tests added** (`DictionaryControllerWebTest`, `UserControllerWebTest`, 14 cases).
+    `contextLoads` was the only automated proof the HTTP layer worked; everything else was manual
+    curl. These cover what service-level tests structurally cannot see: the filter chain (401),
+    controller-level `requireSelf` (403), `@Valid` (400), exception→status mapping, and that the
+    500 body does not leak. Suite total: 112.
+  - Reviewed and explicitly left alone: the no-FK-for-words vs real-FK-for-tags split, the fanout DLX,
+    the `INFERRED` type mapper, the cross-service identity model, the 403/404/filter ownership
+    pattern, and the existing unit tests (judged to test behaviour rather than mirror the
+    implementation).
   - 2026-07-23: `docs/integration/client-login-guide.md` §9 now carries the full breaking-change
     notice — 401 without a token, plus the P3-05/P3-08 ownership rules (403 on a wrong owner id, 404
     on another user's resource, filtered batch results) and the hint that a 403 most likely means the
@@ -723,6 +762,18 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
 - [ ] `P4-03` **Consume `dictionary.visibility.public` event**
   - On event: create a `DictionaryStats` record for the dictionary
   - Done when: making a dictionary public creates a marketplace entry
+  - **Two decisions to make BEFORE writing code here** (surfaced by the 2026-07-23 review):
+    1. **The AFTER_COMMIT switch must cover ms_user too, not just ms_dictionary.** It is currently
+       only prose in the P2-08 note, which is how it gets missed. `UserServiceImpl.deleteUser`
+       publishes `user.deleted` inside its transaction, and ms_dictionary now *acts* on that event by
+       deleting data — so a rollback after the send means a cascade that cannot be undone. Treat this
+       as an explicit sub-task of P4-03.
+    2. **The stale-listing problem needs a decision, not a discovery mid-task.** A renamed public
+       dictionary emits nothing, so a marketplace listing's `name`/`fromLang`/`toLang` drift.
+       *Recommended (both the review and the assistant independently landed here): have
+       ms_marketplace re-read from ms_dictionary on access, rather than adding a `dictionary.updated`
+       event.* Re-reading avoids a whole event type and a queue that exists only to fix staleness.
+       **This is an architecture call and is NOT yet signed off — get agreement before coding.**
   - Read the P1-03 notes first — this is the task where two known issues stop being theoretical:
     1. ms_dictionary publishes *before* its transaction commits, so a listener that calls back
        into ms_dictionary can beat the commit. Switch ms_dictionary to

@@ -5,7 +5,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
 /**
  * Consumed from `user.deleted`, published by ms_user when a profile is removed. ms_dictionary
@@ -30,5 +30,5 @@ public class UserDeletedEvent {
 
     private String keycloakId;
 
-    private LocalDateTime eventTimestamp;
+    private OffsetDateTime eventTimestamp;
 }

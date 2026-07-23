@@ -33,10 +33,11 @@ public class VaultServiceImpl implements VaultService {
 
     @Override
     public List<VaultEntryResponseDTO> getVaultEntriesByUser(String userId, String callerKeycloakId) {
+        // 404 for an unknown OR unowned profile — the guard has to load the user anyway to compare
+        // keycloakId, so there is no cheap way to keep the older "unknown user gets an empty list"
+        // behaviour, and 404 is the more consistent answer next to the P3-08 read rules.
         requireOwnProfile(userId, callerKeycloakId);
 
-        // No user-existence check beyond the ownership guard: an unknown user simply has an empty
-        // vault, mirroring ms_dictionary's GET /dictionaries/{userId}.
         return vaultEntryRepository.findByUserId(userId)
                 .stream()
                 .map(vaultEntryMapper::toVaultEntryResponseDTO)

@@ -5,7 +5,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
 /**
  * Consumed from `dictionary.imported` when a user imports a public dictionary from the marketplace.
@@ -22,8 +22,8 @@ import java.time.LocalDateTime;
  * users(user_id), so the listener resolves keycloakId → user_id before writing (see
  * VaultServiceImpl.importDictionary). Same rule as `user.deleted` — see verborum.md.
  * <p>
- * `eventTimestamp` is `LocalDateTime` and serialized as ISO-8601, matching every other event on
- * this exchange.
+ * `eventTimestamp` is zone-aware `OffsetDateTime`, serialized as ISO-8601 with an offset, matching
+ * every other event on this exchange (changed from `LocalDateTime` in the 2026-07-23 review).
  */
 @Data
 @Builder
@@ -35,5 +35,5 @@ public class DictionaryImportedEvent {
 
     private String keycloakId;
 
-    private LocalDateTime eventTimestamp;
+    private OffsetDateTime eventTimestamp;
 }

@@ -15,7 +15,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
 import static de.coldtea.verborum.msuser.common.config.RabbitMQConfig.EXCHANGE;
 import static de.coldtea.verborum.msuser.common.config.RabbitMQConfig.ROUTING_KEY_USER_DELETED;
@@ -108,7 +108,7 @@ public class UserServiceImpl implements UserService {
                 UserDeletedEvent.builder()
                         .userId(user.getUserId())
                         .keycloakId(user.getKeycloakId())
-                        .eventTimestamp(LocalDateTime.now())
+                        .eventTimestamp(OffsetDateTime.now())
                         .build()
         );
 
