@@ -363,12 +363,33 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
     meta-annotation, so Bean Validation never invokes `UUIDValidator` — the annotation is inert in
     both services. Mirrored as-is here to keep behaviour identical; wiring it up (and deciding the
     resulting 400s are wanted) should be a separate, both-services task, not a silent divergence.
-- [ ] `P2-07` **Implement VaultController + VaultService**
+- [x] `P2-07` **Implement VaultController + VaultService**
   - Endpoints:
     - `GET /users/{userId}/vault` — list imported dictionaries
     - `POST /users/{userId}/vault` — add dictionary to vault (manual import)
     - `DELETE /users/{userId}/vault/{dictionaryId}` — remove from vault
   - Done when: all endpoints work, unit tests pass
+  - Done 2026-07-23: full `vault` slice mirroring the `user` one — `VaultController`,
+    `VaultService`/`VaultServiceImpl`, `VaultEntryRepository`, `VaultEntryRequestDTO`/
+    `VaultEntryResponseDTO`, `common/mapper/VaultEntryMapper` (MapStruct), plus the vault constants.
+    6 `VaultServiceImplTest` cases pass (module unit suite now 11).
+  - **`vaultEntryId` is server-generated** (`UUID.randomUUID()`), not client-supplied — a deliberate
+    exception to the "client provides IDs" convention. A vault entry is a system-owned row: P2-09
+    creates identical rows from a `dictionary.imported` event where no client id exists, and having
+    the two paths mint ids differently would be worse. The request body carries only `dictionaryId`;
+    `userId` comes from the path.
+  - **POST is idempotent.** It looks up `(userId, dictionaryId)` first and returns the existing entry
+    instead of inserting a duplicate (the P2-05 composite UNIQUE would otherwise throw). This is the
+    same code path P2-09 needs when RabbitMQ redelivers an event — build the listener on
+    `addVaultEntry` rather than writing a second insert.
+  - POST checks `userRepository.existsById` and throws `RecordNotFoundException` (404) for an unknown
+    user, because `fk_user_id` is a real FK and would otherwise fail at the DB as a 500. GET does no
+    such check — an unknown user just has an empty vault, matching `GET /dictionaries/{userId}`.
+    DELETE of an entry not in the vault is a silent no-op returning 200, matching `deleteDictionary`
+    and `deleteUser`.
+  - Not verified live: ms_user endpoints require a JWT and Keycloak is not configured until Phase 3
+    (same limitation recorded for P0-20). The `contextLoads` `@SpringBootTest` also needs the compose
+    Postgres and was not run in this session — Docker Desktop was not running.
 - [ ] `P2-08` **Publish `user.deleted` event from ms_user**
   - Create `common/event/UserDeletedEvent.java`
   - Publish from `UserServiceImpl.deleteUser()`

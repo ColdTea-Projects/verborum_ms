@@ -11,6 +11,10 @@ public final class ResponseMessageConstants {
     public static final String USER_UPDATED_SUCCESSFULLY = "Updated successfully user ";
     public static final String USER_DELETED_SUCCESSFULLY = "Deleted successfully ";
 
+    //VaultController
+    public static final String VAULT_ENTRY_SAVED_SUCCESSFULLY = "Saved successfully vault entry ";
+    public static final String VAULT_ENTRY_DELETED_SUCCESSFULLY = "Deleted successfully vault entry of dictionary ";
+
     private ResponseMessageConstants() {
     }
 }

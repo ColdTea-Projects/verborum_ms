@@ -16,6 +16,12 @@ public final class DTOMessageConstants {
     public static final String USER_EMAIL = "email is mandatory";
     public static final String USER_EMAIL_INVALID = "email must be a valid email address";
 
+    //Vault DTOs — ValidUUID field names
+    public static final String DICTIONARY_ID = "dictionaryId";
+
+    //Vault DTOs — validation messages
+    public static final String VAULT_ENTRY_DICTIONARY_ID = "dictionaryId is mandatory";
+
     private DTOMessageConstants() {
     }
 }

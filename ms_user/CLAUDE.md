@@ -12,7 +12,7 @@ Keycloak), Dictionary Vault (imported public dictionaries), and User Stats.
 - **DB:** `vdbprofile` (PostgreSQL) — docker-compose in this module (Postgres on 5433 + Adminer on 8081)
 - **Base package:** `de.coldtea.verborum.msuser`
 - **Status:** All three Phase-2 entities exist (`User`, `UserStats`, `VaultEntry`; P2-03/04/05 done)
-  and the User REST API is implemented (P2-06). Remaining: VaultController (P2-07), the RabbitMQ
+  and both REST APIs are implemented — User (P2-06) and Vault (P2-07). Remaining: the RabbitMQ
   events (P2-08 publish `user.deleted`, P2-09 consume `dictionary.imported`), and the Keycloak
   role-mapping fix (P2-11).
 
@@ -45,6 +45,18 @@ unchanged (`creation_dt`/`update_dt`/`imported_at`).
   read, `saveUser` backs both POST and PUT. `userId` is still client-supplied here — switching to the
   JWT subject is P3-05. DELETE relies on the DB cascade to clear stats/vault; the `user.deleted`
   event is P2-08.
+
+## API — VaultController (`/users/{userId}/vault`)
+- `GET` list the user's imported dictionaries (empty list for an unknown user) ·
+  `POST` add one (body: `{"dictionaryId": "..."}`) · `DELETE /{dictionaryId}` remove one.
+- `vaultEntryId` is **server-generated** (`UUID.randomUUID()`), unlike every other entity's
+  client-supplied id — a vault entry is a system-owned row, and P2-09 creates identical rows from a
+  `dictionary.imported` event that carries no client id.
+- **POST is idempotent**: an already-imported `(userId, dictionaryId)` returns the existing entry
+  rather than violating the composite UNIQUE. P2-09's listener should call `addVaultEntry` and get
+  redelivery-safety for free.
+- POST 404s on an unknown user (`fk_user_id` is a real FK — the DB would otherwise 500). DELETE of an
+  entry that is not there is a silent 200, matching `deleteUser`/`deleteDictionary`.
 
 ## Events (planned — requires RabbitMQ, see roadmap Phase 1 and `docs/agent/rabbitmq.md`)
 - **Publishes:** `user.deleted` (consumed by ms_dictionary, ms_marketplace to cascade-delete)
