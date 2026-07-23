@@ -194,10 +194,79 @@ making.
 | Token storage | EncryptedSharedPreferences / DataStore + Keystore | Keychain | §6.3 |
 | Refresh scope | `offline_access` | `offline_access` | none (short sessions) |
 
+**Redirect URI (decided BE P3-02, 2026-07-23).** `verborum-app` accepts:
+- `de.coldtea.verborum://oauth2redirect/*` — the mobile scheme. Android sets
+  `manifestPlaceholders = [appAuthRedirectScheme: "de.coldtea.verborum"]`; iOS registers the same
+  scheme as a URL type.
+- `http://localhost:*` — emulator/loopback only.
+
+`verborum-web` accepts `http://localhost:3000/*`. Any additional URI must be added to
+`keycloak/import/verborum-realm.json` in the backend repo — an unregistered URI is rejected before
+the login page renders.
+
+**PKCE is enforced, not optional.** `verborum-app` and `verborum-web` set
+`pkce.code.challenge.method = S256`. An authorization request without `code_challenge` is rejected
+with `invalid_request: Missing parameter: code_challenge_method` — verified live. AppAuth and
+ASWebAuthenticationSession send it automatically; a hand-rolled client will not.
+
+### 6.1a Sign-up, password reset and logout (decided 2026-07-23)
+
+**Sign-up uses Keycloak's hosted registration page — clients do NOT build a registration form.**
+Send the user to the same authorization endpoint with `/registrations` instead of `/auth`, with
+identical PKCE parameters:
+```
+{issuer}/protocol/openid-connect/registrations?client_id=verborum-app&response_type=code
+    &scope=openid&redirect_uri={redirect}&code_challenge={challenge}&code_challenge_method=S256
+```
+It returns the account-creation form and completes with the same code exchange as login, so a client
+needs one auth flow, not two. AppAuth: reuse the `AuthorizationRequest` and swap the endpoint.
+
+*Why not a native form:* `POST /users/` does **not** create a Keycloak identity — it creates the
+profile row keyed on `keycloakId`. Creating the identity itself needs ms_user's Keycloak Admin API
+path (BE P3-04), which is not built. Hosted registration keeps Keycloak the single identity
+authority and needs no backend work.
+
+**After the first successful login, the client calls `POST /users/` once** with `keycloakId` = the
+JWT `sub`, plus `email` and `displayName` from the ID token, to create the profile. It is safe to
+call whenever a `GET /users/{userId}` 404s. (`userId` is still client-supplied until BE P3-05.)
+
+**Password reset:** the hosted login page carries a "Forgot Password" link
+(`/protocol/openid-connect/reset-credentials`). No client screen needed. Note: the realm has **no
+SMTP configured**, so reset mails do not send in local dev, and `verifyEmail` is off.
+
+**Logout** (previously unspecified — the gap the Android side flagged):
+1. Call the end-session endpoint with the refresh token —
+   `{issuer}/protocol/openid-connect/logout`, form-encoded `client_id` + `refresh_token`. This kills
+   the Keycloak session; skipping it leaves an SSO session that silently logs the user straight back
+   in.
+2. Optionally revoke at `{issuer}/protocol/openid-connect/revoke`.
+3. Delete both tokens from encrypted storage.
+4. Decide per client what happens to local data. Recommended: keep synced rows, clear nothing on
+   logout, and treat a *different* user logging in on the same device as a wipe-and-resync — the
+   local store is keyed by owner id, so mixing two users' rows is the failure to avoid.
+
 ### 6.2 Token policy (configured per Keycloak client — design them together, BE P3-02)
 Mobile: short access tokens (≈5 min), long offline-capable refresh tokens — a device offline for days
 must resume sync without re-login. Web: short everything; re-authentication is acceptable in a
 browser. All clients: send `Authorization: Bearer <access>`; refresh on 401 once, then surface login.
+
+### 6.2a Testing on a physical device — pin the issuer or every token is rejected
+
+Keycloak stamps the issuer into every token. Left unpinned it echoes back whatever host the caller
+used, so a phone hitting `http://192.168.0.x:8180` receives `iss: http://192.168.0.x:8180/...` while
+the services validate `iss: http://localhost:8180/...` — **every API call then fails with a 401 that
+looks like a broken token rather than a config mismatch.**
+
+The root compose pins it via `KC_HOSTNAME_URL` (default `http://localhost:8180`). For device
+testing, set all of these to the *same* LAN origin and restart:
+```
+KEYCLOAK_HOSTNAME_URL=http://<lan-ip>:8180     # keycloak container
+KEYCLOAK_ISSUER_URI=http://<lan-ip>:8180/realms/verborum          # each service
+KEYCLOAK_JWK_SET_URI=http://<lan-ip>:8180/realms/verborum/protocol/openid-connect/certs
+```
+Verified 2026-07-23: with the hostname pinned, tokens carry that issuer no matter which host
+requested them — including `localhost`. One issuer everywhere is the property you want; a token that
+validates on the emulator but not the phone means these three disagree.
 
 ### 6.3 Web token storage — decision pending, backend must stay compatible with both
 Browsers have no secure token storage. Two options:

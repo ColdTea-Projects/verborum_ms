@@ -252,11 +252,40 @@ Delete it from any realm export that leaves a developer machine.
 idle 60 days so a device offline for days resumes sync without re-login (Integration §6.2). Clients
 send `Authorization: Bearer <access>`, refresh once on 401, then surface login.
 
+**Redirect URIs:** `verborum-app` → `de.coldtea.verborum://oauth2redirect/*` and `http://localhost:*`
+(emulator only); `verborum-web` → `http://localhost:3000/*`. New URIs go in the realm import file;
+an unregistered one is rejected before the login page renders.
+
+**PKCE is enforced.** Both public clients set `pkce.code.challenge.method=S256`; an authorization
+request without `code_challenge` fails with `invalid_request: Missing parameter:
+code_challenge_method`. Do not treat PKCE as advisory.
+
+**Sign-up is Keycloak-hosted** (decided 2026-07-23): clients send users to
+`/protocol/openid-connect/registrations` with the same PKCE parameters as login — no native
+registration form. A native form would need ms_user to create the Keycloak identity through the
+Admin API (P3-04, unbuilt), and would split identity ownership. After first login the client calls
+`POST /users/` once with `keycloakId` = JWT `sub` to create the profile row. Password reset is the
+hosted "Forgot Password" link. **No SMTP is configured**, so reset/verification mail does not send in
+local dev.
+
+**Logout:** end-session endpoint `{issuer}/protocol/openid-connect/logout` with `client_id` +
+`refresh_token`, optional `revoke`, then delete local tokens. Skipping the end-session call leaves an
+SSO session that logs the user straight back in. Full client-side rules in Integration §6.1a.
+
 **Realm roles:** `user` (every registered account), `admin`. Mapped to `ROLE_user` / `ROLE_admin` —
 see "Roles & Authorization" below and the nested-claim warning in the resource-server config.
 
+**Issuer pinning (`KC_HOSTNAME_URL`).** Keycloak stamps the issuer into every token; unpinned it
+echoes the caller's Host header, so a phone on `http://<lan-ip>:8180` gets tokens no service will
+accept — a 401 that reads like a bad token. The compose file pins it (default
+`http://localhost:8180`). For device testing set `KEYCLOAK_HOSTNAME_URL` plus every service's
+`KEYCLOAK_ISSUER_URI` / `KEYCLOAK_JWK_SET_URI` to the same LAN origin. Integration §6.2a has the
+exact variables.
+
 **Local dev users** (from the realm import, dev only): `testuser`/`testuser` with role `user`,
-`testadmin`/`testadmin` with `user` + `admin`.
+`testadmin`/`testadmin` with `user` + `admin`. Self-registration is open in this realm
+(`registrationAllowed: true`) because sign-up is hosted — review that before any realm that is not a
+developer laptop.
 
 **Secrets.** `verborum-backend`'s secret is `local-dev-only-change-me` in the committed realm file —
 a placeholder for local dev, never a real credential. Services read it from

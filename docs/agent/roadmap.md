@@ -525,6 +525,21 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
     Services still read it from `KEYCLOAK_ADMIN_CLIENT_SECRET`; nothing real is committed.
   - Not done: Google as an identity provider (needs real Google OAuth2 credentials — cannot be
     committed; add manually when they exist). Noted in `security.md`.
+  - 2026-07-23, follow-up after the Android team reviewed this: three client-facing gaps closed.
+    1. **Sign-up is Keycloak-hosted** — `registrationAllowed`/`resetPasswordAllowed` are now `true`
+       and clients use `/protocol/openid-connect/registrations`. A native form would have required
+       P3-04's Admin API path, which does not exist; hosted keeps Keycloak the identity authority.
+       The client calls `POST /users/` once after first login to create the profile row.
+    2. **Redirect URI recorded** as `de.coldtea.verborum://oauth2redirect/*` (+ `http://localhost:*`
+       for emulators) in Integration §6.1 — it was configured here but written down nowhere.
+    3. **Issuer pinned via `KC_HOSTNAME_URL`** (default `http://localhost:8180`), plus §6.2a on
+       device testing. Unpinned, Keycloak echoes the caller's Host, so a phone on a LAN IP gets
+       tokens every service rejects with a 401 that looks like a bad token.
+    Also verified live: PKCE is genuinely enforced (a request without `code_challenge` is rejected),
+    the hosted registration and reset-password pages render, and with the hostname pinned every
+    token carries that one issuer regardless of the host used to request it.
+    Logout/revocation was undocumented anywhere — now specified in Integration §6.1a and mirrored
+    into `security.md`.
   - Verified live 2026-07-23: `testuser` obtained a token via `verborum-dev-cli`; the decoded
     payload carries `"iss":"http://localhost:8180/realms/verborum"`, a `sub`, and
     `"realm_access":{"roles":["user"]}` — the exact nested shape P2-11's converter reads.

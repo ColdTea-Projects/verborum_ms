@@ -70,6 +70,14 @@ services:
     environment:
       KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      # Pins the issuer Keycloak stamps into every token, instead of echoing back whatever Host
+      # header the caller used. Without this, a phone hitting http://192.168.0.x:8180 gets tokens
+      # with iss=http://192.168.0.x:8180/... while the services validate iss=localhost:8180 — every
+      # request then fails with a 401 that looks like a broken token rather than a config mismatch.
+      # For device testing set this AND the services' KEYCLOAK_ISSUER_URI / KEYCLOAK_JWK_SET_URI to
+      # the same LAN origin. See docs/agent/security.md.
+      KC_HOSTNAME_URL: ${KEYCLOAK_HOSTNAME_URL:-http://localhost:8180}
+      KC_HOSTNAME_ADMIN_URL: ${KEYCLOAK_HOSTNAME_URL:-http://localhost:8180}
     volumes:
       - ./keycloak/import:/opt/keycloak/data/import:ro
       - keycloak_data:/opt/keycloak/data
