@@ -36,6 +36,7 @@ verborum_ms/
 | `docs/agent/security.md` | Working on auth, Keycloak, JWT, or endpoint protection |
 | `docs/agent/testing.md` | Writing or reviewing any test code |
 | `docs/agent/roadmap.md` | Asked "what's next?", "what should I build?", or "what's the status?" |
+| `docs/integration/client-login-guide.md` | Any question from a client team (Android/iOS/web) about login, sign-up, tokens or identity ids |
 
 ---
 

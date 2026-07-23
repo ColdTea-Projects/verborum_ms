@@ -209,6 +209,10 @@ the login page renders.
 with `invalid_request: Missing parameter: code_challenge_method` — verified live. AppAuth and
 ASWebAuthenticationSession send it automatically; a hand-rolled client will not.
 
+> **Implementing this?** `docs/integration/client-login-guide.md` is the build-oriented companion —
+> exact client registration values, the sign-up call, token handling, logout, device-testing
+> pitfalls, and the current list of gaps. This section stays normative; that one explains how.
+
 ### 6.1a Sign-up, password reset and logout (decided 2026-07-23)
 
 **Sign-up uses Keycloak's hosted registration page — clients do NOT build a registration form.**
