@@ -19,7 +19,7 @@ Last verified against a running stack: **2026-07-23** (backend roadmap P3-01/P3-
 | Hosted sign-up | **Enabled** — clients build no registration form |
 | Password reset | Enabled (hosted "Forgot Password"); **no SMTP in local dev**, so mail does not send |
 | ms_user (`:8086`) | Secured. All endpoints require a valid JWT |
-| ms_dictionary (`:8085`) | **Not secured yet** (backend P3-03). Open, and trusts a client-supplied `userId` |
+| ms_dictionary (`:8085`) | **Secured as of 2026-07-23 (P3-03)** — every call needs a bearer token. Still trusts a client-supplied `userId` (P3-05) |
 | Google sign-in | **Not configured** — needs real Google OAuth2 credentials |
 | API gateway | Not built (backend Phase 5). Talk to services directly for now |
 
@@ -180,10 +180,15 @@ clients are PKCE-only. Dev users: `testuser`/`testuser` (role `user`),
 
 ## 9. Known gaps — plan around these
 
-1. **ms_dictionary is unsecured** (backend P3-03) and trusts a client-supplied `userId`. During
-   development you will have a logged-in app talking to an open service; that is not working auth.
-2. **`userId` moves to the JWT subject** at backend P3-05 — a coordinated breaking change on both
-   sides.
+1. **ms_dictionary now requires a token (breaking change, 2026-07-23).** It was open until backend
+   P3-03; any client calling `:8085` without `Authorization: Bearer <access>` gets **401** on every
+   endpoint — dictionaries, words, batch fetches, the lot. If your sync suddenly fails everywhere,
+   this is why. `/actuator/health` and Swagger stay open.
+2. **Authentication is enforced, ownership is not.** The service still trusts the `userId` in the
+   request body, so a valid token can currently read or write another user's data. Do not build
+   anything that relies on the server rejecting that — it will start rejecting at backend P3-05,
+   when `userId` moves to the JWT subject. That is a coordinated breaking change and will be
+   announced.
 3. **Google sign-in is not configured.** Federated-behind-Keycloak is still the design (never
    integrate Google SDK directly), but the button cannot work until real credentials exist.
 4. **No API gateway** until backend Phase 5. Clients address services directly and must carry per-

@@ -13,7 +13,9 @@ Full CRUD for **Dictionaries** and **Words** — the core vocabulary store.
   has Postgres + Adminer but no RabbitMQ. Use the root compose for anything touching events.
   The two bind the same host ports, so run one or the other, never both.
 - **Base package:** `de.coldtea.verborum.msdictionary`
-- **Status:** Functionally complete, NOT production-ready (no security yet — see Phase 3)
+- **Status:** Functionally complete. Secured with Keycloak JWT as of P3-03 — but endpoints still
+  trust the `userId` in the request body, so any valid token can touch another user's data until
+  P3-05 moves it to the token subject.
 
 ## Entities
 - `Dictionary` (`dictionaries`) — `dictionaryId`, `userId` (fk_user_id), `name`, `isPublic`,
@@ -57,4 +59,8 @@ Full CRUD for **Dictionaries** and **Words** — the core vocabulary store.
   `update_dt`). Server-authoritative. NB: the `Response`/`ErrorResponse` envelope `timestamp` is a
   different field and uses the server's local offset — see `docs/integration/…` §4.4.
 - Deleting a dictionary also deletes its words in the service layer (no DB-level FK).
-- **No security** on any endpoint yet (task P3-03). Do not expose publicly until then.
+- Security: `common/config/SecurityConfig.java` (P3-03) — stateless JWT resource server, `/actuator/**`
+  and Swagger permitted, everything else authenticated. Realm roles are mapped by the hand-written
+  `extractRealmRoles` (see the P2-11 note in `security.md`); do not swap in
+  `JwtGrantedAuthoritiesConverter`. `jwk-set-uri` is set alongside `issuer-uri` so the service still
+  starts when Keycloak is down.

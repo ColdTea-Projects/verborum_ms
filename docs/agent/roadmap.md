@@ -567,12 +567,31 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
   - Verified live 2026-07-23: `testuser` obtained a token via `verborum-dev-cli`; the decoded
     payload carries `"iss":"http://localhost:8180/realms/verborum"`, a `sub`, and
     `"realm_access":{"roles":["user"]}` — the exact nested shape P2-11's converter reads.
-- [ ] `P3-03` **Add Spring Security to ms_dictionary**
+- [x] `P3-03` **Add Spring Security to ms_dictionary**
   - Add `spring-boot-starter-security` + `oauth2-resource-server` to `pom.xml`
   - Create `common/config/SecurityConfig.java` — stateless JWT, permit actuator + Swagger
   - Add `issuer-uri` and `jwk-set-uri` to `application.properties`
   - Done when: unauthenticated requests to ms_dictionary return 401; authenticated requests still work
   - Note: ms_dictionary has been running with ALL endpoints open — this closes that gap
+  - Done 2026-07-23: both starters added, `common/config/SecurityConfig` mirrors ms_user's (stateless,
+    actuator + Swagger permitted, everything else authenticated) and was written against the
+    **corrected** role-extraction template from P2-11 — this service never carried that bug. 5
+    `SecurityConfigTest` cases; ms_dictionary suite now 46.
+  - `jwk-set-uri` is set alongside `issuer-uri` deliberately: with only `issuer-uri`, Boot fetches the
+    discovery document at startup and the service refuses to start whenever Keycloak is down. Both
+    are `${ENV:default}`, so the LAN-issuer setup in Integration §6.2a works without code changes.
+  - Verified live 2026-07-23: `POST /dictionaries/`, `GET /dictionaries/{userId}` and
+    `GET /words/user/{userId}` all return **401** with no token and with a garbage token; the same
+    calls with a real Keycloak token return 201/200 with correct bodies. `/actuator/health` and
+    Swagger remain open by design.
+  - **Authentication is enforced, ownership is not.** Endpoints still trust the `userId` in the
+    request body, so any valid token can read or write another user's dictionaries. That is P3-05,
+    and it is now the most security-relevant open item.
+- [ ] `P3-03a` **Tell the client teams ms_dictionary is closed** (added 2026-07-23)
+  - Android currently talks to `:8085` with no token and will start getting 401s the moment this is
+    deployed to their dev machine. `docs/integration/client-login-guide.md` is updated, but a heads-up
+    matters more than a doc edit here
+  - Done when: the Android/iOS repos know they must attach a bearer token to ms_dictionary calls
 - [ ] `P3-04` **Add Spring Security to ms_user**
   - Same pattern as ms_dictionary
   - Add Keycloak Admin Client for user registration flows
@@ -587,6 +606,11 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
     `KEYCLOAK_ADMIN_CLIENT_SECRET` via the env endpoint
   - Restrict to `health,info` (or secure the rest with a role)
   - Done when: `/actuator/env` is not publicly reachable in any service
+  - 2026-07-23: confirmed live, no longer theoretical — with ms_dictionary secured, an
+    **unauthenticated** `GET /actuator/env` still returns 200 and lists configuration keys including
+    `spring.datasource.password`. `permitAll` on `/actuator/**` plus `exposure.include=*` is doing
+    exactly what it says. Both services are affected; ms_user additionally has
+    `KEYCLOAK_ADMIN_CLIENT_SECRET` in its environment.
 - [x] `P3-07` **Document the auth contract in `security.md`** (added 2026-07-21, recommended by the
     Integration doc §11)
   - Done 2026-07-23, together with P3-01/P3-02 as the task itself asked: `security.md` has an

@@ -41,15 +41,16 @@ API Gateway ──► Autofil Service  (word suggestions from community data, No
 
 ## Services
 
-### ⚠️ ms_dictionary — FUNCTIONALLY COMPLETE, NOT PRODUCTION-READY
+### ⚠️ ms_dictionary — SECURED, BUT DOES NOT ENFORCE OWNERSHIP
 - **Port:** 8085
 - **DB:** `vdbdictionary` (PostgreSQL)
 - **Base package:** `de.coldtea.verborum.msdictionary`
 - **What it does:** Full CRUD for Dictionaries and Words
 - **Docker:** `ms_dictionary/docker-compose.yml` (Postgres + Adminer)
-- **Missing:** No authentication or authorization — all endpoints are completely open.
-  Security will be added in Phase 3 once Keycloak is configured via ms_user.
-  Until then, do not expose ms_dictionary to public traffic.
+- **Security:** Keycloak JWT required on every endpoint as of P3-03 (2026-07-23); `/actuator/**` and
+  Swagger are open. **Authorization is still missing:** endpoints trust the `userId` in the request
+  body, so any valid token can read or write another user's dictionaries until P3-05 switches to the
+  token subject. Do not expose to public traffic before then.
 
 ### 🚧 ms_user — PHASE 2 COMPLETE, NOT YET EXERCISED OVER HTTP
 - **Port:** 8086
@@ -278,10 +279,13 @@ See `docs/agent/rabbitmq.md` for implementation details.
 
 ## Known Issues in ms_dictionary
 
-1. **No security on any endpoint** — ms_dictionary has no authentication or authorization.
-   All endpoints are open. This is intentional for local development only and will be
-   fixed in Phase 3 by adding Spring Security + Keycloak JWT validation. Do not expose
-   ms_dictionary to public traffic until Phase 3 is complete.
+1. **No authorization, though authentication now exists.** P3-03 (2026-07-23) added Keycloak JWT
+   validation, so every endpoint returns 401 without a valid token. But the endpoints still take
+   `userId` from the request body, so *any* authenticated user can read or write *any* other user's
+   dictionaries and words. P3-05 fixes this by taking the subject from the token. Do not expose
+   ms_dictionary to public traffic until then.
+   Related: `/actuator/**` is `permitAll` with `exposure.include=*`, so `/actuator/env` is readable
+   unauthenticated — see P3-06.
 
 2. **`@GenericGenerator` imported but unused** in entity files (deprecated in newer Hibernate).
 
