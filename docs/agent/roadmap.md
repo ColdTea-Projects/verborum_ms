@@ -454,7 +454,7 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
     3. Published with an unknown `keycloakId` → retried, then landed in `verborum.dead-letter`.
     Test rows and the DLQ message were cleaned up afterwards; deleting the seeded user also removed
     its vault row, re-confirming the P2-05 FK cascade.
-- [ ] `P2-10` **Consume `user.deleted` event in ms_dictionary**
+- [x] `P2-10` **Consume `user.deleted` event in ms_dictionary**
   - Add queue + binding to ms_dictionary's `RabbitMQConfig`
   - Create `common/listener/UserEventListener.java` in ms_dictionary
   - On `user.deleted`: delete all dictionaries and words for that userId
@@ -467,6 +467,30 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
     is a class ms_dictionary does not have, and every message fails to deserialize.
   - The listener must be idempotent (a redelivery must not fail) and this is the task where P1-03's
     pre-commit publish race stops being theoretical for deletes — see P2-08.
+  - Done 2026-07-23: durable queue `dictionary.user.deleted` bound to `user.deleted` with
+    `x-dead-letter-exchange`, `common/listener/UserEventListener`, consumer-side `UserDeletedEvent`,
+    and `DictionaryService.deleteAllByUserId`. The `INFERRED` type-mapper fix from P2-09 was copied
+    into this service's `RabbitMQConfig` first, as the note above required. 5 new tests
+    (ms_dictionary suite now 41). **Phase 2 is complete.**
+  - Cascades on the event's **`keycloakId`** — `fk_user_id` is the JWT subject. A test asserts
+    `deleteAllByUserId` is never called with the event's `userId`, since that would delete nothing
+    and look like success.
+  - Words are deleted before dictionaries (no DB-level FK), asserted with `InOrder`. An empty
+    dictionary list short-circuits, so a redelivery is a harmless no-op.
+  - **Publishes no `dictionary.deleted` events for the cascaded rows.** ms_marketplace consumes
+    `user.deleted` itself (see the routing table in `verborum.md`), so re-announcing each dictionary
+    would duplicate work it already does. If that ever changes, this is the decision to revisit.
+  - Verified live 2026-07-23, full cross-service chain with both services and Keycloak running:
+    created an ms_user profile plus 2 dictionaries and 2 words owned by the JWT subject, then
+    `DELETE /users/{userId}` over HTTP → the listener logged the event and ms_dictionary went from
+    2 dictionaries / 2 words to 0 / 0, nothing dead-lettered. Republishing the identical event was
+    consumed cleanly as a no-op. This is also the first live proof of the P2-09 type-mapper fix
+    against a genuine cross-service message: ms_user stamps
+    `__TypeId__: de.coldtea.verborum.msuser.common.event.UserDeletedEvent`, a class ms_dictionary
+    does not have.
+  - Still true after this task: the publish in ms_user happens before its transaction commits
+    (P1-03/P4-03). The window is small and the cascade is not reversible, so P4-03's move to
+    `@TransactionalEventListener(AFTER_COMMIT)` matters more now that a consumer acts on it.
 - [x] `P2-11` **Fix Keycloak role mapping in ms_user `SecurityConfig`** (added 2026-07-12 after full review)
   - `JwtGrantedAuthoritiesConverter.setAuthoritiesClaimName("realm_access.roles")` does NOT
     resolve nested claims — Keycloak realm roles live under `realm_access` → `roles`, so no

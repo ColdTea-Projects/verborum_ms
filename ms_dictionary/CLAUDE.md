@@ -22,9 +22,18 @@ Full CRUD for **Dictionaries** and **Words** — the core vocabulary store.
   `translation`, `translationMeta` (json), `level` (int, nullable), timestamps
 
 ## Events
-- **Publishes:** `dictionary.visibility.public/private`, `dictionary.deleted`,
-  `word.created` (once Phase 1 is done)
-- **Consumes:** `user.deleted` (cascade-delete this user's dictionaries and words)
+- **Publishes:** `dictionary.visibility.public/private`, `dictionary.deleted`, `word.created`
+- **Consumes:** `user.deleted` on the durable queue `dictionary.user.deleted` →
+  `UserEventListener` → `DictionaryService.deleteAllByUserId` (P2-10 done)
+  - **Cascades on the event's `keycloakId`, not its `userId`.** `fk_user_id` holds the JWT subject,
+    which is ms_user's `keycloak_id`; using `userId` deletes nothing and reports success.
+  - Words are deleted before dictionaries (no DB-level FK). An empty result short-circuits, so a
+    redelivery is a harmless no-op.
+  - Deliberately publishes **no** `dictionary.deleted` for the cascaded rows — ms_marketplace
+    consumes `user.deleted` itself.
+- **Cross-service JSON:** `RabbitMQConfig`'s converter uses `DefaultJackson2JavaTypeMapper` with
+  `INFERRED` type precedence. Without it the publisher's `__TypeId__` header (an ms_user class that
+  does not exist here) makes every inbound message fail as ClassNotFound. Do not remove it.
 
 ## Service-specific quirks
 - The JPA `@OneToMany`/`@ManyToOne` between Dictionary and Word is **intentionally disabled**.

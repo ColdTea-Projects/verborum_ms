@@ -114,6 +114,34 @@ public class DictionaryServiceImpl implements DictionaryService {
         );
     }
 
+    /**
+     * Cascade for a deleted user (roadmap P2-10), driven by the `user.deleted` event.
+     * <p>
+     * `userId` here is the JWT subject stored in `fk_user_id` — the caller must pass the event's
+     * `keycloakId`, not ms_user's `userId`. See UserEventListener.
+     * <p>
+     * Idempotent by construction: a user with no dictionaries deletes nothing and throws nothing, so
+     * a redelivered event is harmless. No `dictionary.deleted` events are published for the removed
+     * rows — ms_marketplace consumes `user.deleted` itself (see the routing table in verborum.md),
+     * so re-announcing each dictionary would duplicate work it is already doing.
+     */
+    @Transactional
+    @Override
+    public void deleteAllByUserId(String userId) {
+        List<String> dictionaryIds = dictionaryRepository.findByUserId(userId).stream()
+                .map(Dictionary::getDictionaryId)
+                .toList();
+
+        if (dictionaryIds.isEmpty()) {
+            return;
+        }
+
+        // Words have no DB-level FK to their dictionary, so they must go explicitly and first —
+        // same reasoning as deleteDictionary()
+        wordRepository.deleteByDictionaryIdIn(dictionaryIds);
+        dictionaryRepository.deleteAllById(dictionaryIds);
+    }
+
     @Override
     public List<DictionaryResponseDTO> getDictionariesByUser(String userId) {
         return dictionaryRepository.findByUserId(userId).stream().map(dictionaryMapper::toDictionaryResponseDTO).toList();

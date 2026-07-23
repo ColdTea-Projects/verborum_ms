@@ -15,6 +15,7 @@ import de.coldtea.verborum.msdictionary.common.event.DictionaryVisibilityEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
@@ -391,4 +392,53 @@ class DictionaryServiceImplTest {
         assertEquals(expectedResponse.size(), result.size());
         verify(dictionaryRepository).findByUserId(userId);
         verify(dictionaryMapper, times(dictionaries.size())).toDictionaryResponseDTO(any(Dictionary.class));
-    }}
+    }
+
+    @Test
+    void deleteAllByUserId_DeletesWordsThenDictionaries() {
+        // Arrange — userId here is the JWT subject (the event's keycloakId)
+        String keycloakId = "kc-1";
+        Dictionary first = Dictionary.builder().dictionaryId("d1").userId(keycloakId).build();
+        Dictionary second = Dictionary.builder().dictionaryId("d2").userId(keycloakId).build();
+
+        when(dictionaryRepository.findByUserId(keycloakId)).thenReturn(List.of(first, second));
+
+        // Act
+        dictionaryService.deleteAllByUserId(keycloakId);
+
+        // Assert — words must go first: they have no DB-level FK to the dictionary
+        InOrder inOrder = inOrder(wordRepository, dictionaryRepository);
+        inOrder.verify(wordRepository).deleteByDictionaryIdIn(List.of("d1", "d2"));
+        inOrder.verify(dictionaryRepository).deleteAllById(List.of("d1", "d2"));
+    }
+
+    @Test
+    void deleteAllByUserId_NoDictionaries_IsANoOp() {
+        // Arrange — also the redelivery case: the second delivery finds nothing left
+        String keycloakId = "kc-unknown";
+        when(dictionaryRepository.findByUserId(keycloakId)).thenReturn(List.of());
+
+        // Act
+        dictionaryService.deleteAllByUserId(keycloakId);
+
+        // Assert — an empty IN (...) delete would be pointless, and must not blow up
+        verify(wordRepository, never()).deleteByDictionaryIdIn(anyList());
+        verify(dictionaryRepository, never()).deleteAllById(anyList());
+        verifyNoInteractions(rabbitTemplate);
+    }
+
+    @Test
+    void deleteAllByUserId_PublishesNothing() {
+        // Arrange — ms_marketplace consumes user.deleted itself, so re-announcing each dictionary
+        // would duplicate work it is already doing
+        String keycloakId = "kc-1";
+        when(dictionaryRepository.findByUserId(keycloakId))
+                .thenReturn(List.of(Dictionary.builder().dictionaryId("d1").userId(keycloakId).build()));
+
+        // Act
+        dictionaryService.deleteAllByUserId(keycloakId);
+
+        // Assert
+        verifyNoInteractions(rabbitTemplate);
+    }
+}

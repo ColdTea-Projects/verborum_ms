@@ -11,4 +11,5 @@ public interface DictionaryService {
     List<DictionaryResponseDTO> getDictionariesByUser(String userId);
     DictionaryResponseDTO getDictionaryById(String dictionaryId);
     List<DictionaryResponseDTO> getDictionariesByIds(List<String> dictionaryIds);
+    void deleteAllByUserId(String userId);
 }

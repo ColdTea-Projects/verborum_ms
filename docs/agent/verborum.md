@@ -237,10 +237,15 @@ fire-and-forget until P4-03. ms_dictionary has no consumer queue until it starts
 whichever service starts first creates it.
 As of 2026-07-23 (P2-08, P2-09) ms_user is wired too: same exchange and dead letter infrastructure,
 publishing `user.deleted` and consuming `dictionary.imported` on the durable queue
-`user.dictionary.imported` — the first consumer queue in the system. Nothing publishes
-`dictionary.imported` until ms_marketplace ships (P4-07), but a bound durable queue captures those
-imports instead of letting the topic exchange discard them. `user.deleted` still has no consumer
-until P2-10.
+`user.dictionary.imported`. Nothing publishes `dictionary.imported` until ms_marketplace ships
+(P4-07), but a bound durable queue captures those imports instead of letting the topic exchange
+discard them.
+
+As of P2-10 ms_dictionary consumes `user.deleted` on the durable queue `dictionary.user.deleted` and
+cascade-deletes that user's dictionaries and words — **matching on the event's `keycloakId`**, since
+`fk_user_id` is the JWT subject. It publishes no `dictionary.deleted` for the cascaded rows, because
+ms_marketplace consumes `user.deleted` itself. Verified live end-to-end: `DELETE /users/{userId}` on
+ms_user removes the user's dictionaries and words from ms_dictionary, and a redelivery is a no-op.
 
 **Consuming services must set `INFERRED` type precedence on the message converter.**
 `Jackson2JsonMessageConverter` writes the publisher's fully-qualified class name into a `__TypeId__`
