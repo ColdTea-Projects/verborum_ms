@@ -592,6 +592,11 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
     deployed to their dev machine. `docs/integration/client-login-guide.md` is updated, but a heads-up
     matters more than a doc edit here
   - Done when: the Android/iOS repos know they must attach a bearer token to ms_dictionary calls
+  - 2026-07-23: `docs/integration/client-login-guide.md` §9 now carries the full breaking-change
+    notice — 401 without a token, plus the P3-05/P3-08 ownership rules (403 on a wrong owner id, 404
+    on another user's resource, filtered batch results) and the hint that a 403 most likely means the
+    guest UUID is still being sent. **Left open deliberately: this task is a message, not a file.**
+    It closes when the client teams have actually been told.
 - [x] `P3-04` **Add Spring Security to ms_user**
   - Same pattern as ms_dictionary
   - Add Keycloak Admin Client for user registration flows
@@ -620,10 +625,48 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
     identity survives, and the WARN names the id.
   - Known limitation: a failed identity deletion is only a log line. If account deletion becomes a
     compliance requirement, this wants an outbox/retry rather than best-effort.
-- [ ] `P3-05` **Extract userId from JWT in controllers (stop trusting client-provided userId)**
+- [x] `P3-05` **Extract userId from JWT in controllers (stop trusting client-provided userId)**
   - Create `common/utils/SecurityUtils.java` in each secured service
   - Update create/mutate endpoints to use `SecurityUtils.getCurrentUserId()`
   - Done when: userId in Dictionary and Word always comes from the token, not request body
+  - Done 2026-07-23. **A mismatch is a 403, not a silent substitution** (your call): a client sending
+    the wrong id has a bug, and quietly rewriting it would let that bug ship looking healthy.
+  - Controllers pass the token subject into the services as an explicit argument rather than the
+    services reading the security context — the services stay plain objects, unit-testable without a
+    SecurityContextHolder.
+  - ms_dictionary: `saveDictionary`/`saveWords` take an `ownerId`; the stored `userId` always comes
+    from the token. Because the **client supplies the ids**, an existing row is checked too —
+    otherwise a POST carrying someone else's `dictionaryId` would take that row over, and a word
+    bundle could be written into another user's dictionary. `GET /dictionaries/{userId}` and
+    `GET /words/user/{userId}` keep the path variable for compatibility but must name the caller.
+  - ms_user: the subject is the profile's **`keycloakId`**, not ms_user's `userId`, so ownership
+    compares against that column. `saveUser` refuses to claim another subject (keycloak_id is the
+    cross-service join key — claiming it would hand over that user's dictionaries too) and refuses to
+    overwrite an existing profile that is not the caller's. Vault methods are guarded;
+    `importDictionary` deliberately is not, since its actor is ms_marketplace.
+  - Verified live with two real Keycloak users: claiming another subject, overwriting another user's
+    dictionary, listing their dictionaries, reading their words and writing into their dictionary are
+    all 403, with the victim's data intact.
+- [x] `P3-08` **Close the id-addressed authorisation holes (IDOR)** (added 2026-07-23 while verifying
+    P3-05 — scope beyond the original Phase 3 plan, see the note below)
+  - P3-05 fixed the endpoints where the client *names* a user, but every endpoint addressed by
+    **resource id** was still unguarded. Demonstrated live before the fix: user B called
+    `DELETE /dictionaries/{A's id}` and **A's dictionary and words were destroyed** (200 OK). B could
+    also read A's dictionary by id, batch-fetch it, list its words, and
+    `GET /words/language/from/EN` returned **every user's** words.
+  - Fixed: `deleteDictionary`, `deleteWordsByDictionaryId` → 403 for a non-owner.
+    `getDictionaryById` → **404**, not 403, so a caller cannot tell an existing dictionary from a
+    missing one. Batch/list endpoints (`/dictionaries/batch`, `/words/batch`,
+    `/words/dictionary/{id}`, both `/words/language/...`) **filter to the caller** rather than
+    refusing, for the same reason. `deleteWords` silently skips ids the caller does not own.
+  - Verified live after the fix, same two users: read-by-id 404, every batch/list empty, both deletes
+    403, single-word delete 200 but nothing removed, and A's data intact.
+  - Scope note: this was not in the Phase 3 plan. It is committed separately from P3-05 so it can be
+    reviewed — or dropped — on its own. It was fixed rather than filed because Phase 3 is the
+    security phase, and shipping it with a working "delete any user's data" call would have been
+    worse than the scope creep.
+  - Not covered: ms_user has no id-addressed endpoints beyond the profile and vault ones already
+    guarded in P3-05.
 - [x] `P3-06` **Lock down actuator exposure in all services** (added 2026-07-12 after full review)
   - `management.endpoints.web.exposure.include=*` combined with `permitAll` on `/actuator/**`
     exposes `/actuator/env`, heapdump, etc. publicly — in ms_user this can leak

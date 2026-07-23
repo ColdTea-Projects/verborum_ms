@@ -194,11 +194,21 @@ clients are PKCE-only. Dev users: `testuser`/`testuser` (role `user`),
    P3-03; any client calling `:8085` without `Authorization: Bearer <access>` gets **401** on every
    endpoint — dictionaries, words, batch fetches, the lot. If your sync suddenly fails everywhere,
    this is why. `/actuator/health` and Swagger stay open.
-2. **Authentication is enforced, ownership is not.** The service still trusts the `userId` in the
-   request body, so a valid token can currently read or write another user's data. Do not build
-   anything that relies on the server rejecting that — it will start rejecting at backend P3-05,
-   when `userId` moves to the JWT subject. That is a coordinated breaking change and will be
-   announced.
+2. **The server now enforces ownership (breaking change, 2026-07-23, backend P3-05 + P3-08).**
+   Identity comes from the token, not from what you send:
+   - Sending a `userId` that is not your JWT `sub` on `POST`/`PUT /dictionaries/` → **403**. Send
+     your own `sub`, or the request fails. (The stored owner is the token's subject either way.)
+   - `GET /dictionaries/{userId}` and `GET /words/user/{userId}` must name **you** → otherwise 403.
+   - Writing words into a dictionary you do not own → **403**.
+   - Deleting a dictionary or its words when you are not the owner → **403**.
+   - Reading someone else's dictionary by id → **404** (deliberately indistinguishable from a
+     missing one). Batch and list endpoints silently return only your own rows, so
+     `/dictionaries/batch`, `/words/batch`, `/words/dictionary/{id}` and `/words/language/...` may
+     come back shorter than you asked for — that is not an error.
+
+   Practical upshot for sync: keep uploading your own `sub` as `userId` and nothing changes. If you
+   see 403s after this lands, you are sending the wrong owner id — most likely the guest UUID
+   (`00000000-...`) that §6.4 says must be rewritten at first login.
 3. **Google sign-in is not configured.** Federated-behind-Keycloak is still the design (never
    integrate Google SDK directly), but the button cannot work until real credentials exist.
 4. **No API gateway** until backend Phase 5. Clients address services directly and must carry per-

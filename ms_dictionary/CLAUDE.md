@@ -13,9 +13,8 @@ Full CRUD for **Dictionaries** and **Words** — the core vocabulary store.
   has Postgres + Adminer but no RabbitMQ. Use the root compose for anything touching events.
   The two bind the same host ports, so run one or the other, never both.
 - **Base package:** `de.coldtea.verborum.msdictionary`
-- **Status:** Functionally complete. Secured with Keycloak JWT as of P3-03 — but endpoints still
-  trust the `userId` in the request body, so any valid token can touch another user's data until
-  P3-05 moves it to the token subject.
+- **Status:** Functionally complete and secured — JWT required (P3-03), owner taken from the token
+  (P3-05), and id-addressed endpoints ownership-checked (P3-08).
 
 ## Entities
 - `Dictionary` (`dictionaries`) — `dictionaryId`, `userId` (fk_user_id), `name`, `isPublic`,
@@ -59,6 +58,11 @@ Full CRUD for **Dictionaries** and **Words** — the core vocabulary store.
   `update_dt`). Server-authoritative. NB: the `Response`/`ErrorResponse` envelope `timestamp` is a
   different field and uses the server's local offset — see `docs/integration/…` §4.4.
 - Deleting a dictionary also deletes its words in the service layer (no DB-level FK).
+- Authorization (P3-05/P3-08): services take an explicit `ownerId` — the token subject, passed in by
+  the controller — and never trust an id from the body or path. Writes 403 on a mismatch; reads by id
+  404 (so a caller cannot probe which ids exist); batch/list endpoints filter to the caller instead
+  of refusing. `deleteAllByUserId` and the private delete helper are the exception: they are the
+  `user.deleted` cascade, where the actor is ms_user rather than a logged-in caller.
 - Security: `common/config/SecurityConfig.java` (P3-03) — stateless JWT resource server, `/actuator/**`
   and Swagger permitted, everything else authenticated. Realm roles are mapped by the hand-written
   `extractRealmRoles` (see the P2-11 note in `security.md`); do not swap in

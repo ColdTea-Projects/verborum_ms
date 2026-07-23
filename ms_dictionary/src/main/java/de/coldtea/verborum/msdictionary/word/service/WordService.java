@@ -15,16 +15,18 @@ public interface WordService {
      */
     void saveWords(List<WordBundleRequestDTO> wordList, String ownerId);
 
-    void deleteWords(List<String> wordIdList);
+    void deleteWords(List<String> wordIdList, String ownerId);
 
-    void deleteWordsByDictionaryId(String dictionaryId);
-    List<WordResponseDTO> getWordsByLanguageFrom(String language);
+    void deleteWordsByDictionaryId(String dictionaryId, String ownerId);
 
-    List<WordResponseDTO> getWordsByLanguageTo(String language);
+    /** Scoped to the caller's own dictionaries — these used to return every user's words (P3-08). */
+    List<WordResponseDTO> getWordsByLanguageFrom(String language, String ownerId);
+
+    List<WordResponseDTO> getWordsByLanguageTo(String language, String ownerId);
 
     List<WordResponseDTO> getWordsByUserId(String userId);
 
-    List<WordResponseDTO> getWordsByDictionaryIds(List<String> dictionaryIds);
+    List<WordResponseDTO> getWordsByDictionaryIds(List<String> dictionaryIds, String ownerId);
 
-    List<WordResponseDTO> getWordsByIds(List<String> wordIds);
+    List<WordResponseDTO> getWordsByIds(List<String> wordIds, String ownerId);
 }

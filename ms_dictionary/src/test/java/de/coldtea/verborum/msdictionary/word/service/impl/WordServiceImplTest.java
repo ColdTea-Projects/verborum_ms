@@ -190,10 +190,12 @@ class WordServiceImplTest {
         List<String> wordIdList = new ArrayList<>();
 
         // Act
-        assertDoesNotThrow(() -> wordService.deleteWords(wordIdList));
+        assertDoesNotThrow(() -> wordService.deleteWords(wordIdList, OWNER));
 
-        // Assert
-        verify(wordRepository).deleteAllById(wordIdList);
+        // Assert — an empty request deletes nothing at all: the ownership filter resolves an empty
+        // set of owned ids, and an empty IN (...) delete would be pointless (P3-08)
+        verify(wordRepository).findAllById(wordIdList);
+        verify(wordRepository, never()).deleteAllById(any());
     }
 
 
@@ -201,10 +203,10 @@ class WordServiceImplTest {
     void deleteWordsByDictionaryId_Success() {
         // Arrange
         String dictionaryId = "1";
-        when(dictionaryRepository.findById(dictionaryId)).thenReturn(Optional.of(new Dictionary()));
+        when(dictionaryRepository.findById(dictionaryId)).thenReturn(Optional.of(dictionary(dictionaryId)));
 
         // Act
-        assertDoesNotThrow(() -> wordService.deleteWordsByDictionaryId(dictionaryId));
+        assertDoesNotThrow(() -> wordService.deleteWordsByDictionaryId(dictionaryId, OWNER));
 
         // Assert
         verify(wordRepository).deleteWordsByDictionaryId(dictionaryId);
@@ -217,7 +219,7 @@ class WordServiceImplTest {
         when(dictionaryRepository.findById(dictionaryId)).thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThrows(RecordNotFoundException.class, () -> wordService.deleteWordsByDictionaryId(dictionaryId));
+        assertThrows(RecordNotFoundException.class, () -> wordService.deleteWordsByDictionaryId(dictionaryId, OWNER));
     }
 
 
@@ -230,10 +232,12 @@ class WordServiceImplTest {
         words.add(new Word());
 
         Dictionary d1 = Dictionary.builder().dictionaryId("1")
+                .userId(OWNER)
                 .fromLang(language)
                 .build();
 
         Dictionary d2 = Dictionary.builder().dictionaryId("2")
+                .userId(OWNER)
                 .fromLang(language)
                 .build();
         when(dictionaryRepository.findByFromLang(language)).thenReturn(List.of(d1, d2));
@@ -241,7 +245,7 @@ class WordServiceImplTest {
         when(wordMapper.toWordResponseDTO(any(Word.class))).thenReturn(new WordResponseDTO());
 
         // Act
-        List<WordResponseDTO> result = wordService.getWordsByLanguageFrom(language);
+        List<WordResponseDTO> result = wordService.getWordsByLanguageFrom(language, OWNER);
 
         // Assert
         assertFalse(result.isEmpty());
@@ -259,10 +263,12 @@ class WordServiceImplTest {
         words.add(new Word());
 
         Dictionary d1 = Dictionary.builder().dictionaryId("1")
+                .userId(OWNER)
                 .fromLang(language)
                 .build();
 
         Dictionary d2 = Dictionary.builder().dictionaryId("2")
+                .userId(OWNER)
                 .fromLang(language)
                 .build();
         when(dictionaryRepository.findByToLang(language)).thenReturn(List.of(d1, d2));
@@ -270,7 +276,7 @@ class WordServiceImplTest {
         when(wordMapper.toWordResponseDTO(any(Word.class))).thenReturn(new WordResponseDTO());
 
         // Act
-        List<WordResponseDTO> result = wordService.getWordsByLanguageTo(language);
+        List<WordResponseDTO> result = wordService.getWordsByLanguageTo(language, OWNER);
 
         // Assert
         assertFalse(result.isEmpty());
@@ -287,7 +293,7 @@ class WordServiceImplTest {
         when(wordRepository.findByDictionaryIdIn(any())).thenReturn(new ArrayList<>());
 
         // Act
-        List<WordResponseDTO> result = wordService.getWordsByLanguageTo(language);
+        List<WordResponseDTO> result = wordService.getWordsByLanguageTo(language, OWNER);
 
         // Assert
         assertNotNull(result);
@@ -348,11 +354,14 @@ class WordServiceImplTest {
         // Arrange
         List<String> dictionaryIds = List.of("1", "2");
         List<Word> words = List.of(new Word());
+        // the caller owns both dictionaries — P3-08 resolves them before reading any words
+        when(dictionaryRepository.findAllById(dictionaryIds))
+                .thenReturn(List.of(dictionary("1"), dictionary("2")));
         when(wordRepository.findByDictionaryIdIn(dictionaryIds)).thenReturn(words);
         when(wordMapper.toWordResponseDTO(any())).thenReturn(new WordResponseDTO());
 
         // Act
-        List<WordResponseDTO> result = wordService.getWordsByDictionaryIds(dictionaryIds);
+        List<WordResponseDTO> result = wordService.getWordsByDictionaryIds(dictionaryIds, OWNER);
 
         // Assert
         assertNotNull(result);
@@ -365,10 +374,12 @@ class WordServiceImplTest {
     void getWordsByDictionaryIds_NoWordsFound() {
         // Arrange
         List<String> dictionaryIds = List.of("1", "2");
+        when(dictionaryRepository.findAllById(dictionaryIds))
+                .thenReturn(List.of(dictionary("1"), dictionary("2")));
         when(wordRepository.findByDictionaryIdIn(dictionaryIds)).thenReturn(List.of());
 
         // Act
-        List<WordResponseDTO> result = wordService.getWordsByDictionaryIds(dictionaryIds);
+        List<WordResponseDTO> result = wordService.getWordsByDictionaryIds(dictionaryIds, OWNER);
 
         // Assert
         assertNotNull(result);
@@ -381,12 +392,14 @@ class WordServiceImplTest {
     void getWordsByIds_Success() {
         // Arrange
         List<String> wordIds = List.of("1", "2");
-        List<Word> words = List.of(new Word(), new Word());
+        List<Word> words = List.of(word("1", "dict1"), word("2", "dict1"));
+        // a word carries no owner of its own, so ownership resolves through its dictionary (P3-08)
+        when(dictionaryRepository.findById("dict1")).thenReturn(Optional.of(dictionary("dict1")));
         when(wordRepository.findAllById(wordIds)).thenReturn(words);
         when(wordMapper.toWordResponseDTO(any())).thenReturn(new WordResponseDTO());
 
         // Act
-        List<WordResponseDTO> result = wordService.getWordsByIds(wordIds);
+        List<WordResponseDTO> result = wordService.getWordsByIds(wordIds, OWNER);
 
         // Assert
         assertEquals(words.size(), result.size());
@@ -401,7 +414,7 @@ class WordServiceImplTest {
         when(wordRepository.findAllById(wordIds)).thenReturn(List.of());
 
         // Act
-        List<WordResponseDTO> result = wordService.getWordsByIds(wordIds);
+        List<WordResponseDTO> result = wordService.getWordsByIds(wordIds, OWNER);
 
         // Assert
         assertNotNull(result);
@@ -425,6 +438,53 @@ class WordServiceImplTest {
         assertThrows(ForbiddenOperationException.class, () -> wordService.saveWords(bundles, OWNER));
         verify(wordRepository, never()).saveAllAndFlush(any());
         verifyNoInteractions(rabbitTemplate);
+    }
+
+    @Test
+    void deleteWordsByDictionaryId_AnotherUsersDictionary_IsForbidden() {
+        // Arrange
+        String dictionaryId = "1";
+        when(dictionaryRepository.findById(dictionaryId))
+                .thenReturn(Optional.of(Dictionary.builder().dictionaryId(dictionaryId).userId("someone-else").build()));
+
+        // Act & Assert
+        assertThrows(ForbiddenOperationException.class,
+                () -> wordService.deleteWordsByDictionaryId(dictionaryId, OWNER));
+        verify(wordRepository, never()).deleteWordsByDictionaryId(anyString());
+    }
+
+    @Test
+    void deleteWords_SkipsWordsInAnotherUsersDictionary() {
+        // Arrange — dropped rather than refused, so the response cannot be used to probe word ids
+        when(wordRepository.findAllById(List.of("mine", "theirs")))
+                .thenReturn(List.of(word("mine", "myDict"), word("theirs", "theirDict")));
+        when(dictionaryRepository.findById("myDict")).thenReturn(Optional.of(dictionary("myDict")));
+        when(dictionaryRepository.findById("theirDict"))
+                .thenReturn(Optional.of(Dictionary.builder().dictionaryId("theirDict").userId("someone-else").build()));
+
+        // Act
+        wordService.deleteWords(List.of("mine", "theirs"), OWNER);
+
+        // Assert
+        verify(wordRepository).deleteAllById(List.of("mine"));
+    }
+
+    @Test
+    void getWordsByLanguageFrom_ExcludesOtherUsersWords() {
+        // Arrange — this endpoint used to return every user's words for the language
+        String language = "EN";
+        when(dictionaryRepository.findByFromLang(language)).thenReturn(List.of(
+                dictionary("mine"),
+                Dictionary.builder().dictionaryId("theirs").userId("someone-else").fromLang(language).build()));
+        when(wordRepository.findByDictionaryIdIn(List.of("mine"))).thenReturn(List.of(word("w1", "mine")));
+        when(wordMapper.toWordResponseDTO(any())).thenReturn(new WordResponseDTO());
+
+        // Act
+        List<WordResponseDTO> result = wordService.getWordsByLanguageFrom(language, OWNER);
+
+        // Assert
+        assertEquals(1, result.size());
+        verify(wordRepository).findByDictionaryIdIn(List.of("mine"));
     }
 
     private static Dictionary dictionary(String dictionaryId) {

@@ -52,7 +52,7 @@ public class WordController {
 
     @DeleteMapping("/{wordId}")
     public ResponseEntity<Response> deleteWord(@PathVariable @ValidUUID(fieldName = "wordId") String wordId, WebRequest request) {
-        wordService.deleteWords(List.of(wordId));
+        wordService.deleteWords(List.of(wordId), getCurrentUserId());
 
         return ResponseUtils.buildResponse(HttpStatus.OK, WORD_DELETED_SUCCESSFULLY, wordId, request);
     }
@@ -60,24 +60,24 @@ public class WordController {
     @DeleteMapping("/dictionary/{dictionaryId}")
     public ResponseEntity<Response> deleteWordsByDictionary(@PathVariable @ValidUUID(fieldName = "dictionaryId") String dictionaryId, WebRequest request) {
 
-        wordService.deleteWordsByDictionaryId(dictionaryId);
+        wordService.deleteWordsByDictionaryId(dictionaryId, getCurrentUserId());
 
         return ResponseUtils.buildResponse(HttpStatus.OK, WORD_DELETED_SUCCESSFULLY_BY_DICT_ID, dictionaryId, request);
     }
 
     @GetMapping("/dictionary/{dictionaryId}")
     public List<WordResponseDTO> getWordsByDictionary(@PathVariable String dictionaryId) {
-        return wordService.getWordsByDictionaryIds(List.of(dictionaryId));
+        return wordService.getWordsByDictionaryIds(List.of(dictionaryId), getCurrentUserId());
     }
 
     @GetMapping("/language/from/{language}")
     public List<WordResponseDTO> getWordsByLanguageFrom(@PathVariable @SupportedLanguage String language) {
-        return wordService.getWordsByLanguageFrom(language);
+        return wordService.getWordsByLanguageFrom(language, getCurrentUserId());
     }
 
     @GetMapping("/language/to/{language}")
     public List<WordResponseDTO> getWordsByLanguageTo(@PathVariable String language) {
-        return wordService.getWordsByLanguageTo(language);
+        return wordService.getWordsByLanguageTo(language, getCurrentUserId());
     }
 
     /**
@@ -92,6 +92,6 @@ public class WordController {
 
     @GetMapping("/batch")
     public List<WordResponseDTO> getWordsByIds(@RequestParam List<String> ids) {
-        return wordService.getWordsByIds(ids);
+        return wordService.getWordsByIds(ids, getCurrentUserId());
     }
 }

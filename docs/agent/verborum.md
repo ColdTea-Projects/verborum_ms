@@ -41,16 +41,15 @@ API Gateway ──► Autofil Service  (word suggestions from community data, No
 
 ## Services
 
-### ⚠️ ms_dictionary — SECURED, BUT DOES NOT ENFORCE OWNERSHIP
+### ms_dictionary — SECURED (authentication + ownership)
 - **Port:** 8085
 - **DB:** `vdbdictionary` (PostgreSQL)
 - **Base package:** `de.coldtea.verborum.msdictionary`
 - **What it does:** Full CRUD for Dictionaries and Words
 - **Docker:** `ms_dictionary/docker-compose.yml` (Postgres + Adminer)
-- **Security:** Keycloak JWT required on every endpoint as of P3-03 (2026-07-23); `/actuator/**` and
-  Swagger are open. **Authorization is still missing:** endpoints trust the `userId` in the request
-  body, so any valid token can read or write another user's dictionaries until P3-05 switches to the
-  token subject. Do not expose to public traffic before then.
+- **Security:** Keycloak JWT required on every endpoint as of P3-03; the owner comes from the token
+  subject, and acting on another user's data is refused (P3-05, P3-08). `/actuator/**` (health+info
+  only) and Swagger are open.
 
 ### 🚧 ms_user — PHASE 2 COMPLETE, NOT YET EXERCISED OVER HTTP
 - **Port:** 8086
@@ -279,13 +278,11 @@ See `docs/agent/rabbitmq.md` for implementation details.
 
 ## Known Issues in ms_dictionary
 
-1. **No authorization, though authentication now exists.** P3-03 (2026-07-23) added Keycloak JWT
-   validation, so every endpoint returns 401 without a valid token. But the endpoints still take
-   `userId` from the request body, so *any* authenticated user can read or write *any* other user's
-   dictionaries and words. P3-05 fixes this by taking the subject from the token. Do not expose
-   ms_dictionary to public traffic until then.
-   Related: `/actuator/**` is `permitAll` with `exposure.include=*`, so `/actuator/env` is readable
-   unauthenticated — see P3-06.
+1. ~~No security on any endpoint~~ — resolved 2026-07-23. P3-03 added JWT validation, P3-05 made the
+   owner come from the token (403 on a mismatch), P3-08 closed the id-addressed holes, and P3-06
+   restricted actuator exposure to `health,info`.
+   **Identity rule, worth repeating:** `fk_user_id` is the JWT subject. In ms_user that same value is
+   the `keycloak_id` column, not its `user_id`. Ownership checks and event consumers must use it.
 
 2. **`@GenericGenerator` imported but unused** in entity files (deprecated in newer Hibernate).
 

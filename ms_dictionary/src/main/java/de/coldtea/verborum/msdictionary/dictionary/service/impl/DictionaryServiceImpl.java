@@ -107,7 +107,24 @@ public class DictionaryServiceImpl implements DictionaryService {
 
     @Transactional
     @Override
-    public void deleteDictionary(String dictionaryId) {
+    public void deleteDictionary(String dictionaryId, String ownerId) {
+        // P3-08: ids are guessable and were the whole authorisation story here — before this, any
+        // authenticated caller could delete any dictionary by id. Checked before anything is
+        // touched; an unknown id stays a silent 200 rather than revealing which ids exist
+        dictionaryRepository.findById(dictionaryId)
+                .filter(existing -> !ownerId.equals(existing.getUserId()))
+                .ifPresent(existing -> {
+                    throw new ForbiddenOperationException(NOT_THE_OWNER);
+                });
+
+        deleteDictionaryInternal(dictionaryId);
+    }
+
+    /**
+     * Ownership-free deletion, used by the checked entry point above and by the `user.deleted`
+     * cascade, where the actor is ms_user rather than a logged-in caller.
+     */
+    private void deleteDictionaryInternal(String dictionaryId) {
         // Read before deleting: the event carries userId, and an absent dictionary must not
         // announce a deletion that never happened. deleteById() is a silent no-op on a missing
         // row in Spring Data JPA 3.x, so this stays a 200 either way
@@ -169,15 +186,25 @@ public class DictionaryServiceImpl implements DictionaryService {
     }
 
     @Override
-    public DictionaryResponseDTO getDictionaryById(String dictionaryId) {
+    public DictionaryResponseDTO getDictionaryById(String dictionaryId, String ownerId) {
         Dictionary dictionary = dictionaryRepository.findById(dictionaryId)
                 .orElseThrow(() -> new RecordNotFoundException(DICTIONARY_WAS_NOT_FOUND_ID + dictionaryId));
+
+        // 404, not 403: a caller who does not own it should not be able to tell an existing
+        // dictionary from a non-existent one (P3-08)
+        if (!ownerId.equals(dictionary.getUserId())) {
+            throw new RecordNotFoundException(DICTIONARY_WAS_NOT_FOUND_ID + dictionaryId);
+        }
+
         return dictionaryMapper.toDictionaryResponseDTO(dictionary);
     }
 
     @Override
-    public List<DictionaryResponseDTO> getDictionariesByIds(List<String> dictionaryIds) {
-        return dictionaryRepository.findAllById(dictionaryIds).stream().map(dictionaryMapper::toDictionaryResponseDTO).toList();
+    public List<DictionaryResponseDTO> getDictionariesByIds(List<String> dictionaryIds, String ownerId) {
+        return dictionaryRepository.findAllById(dictionaryIds).stream()
+                .filter(dictionary -> ownerId.equals(dictionary.getUserId()))
+                .map(dictionaryMapper::toDictionaryResponseDTO)
+                .toList();
     }
 
 }

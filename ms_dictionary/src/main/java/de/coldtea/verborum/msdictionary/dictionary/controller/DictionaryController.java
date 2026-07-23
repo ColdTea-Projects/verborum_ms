@@ -41,7 +41,7 @@ public class DictionaryController {
 
     @DeleteMapping("/{dictionaryId}")
     public ResponseEntity<Response> deleteDictionary(@PathVariable String dictionaryId, WebRequest request) {
-        dictionaryService.deleteDictionary(dictionaryId);
+        dictionaryService.deleteDictionary(dictionaryId, getCurrentUserId());
         return buildResponse(HttpStatus.OK, DICTIONARY_DELETED_SUCCESSFULLY, dictionaryId, request);
     }
 
@@ -58,12 +58,12 @@ public class DictionaryController {
 
     @GetMapping("/dictionary/{dictionaryId}")
     public ResponseEntity<DictionaryResponseDTO> getDictionaryById(@PathVariable String dictionaryId) {
-        return new ResponseEntity<>(dictionaryService.getDictionaryById(dictionaryId), HttpStatus.OK);
+        return new ResponseEntity<>(dictionaryService.getDictionaryById(dictionaryId, getCurrentUserId()), HttpStatus.OK);
     }
 
     @GetMapping("/batch")
     public ResponseEntity<List<DictionaryResponseDTO>> getDictionariesByIds(@RequestParam List<String> ids) {
-        return new ResponseEntity<>(dictionaryService.getDictionariesByIds(ids), HttpStatus.OK);
+        return new ResponseEntity<>(dictionaryService.getDictionariesByIds(ids, getCurrentUserId()), HttpStatus.OK);
     }
 
 }

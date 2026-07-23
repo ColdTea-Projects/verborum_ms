@@ -83,6 +83,12 @@ unchanged (`creation_dt`/`update_dt`/`imported_at`).
 ## Security
 - `common/config/SecurityConfig.java` is already in place: stateless JWT resource server,
   `/actuator/**` and Swagger permitted, everything else requires authentication.
+- Authorization (P3-05): controllers pass `SecurityUtils.getCurrentKeycloakId()` into the services,
+  which refuse to touch a profile that is not the caller's (403). **The subject is the profile's
+  `keycloakId`, never ms_user's own `userId`** — this is the one service where those differ, so an
+  ownership check compares against that column. `saveUser` also refuses to claim another subject or
+  to overwrite an existing profile. `VaultService.importDictionary` is deliberately unguarded: its
+  actor is ms_marketplace, not a logged-in user.
 - Realm roles are mapped by `SecurityConfig.extractRealmRoles(Jwt)`, written by hand (P2-11).
   `JwtGrantedAuthoritiesConverter.setAuthoritiesClaimName("realm_access.roles")` takes a flat claim
   name, not a path, so it mapped nothing while authentication still succeeded — every `hasRole(...)`

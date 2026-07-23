@@ -250,6 +250,51 @@ class DictionaryServiceImplTest {
                 eq(ROUTING_KEY_DICTIONARY_VISIBILITY_PUBLIC), any(DictionaryVisibilityEvent.class));
     }
 
+    @Test
+    void deleteDictionary_AnotherUsersDictionary_IsForbidden() {
+        // Arrange — before P3-08 this deleted the other user's dictionary and its words outright
+        String dictionaryId = "dict1";
+        when(dictionaryRepository.findById(dictionaryId))
+                .thenReturn(Optional.of(Dictionary.builder().dictionaryId(dictionaryId).userId("someone-else").build()));
+
+        // Act & Assert
+        assertThrows(ForbiddenOperationException.class,
+                () -> dictionaryService.deleteDictionary(dictionaryId, OWNER));
+        verify(dictionaryRepository, never()).deleteById(anyString());
+        verify(wordRepository, never()).deleteByDictionaryIdIn(any());
+        verifyNoInteractions(rabbitTemplate);
+    }
+
+    @Test
+    void getDictionaryById_AnotherUsersDictionary_Is404NotForbidden() {
+        // Arrange — 404 on purpose: a 403 would confirm the id exists
+        String dictionaryId = "dict1";
+        when(dictionaryRepository.findById(dictionaryId))
+                .thenReturn(Optional.of(Dictionary.builder().dictionaryId(dictionaryId).userId("someone-else").build()));
+
+        // Act & Assert
+        assertThrows(RecordNotFoundException.class,
+                () -> dictionaryService.getDictionaryById(dictionaryId, OWNER));
+        verifyNoInteractions(dictionaryMapper);
+    }
+
+    @Test
+    void getDictionariesByIds_FiltersOutOtherUsers() {
+        // Arrange
+        List<String> ids = List.of("mine", "theirs");
+        when(dictionaryRepository.findAllById(ids)).thenReturn(List.of(
+                dictionary("mine", false),
+                Dictionary.builder().dictionaryId("theirs").userId("someone-else").build()));
+        when(dictionaryMapper.toDictionaryResponseDTO(any(Dictionary.class))).thenReturn(new DictionaryResponseDTO());
+
+        // Act
+        List<DictionaryResponseDTO> result = dictionaryService.getDictionariesByIds(ids, OWNER);
+
+        // Assert — dropped silently rather than refused, so the response cannot be used to probe ids
+        assertEquals(1, result.size());
+        verify(dictionaryMapper, times(1)).toDictionaryResponseDTO(any(Dictionary.class));
+    }
+
     private static DictionaryRequestDTO requestDTO(String dictionaryId) {
         DictionaryRequestDTO requestDTO = new DictionaryRequestDTO();
         requestDTO.setDictionaryId(dictionaryId);
@@ -273,7 +318,7 @@ class DictionaryServiceImplTest {
         String dictionaryId = "1";
 
         // Act
-        dictionaryService.deleteDictionary(dictionaryId);
+        dictionaryService.deleteDictionary(dictionaryId, OWNER);
 
         // Assert
         verify(wordRepository).deleteByDictionaryIdIn(List.of(dictionaryId));
@@ -286,7 +331,7 @@ class DictionaryServiceImplTest {
         when(dictionaryRepository.findById("dict1")).thenReturn(Optional.of(dictionary("dict1", true)));
 
         // Act
-        dictionaryService.deleteDictionary("dict1");
+        dictionaryService.deleteDictionary("dict1", OWNER);
 
         // Assert
         ArgumentCaptor<DictionaryDeletedEvent> captor = ArgumentCaptor.forClass(DictionaryDeletedEvent.class);
@@ -309,7 +354,7 @@ class DictionaryServiceImplTest {
         when(dictionaryRepository.findById("dict1")).thenReturn(Optional.empty());
 
         // Act
-        dictionaryService.deleteDictionary("dict1");
+        dictionaryService.deleteDictionary("dict1", OWNER);
 
         // Assert
         verifyNoInteractions(rabbitTemplate);
@@ -320,14 +365,14 @@ class DictionaryServiceImplTest {
     void getDictionaryById_Success() {
         // Arrange
         String dictionaryId = "1";
-        Dictionary dictionary = new Dictionary();
+        Dictionary dictionary = dictionary(dictionaryId, false);
         DictionaryResponseDTO responseDTO = new DictionaryResponseDTO();
 
         when(dictionaryRepository.findById(dictionaryId)).thenReturn(Optional.of(dictionary));
         when(dictionaryMapper.toDictionaryResponseDTO(dictionary)).thenReturn(responseDTO);
 
         // Act
-        DictionaryResponseDTO result = dictionaryService.getDictionaryById(dictionaryId);
+        DictionaryResponseDTO result = dictionaryService.getDictionaryById(dictionaryId, OWNER);
 
         // Assert
         assertEquals(responseDTO, result);
@@ -342,7 +387,7 @@ class DictionaryServiceImplTest {
         when(dictionaryRepository.findById(dictionaryId)).thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThrows(RecordNotFoundException.class, () -> dictionaryService.getDictionaryById(dictionaryId));
+        assertThrows(RecordNotFoundException.class, () -> dictionaryService.getDictionaryById(dictionaryId, OWNER));
         verifyNoInteractions(dictionaryMapper);
     }
 
@@ -350,13 +395,14 @@ class DictionaryServiceImplTest {
     void getDictionariesByIds_Success() {
         // Arrange
         List<String> dictionaryIds = List.of("1", "2");
-        List<Dictionary> dictionaries = Arrays.asList(new Dictionary(), new Dictionary());
+        // both belong to the caller — ids owned by anyone else are filtered out (P3-08)
+        List<Dictionary> dictionaries = Arrays.asList(dictionary("1", false), dictionary("2", false));
 
         when(dictionaryRepository.findAllById(dictionaryIds)).thenReturn(dictionaries);
         when(dictionaryMapper.toDictionaryResponseDTO(any(Dictionary.class))).thenReturn(new DictionaryResponseDTO());
 
         // Act
-        List<DictionaryResponseDTO> result = dictionaryService.getDictionariesByIds(dictionaryIds);
+        List<DictionaryResponseDTO> result = dictionaryService.getDictionariesByIds(dictionaryIds, OWNER);
 
         // Assert
         assertEquals(dictionaries.size(), result.size());
@@ -371,7 +417,7 @@ class DictionaryServiceImplTest {
         when(dictionaryRepository.findAllById(dictionaryIds)).thenReturn(List.of());
 
         // Act
-        List<DictionaryResponseDTO> result = dictionaryService.getDictionariesByIds(dictionaryIds);
+        List<DictionaryResponseDTO> result = dictionaryService.getDictionariesByIds(dictionaryIds, OWNER);
 
         // Assert
         assertEquals(0, result.size());

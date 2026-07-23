@@ -105,31 +105,61 @@ public class WordServiceImpl implements WordService {
 
     @Transactional
     @Override
-    public void deleteWords(List<String> wordIdList) {
-        wordRepository.deleteAllById(wordIdList);
+    public void deleteWords(List<String> wordIdList, String ownerId) {
+        // A word carries no owner of its own, so resolve through its dictionary. Anything the caller
+        // does not own is dropped from the delete rather than refused — a 403 would confirm the id
+        // exists (P3-08)
+        List<String> ownedWordIds = wordRepository.findAllById(wordIdList).stream()
+                .filter(word -> ownsDictionary(word.getDictionaryId(), ownerId))
+                .map(Word::getWordId)
+                .toList();
+
+        if (ownedWordIds.isEmpty()) {
+            return;
+        }
+
+        wordRepository.deleteAllById(ownedWordIds);
     }
 
     @Override
     @Transactional
-    public void deleteWordsByDictionaryId(String dictionaryId) {
-        dictionaryRepository.findById(dictionaryId)
+    public void deleteWordsByDictionaryId(String dictionaryId, String ownerId) {
+        Dictionary dictionary = dictionaryRepository.findById(dictionaryId)
                 .orElseThrow(() -> new RecordNotFoundException(DICTIONARY_WAS_NOT_FOUND_ID + dictionaryId));
+
+        if (!ownerId.equals(dictionary.getUserId())) {
+            throw new ForbiddenOperationException(NOT_THE_OWNER);
+        }
 
         wordRepository.deleteWordsByDictionaryId(dictionaryId);
     }
 
     @Override
-    public List<WordResponseDTO> getWordsByLanguageFrom(String language) {
-        List<String> dictIds = dictionaryRepository.findByFromLang(language).stream().map(Dictionary::getDictionaryId).toList();
+    public List<WordResponseDTO> getWordsByLanguageFrom(String language, String ownerId) {
+        // Scoped to the caller: this used to return every user's words for the language, which was
+        // a straight cross-user read (P3-08)
+        List<String> dictIds = dictionaryRepository.findByFromLang(language).stream()
+                .filter(dictionary -> ownerId.equals(dictionary.getUserId()))
+                .map(Dictionary::getDictionaryId)
+                .toList();
         List<Word> words = wordRepository.findByDictionaryIdIn(dictIds);
         return words.stream().map(wordMapper::toWordResponseDTO).toList();
     }
 
     @Override
-    public List<WordResponseDTO> getWordsByLanguageTo(String language) {
-        List<String> dictIds = dictionaryRepository.findByToLang(language).stream().map(Dictionary::getDictionaryId).toList();
+    public List<WordResponseDTO> getWordsByLanguageTo(String language, String ownerId) {
+        List<String> dictIds = dictionaryRepository.findByToLang(language).stream()
+                .filter(dictionary -> ownerId.equals(dictionary.getUserId()))
+                .map(Dictionary::getDictionaryId)
+                .toList();
         List<Word> words = wordRepository.findByDictionaryIdIn(dictIds);
         return words.stream().map(wordMapper::toWordResponseDTO).toList();
+    }
+
+    private boolean ownsDictionary(String dictionaryId, String ownerId) {
+        return dictionaryRepository.findById(dictionaryId)
+                .map(dictionary -> ownerId.equals(dictionary.getUserId()))
+                .orElse(false);
     }
 
     @Override
@@ -141,13 +171,25 @@ public class WordServiceImpl implements WordService {
     }
 
     @Override
-    public List<WordResponseDTO> getWordsByDictionaryIds(List<String> dictionaryIds) {
-        return wordRepository.findByDictionaryIdIn(dictionaryIds).stream().map(wordMapper::toWordResponseDTO).toList();
+    public List<WordResponseDTO> getWordsByDictionaryIds(List<String> dictionaryIds, String ownerId) {
+        List<String> ownedIds = dictionaryRepository.findAllById(dictionaryIds).stream()
+                .filter(dictionary -> ownerId.equals(dictionary.getUserId()))
+                .map(Dictionary::getDictionaryId)
+                .toList();
+
+        if (ownedIds.isEmpty()) {
+            return List.of();
+        }
+
+        return wordRepository.findByDictionaryIdIn(ownedIds).stream().map(wordMapper::toWordResponseDTO).toList();
     }
 
     @Override
-    public List<WordResponseDTO> getWordsByIds(List<String> wordIds) {
-        return wordRepository.findAllById(wordIds).stream().map(wordMapper::toWordResponseDTO).toList();
+    public List<WordResponseDTO> getWordsByIds(List<String> wordIds, String ownerId) {
+        return wordRepository.findAllById(wordIds).stream()
+                .filter(word -> ownsDictionary(word.getDictionaryId(), ownerId))
+                .map(wordMapper::toWordResponseDTO)
+                .toList();
     }
 
     private Stream<Word> convertToWordStream(@NotNull WordBundleRequestDTO bundle, String ownerId){

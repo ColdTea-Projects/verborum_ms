@@ -272,6 +272,15 @@ local dev.
 `refresh_token`, optional `revoke`, then delete local tokens. Skipping the end-session call leaves an
 SSO session that logs the user straight back in. Full client-side rules in Integration §6.1a.
 
+**Ownership (P3-05/P3-08).** Authentication is not authorization. Every service takes the acting user
+from the JWT subject and passes it explicitly into the service layer; ids in the body or path are
+never trusted, because clients generate them. Rules, applied consistently:
+- a write naming another user → **403**
+- a read of another user's resource *by id* → **404**, so a caller cannot probe which ids exist
+- batch/list endpoints → **filter** to the caller instead of refusing, for the same reason
+- event-driven paths (`user.deleted` cascade, `dictionary.imported`) take no caller and are
+  deliberately unguarded — their actor is another service
+
 **Realm roles:** `user` (every registered account), `admin`. Mapped to `ROLE_user` / `ROLE_admin` —
 see "Roles & Authorization" below and the nested-claim warning in the resource-server config.
 
