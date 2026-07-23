@@ -493,14 +493,41 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
 > Depends on: Phase 2 complete (Keycloak must be configured with ms_user)
 > See `docs/agent/security.md` for full implementation details
 
-- [ ] `P3-01` **Add Keycloak to root docker-compose**
+- [x] `P3-01` **Add Keycloak to root docker-compose**
   - Image: `quay.io/keycloak/keycloak:23.0.0` on port 8180
   - Done when: Keycloak Admin UI accessible at http://localhost:8180
-- [ ] `P3-02` **Configure Keycloak realm and clients**
+  - Done 2026-07-23: added to the root compose as `verborum-keycloak`, `start-dev --import-realm`,
+    8180→8080, admin credentials `${KEYCLOAK_ADMIN:-admin}` / `${KEYCLOAK_ADMIN_PASSWORD:-admin}`,
+    named volume `keycloak_data`, and a healthcheck that asks the realm's OIDC discovery document
+    over `/dev/tcp` (the image ships no curl/wget). Verified: container reports healthy.
+  - Also removed the obsolete `version:` attribute from the compose file, as the P1-01 note asked.
+- [x] `P3-02` **Configure Keycloak realm and clients**
   - Create realm `verborum`
   - Create client `verborum-app` (public, for mobile)
   - Create client `verborum-backend` (confidential, for service-to-service)
   - Done when: a test user can obtain a JWT token via Keycloak
+  - Done 2026-07-23: **the realm is imported from `keycloak/import/verborum-realm.json`, not
+    hand-clicked** — versioned in git, so it is reproducible and reviewable. It configures realm
+    `verborum`, roles `user`/`admin`, clients `verborum-app` (public, PKCE S256),
+    `verborum-web` (public, PKCE S256 — Integration §6.1 names it), `verborum-backend`
+    (confidential, service account), and the dev users `testuser`/`testadmin`.
+  - Token policy from Integration §6.2: `accessTokenLifespan` 300s, SSO idle 30 min, offline session
+    idle 60 days.
+  - **Added a fourth client, `verborum-dev-cli`, which is NOT in the auth contract.** It enables
+    direct access grants (password) so a developer can obtain a user token with one curl. The
+    alternative — enabling password grant on `verborum-app` — would have contradicted the
+    PKCE-for-every-platform spec and shipped that hole to production. It must never exist in a
+    shared realm; documented as such in `security.md`.
+  - The import runs **only on first start of an empty data volume**, and console changes are not
+    written back to the file. To re-import: `docker compose down` +
+    `docker volume rm verborum_ms_keycloak_data`.
+  - `verborum-backend`'s secret in the committed file is the placeholder `local-dev-only-change-me`.
+    Services still read it from `KEYCLOAK_ADMIN_CLIENT_SECRET`; nothing real is committed.
+  - Not done: Google as an identity provider (needs real Google OAuth2 credentials — cannot be
+    committed; add manually when they exist). Noted in `security.md`.
+  - Verified live 2026-07-23: `testuser` obtained a token via `verborum-dev-cli`; the decoded
+    payload carries `"iss":"http://localhost:8180/realms/verborum"`, a `sub`, and
+    `"realm_access":{"roles":["user"]}` — the exact nested shape P2-11's converter reads.
 - [ ] `P3-03` **Add Spring Security to ms_dictionary**
   - Add `spring-boot-starter-security` + `oauth2-resource-server` to `pom.xml`
   - Create `common/config/SecurityConfig.java` — stateless JWT, permit actuator + Swagger
@@ -521,8 +548,14 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
     `KEYCLOAK_ADMIN_CLIENT_SECRET` via the env endpoint
   - Restrict to `health,info` (or secure the rest with a role)
   - Done when: `/actuator/env` is not publicly reachable in any service
-- [ ] `P3-07` **Document the auth contract in `security.md`** (added 2026-07-21, recommended by the
+- [x] `P3-07` **Document the auth contract in `security.md`** (added 2026-07-21, recommended by the
     Integration doc §11)
+  - Done 2026-07-23, together with P3-01/P3-02 as the task itself asked: `security.md` has an
+    "The Auth Contract" section mirroring Integration §6 — realm, the client table (including why
+    `verborum-dev-cli` is excluded from the contract), PKCE-only flow, token lifetimes, realm roles,
+    dev users, secret handling, and the two things §6 assumes that are not configured (Google IdP,
+    guest-data migration). The Keycloak setup section was rewritten from "do once manually" to the
+    realm-import workflow, since hand-clicking is no longer how the realm is built.
   - `docs/integration/frontend-backend-integration.md` §6 is the normative cross-client auth spec
     (realm `verborum`, Authorization Code + PKCE, Keycloak clients `verborum-app`/`verborum-web`,
     token policy, guest-data migration). `security.md` should carry a matching section so the

@@ -54,23 +54,30 @@ Add to root `docker-compose.yml`:
 ```yaml
 keycloak:
   image: quay.io/keycloak/keycloak:23.0.0
-  command: start-dev
+  command: start-dev --import-realm
   ports:
     - "8180:8080"
   environment:
-    KEYCLOAK_ADMIN: admin
-    KEYCLOAK_ADMIN_PASSWORD: admin
+    KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
+    KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
   volumes:
+    - ./keycloak/import:/opt/keycloak/data/import:ro
     - keycloak_data:/opt/keycloak/data
 ```
+This is live in the root `docker-compose.yml` (roadmap P3-01).
 
-**Keycloak setup steps (do once manually):**
-1. Open http://localhost:8180 → Admin console (admin/admin)
-2. Create realm: `verborum`
-3. Create client: `verborum-app` (type: public, for mobile)
-4. Create client: `verborum-backend` (type: confidential, for service-to-service)
-5. Add Google as identity provider (requires Google OAuth2 credentials)
-6. Configure realm roles: `user`, `admin`
+**The realm is NOT configured by hand.** `keycloak/import/verborum-realm.json` is the source of
+truth: realm, clients, roles and the local dev users, versioned in git and imported by
+`--import-realm` (roadmap P3-02). Consequences worth knowing:
+- The import runs **only on first start of an empty data volume**. After editing the JSON:
+  `docker compose down && docker volume rm verborum_ms_keycloak_data && docker compose up -d keycloak`
+- Changes made in the admin console are **not** written back to the file. Anything meant to last
+  goes into the JSON.
+- Admin console: http://localhost:8180 (`admin`/`admin` by default, overridable via
+  `KEYCLOAK_ADMIN` / `KEYCLOAK_ADMIN_PASSWORD`).
+
+**Still to do by hand:** Google as an identity provider — it needs real Google OAuth2 credentials,
+which cannot be committed. Add it in the console (or via env-substituted config) when those exist.
 
 ---
 
@@ -215,6 +222,50 @@ keycloak.auth-server-url=http://localhost:8180
 keycloak.admin.client-id=verborum-backend
 keycloak.admin.client-secret=<secret-from-keycloak-console>
 ```
+
+---
+
+## The Auth Contract (normative — must match Integration §6)
+
+`docs/integration/frontend-backend-integration.md` §6 is the cross-client auth spec. This section
+mirrors it so the backend and the clients cannot drift on realm names, client ids or token
+lifetimes. **If the two ever disagree, that is a bug — fix both.** Everything here is what
+`keycloak/import/verborum-realm.json` actually configures (roadmap P3-02/P3-07).
+
+**Realm:** `verborum` · issuer `http://localhost:8180/realms/verborum` locally.
+**Flow:** Authorization Code + PKCE (S256) for every platform. No implicit flow anywhere.
+
+| Client id | Type | Flow | Used by |
+|---|---|---|---|
+| `verborum-app` | public | Auth Code + PKCE | Android, iOS |
+| `verborum-web` | public | Auth Code + PKCE | Web (may become a BFF confidential client — Integration §6.3 is undecided; the backend accepts `Authorization: Bearer` either way) |
+| `verborum-backend` | confidential | client credentials / service account | ms_user → Keycloak Admin API |
+| `verborum-dev-cli` | public | **direct access grants (password)** | **LOCAL DEV ONLY** |
+
+**`verborum-dev-cli` is not part of the contract.** It exists so a developer can get a user token
+with one `curl` (`grant_type=password`, `testuser`/`testuser`) instead of driving a browser through
+PKCE. It must never exist in a shared or production realm — enabling password grant on `verborum-app`
+instead would have contradicted the PKCE-only spec, which is why it is a separate throwaway client.
+Delete it from any realm export that leaves a developer machine.
+
+**Token policy:** access tokens 5 min (`accessTokenLifespan: 300`), SSO idle 30 min, offline session
+idle 60 days so a device offline for days resumes sync without re-login (Integration §6.2). Clients
+send `Authorization: Bearer <access>`, refresh once on 401, then surface login.
+
+**Realm roles:** `user` (every registered account), `admin`. Mapped to `ROLE_user` / `ROLE_admin` —
+see "Roles & Authorization" below and the nested-claim warning in the resource-server config.
+
+**Local dev users** (from the realm import, dev only): `testuser`/`testuser` with role `user`,
+`testadmin`/`testadmin` with `user` + `admin`.
+
+**Secrets.** `verborum-backend`'s secret is `local-dev-only-change-me` in the committed realm file —
+a placeholder for local dev, never a real credential. Services read it from
+`KEYCLOAK_ADMIN_CLIENT_SECRET`; `ms_user/application.properties` deliberately leaves it blank. Any
+non-local realm must have a generated secret supplied through the environment.
+
+**Not configured yet:** Google as an identity provider (§6 assumes it; it needs real Google OAuth2
+credentials that cannot be committed) and the §6.4 guest-data migration, which is client-side and
+needs no backend endpoint.
 
 ---
 

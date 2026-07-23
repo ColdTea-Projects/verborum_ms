@@ -60,8 +60,10 @@ API Gateway ──► Autofil Service  (word suggestions from community data, No
 - **Built so far:** `User`/`UserStats`/`VaultEntry` entities, the User REST API (`/users`), the Vault
   REST API (`/users/{userId}/vault`), RabbitMQ publishing `user.deleted` and consuming
   `dictionary.imported`, and Keycloak realm-role mapping (roadmap P2-03…P2-11 — all of Phase 2)
-- **Caveat:** every endpoint requires a JWT and no Keycloak exists yet, so the REST surface has only
-  been unit-tested — never called over HTTP. First chance to do that is P3-01/P3-02.
+- **Verified end-to-end 2026-07-23** (after P3-01/P3-02 brought Keycloak up): every `/users` and
+  `/users/{userId}/vault` endpoint exercised over HTTP with a real Keycloak token — including
+  401 without a token, 404s, validation 400s, idempotent vault POST, and `DELETE /users/{id}`
+  publishing `user.deleted` on the wire.
 
 ### ❌ ms_marketplace — TO BE BUILT
 - **Port:** TBD (suggest 8087)
@@ -297,5 +299,13 @@ that service in isolation.
 
 The root `docker-compose.yml` brings up the whole local backend in one command: RabbitMQ
 (5672, Management UI on 15672, `verborum`/`verborum`), `vdbdictionary` on 5432, `vdbprofile`
-on 5433, and a single Adminer on 8080. It binds the same host ports as the per-service files,
-so run the root compose or a service compose — never both at once.
+on 5433, Keycloak on 8180 (`admin`/`admin`), and a single Adminer on 8080. It binds the same host
+ports as the per-service files, so run the root compose or a service compose — never both at once.
+
+Keycloak's realm is imported from `keycloak/import/verborum-realm.json` (versioned, not
+hand-clicked) and only on the first start of an empty `keycloak_data` volume — see
+`docs/agent/security.md` for the re-import command and the full auth contract. Quick local token:
+```
+curl -s -X POST http://localhost:8180/realms/verborum/protocol/openid-connect/token \
+  -d client_id=verborum-dev-cli -d username=testuser -d password=testuser -d grant_type=password
+```

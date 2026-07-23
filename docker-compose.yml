@@ -1,5 +1,3 @@
-version: '3.8'
-
 # Root compose — brings up the full local backend infrastructure in one command:
 #   RabbitMQ + every service database + a single Adminer.
 # The per-service compose files (ms_dictionary/, ms_user/) still work standalone for
@@ -57,6 +55,35 @@ services:
       timeout: 5s
       retries: 5
 
+  # Identity server. Runs in dev mode (start-dev): H2 storage, no HTTPS requirement — local only.
+  # --import-realm loads keycloak/import/verborum-realm.json ON FIRST START of an empty data volume,
+  # so the realm, clients, roles and dev users are reproducible from git instead of hand-clicked.
+  # Editing that file after the volume exists changes nothing: run
+  #   docker compose down && docker volume rm verborum_ms_keycloak_data
+  # to re-import. Changes made in the admin console are NOT written back to the file.
+  keycloak:
+    image: quay.io/keycloak/keycloak:23.0.0
+    container_name: verborum-keycloak
+    command: start-dev --import-realm
+    ports:
+      - "8180:8080"
+    environment:
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+    volumes:
+      - ./keycloak/import:/opt/keycloak/data/import:ro
+      - keycloak_data:/opt/keycloak/data
+    healthcheck:
+      # The image has no curl/wget — talk to the socket directly and ask for the realm's
+      # OIDC discovery document, which only answers once the realm is imported and live.
+      test:
+        - "CMD-SHELL"
+        - "exec 3<>/dev/tcp/127.0.0.1/8080 && printf 'GET /realms/verborum/.well-known/openid-configuration HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && grep -q '200 OK' <&3"
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
   admin:
     image: adminer
     container_name: verborum-adminer
@@ -71,3 +98,4 @@ volumes:
   rabbitmq_data:
   db_dictionary_data:
   db_user_data:
+  keycloak_data:
