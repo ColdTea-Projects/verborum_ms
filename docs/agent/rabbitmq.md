@@ -212,48 +212,106 @@ public class WordCreatedEvent {
 
 ---
 
+## The Seven Rules
+
+Standing conventions for anything event-driven in Verborum. They came out of the 2026-07-23 review;
+each one exists because of a specific way this system can go wrong. Read them before designing an
+event, not after.
+
+**1. Publish after commit, never inside the transaction.**
+A send inside a transaction can be followed by a rollback, and then you have announced something that
+never happened — a *phantom event*. Publishing after commit can instead lose an event if the process
+dies in the gap. These are not equally bad: a phantom `user.deleted` destroys live data in another
+service and cannot be undone, while a lost one leaves orphaned rows that a re-publish or a
+reconciliation sweep can clean up. **Always prefer the recoverable failure.** See the publisher
+pattern below.
+
+**2. An event carries what the consumer needs.**
+A consumer should never have to call back into the publisher to act on an event. `DictionaryVisibilityEvent`
+carries the full listing payload for exactly this reason. Callbacks reintroduce runtime coupling, they
+race with the publisher's own transaction, and they turn a broker outage into a cascade.
+
+**3. Every consumer is idempotent.**
+Delivery is at-least-once. A redelivery must be a no-op, not a duplicate row or a double increment.
+The established trick here is a UNIQUE constraint plus a find-or-create service method — one code
+path then serves both the HTTP caller and the listener (`VaultService.addVaultEntry`,
+`DictionaryTagService.addTag`).
+
+**4. An event that updates a projection carries a version or timestamp, and the consumer drops stale
+ones.**
+Messages can arrive out of order. Two quick renames delivered in reverse leave the projection holding
+the older name, permanently, with nothing to signal it. Carry the entity's `updatedAt` and have the
+consumer ignore anything not newer than what it already holds.
+
+**5. Denormalize for read models; do not reach across services at request time.**
+If a service must filter, sort or paginate on a field, it has to store that field. Fetching it from
+the owning service per request means you cannot page in the database, you inherit that service's
+latency and downtime, and — in this codebase — you hit the P3-08 ownership filter, which returns
+nothing to a service account. A marketplace listing is a read model; treat it as one.
+
+**6. A reconciliation job is not optional once you have projections.**
+Rule 1 admits a small window where an event can be lost, and rule 4 admits a stale projection if an
+event is missed entirely. A periodic re-sync is the backstop for both, and it is the tool you will
+want during an incident. Write it with the projection, not after the first drift is reported.
+
+**7. External, non-transactional calls belong after commit too, best-effort, with a loud log.**
+Keycloak, email, payments. They cannot be rolled back, so doing them inside a transaction has the
+same phantom problem as rule 1 — worse, in Keycloak's case, because a deleted identity cannot be
+recreated with the same subject. Do them after commit; on failure log at ERROR with the id, because
+that log line is the only record that a manual cleanup is owed (`KeycloakUserService`).
+
+---
+
 ## Publisher Pattern
 
-Inject `RabbitTemplate` and publish from the **service layer** (not the controller):
+Publish from the **service layer** (never the controller), and **after the transaction commits**
+(rule 1). The service does not touch `RabbitTemplate` at all: it raises a Spring application event,
+and one small listener per service does the actual send once the transaction is safely committed.
 
 ```java
-@Service
-@RequiredArgsConstructor
-public class DictionaryServiceImpl implements DictionaryService {
+// common/event/OutboundEvent.java — the envelope, internal to the service
+public record OutboundEvent(String routingKey, Object payload) { }
 
-    private final DictionaryRepository dictionaryRepository;
-    private final DictionaryMapper dictionaryMapper;
+// common/listener/OutboundEventPublisher.java — the only place RabbitTemplate is used
+@Component
+@RequiredArgsConstructor
+@Slf4j
+public class OutboundEventPublisher {
+
     private final RabbitTemplate rabbitTemplate;
 
-    private static final String EXCHANGE = RabbitMQConfig.EXCHANGE;
-
-    @Transactional
-    @Override
-    public DictionaryResponseDTO saveDictionary(DictionaryRequestDTO dto) {
-        Dictionary saved = dictionaryRepository.saveAndFlush(
-                dictionaryMapper.toDictionary(dto));
-
-        // Publish visibility event if dictionary is public
-        if (Boolean.TRUE.equals(saved.getIsPublic())) {
-            rabbitTemplate.convertAndSend(
-                EXCHANGE,
-                "dictionary.visibility.public",
-                DictionaryVisibilityEvent.builder()
-                    .dictionaryId(saved.getDictionaryId())
-                    .userId(saved.getUserId())
-                    .isPublic(true)
-                    .fromLang(saved.getFromLang())
-                    .toLang(saved.getToLang())
-                    .dictionaryName(saved.getName())
-                    .eventTimestamp(LocalDateTime.now())
-                    .build()
-            );
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
+    public void publish(OutboundEvent event) {
+        try {
+            rabbitTemplate.convertAndSend(RabbitMQConfig.EXCHANGE, event.routingKey(), event.payload());
+        } catch (Exception e) {
+            // The transaction is already committed - failing the caller now would be a lie.
+            // This log is the record that the event never went out.
+            log.error("Failed to publish {} after commit", event.routingKey(), e);
         }
-
-        return dictionaryMapper.toDictionaryResponseDTO(saved);
     }
 }
+
+// the service just raises it, inside its transaction
+@Transactional
+@Override
+public DictionaryResponseDTO saveDictionary(DictionaryRequestDTO dto, String ownerId) {
+    Dictionary saved = dictionaryRepository.saveAndFlush(dictionaryMapper.toDictionary(dto));
+    // ... only on an actual visibility flip ...
+    eventPublisher.publishEvent(new OutboundEvent(ROUTING_KEY_DICTIONARY_VISIBILITY_PUBLIC, payload));
+    return dictionaryMapper.toDictionaryResponseDTO(saved);
+}
 ```
+
+Three things that are easy to get wrong:
+
+- **`fallbackExecution = true` is deliberate.** By default a `@TransactionalEventListener` does
+  nothing at all when no transaction is active — the event is silently dropped. Any publisher path
+  that is not `@Transactional` would lose its events with no error anywhere. With the fallback, it
+  sends immediately instead.
+- **The send failing cannot fail the request.** The write is already committed. Log it; do not throw.
+- **Unit tests verify `ApplicationEventPublisher`, not `RabbitTemplate`.** The send is covered once,
+  in the publisher's own test, plus a transactional test that asserts a rollback publishes nothing.
 
 ---
 
@@ -372,6 +430,10 @@ spring.rabbitmq.listener.simple.retry.multiplier=2.0
 ---
 
 ## Checklist When Adding a New Event
+
+0. Re-read "The Seven Rules" above. In particular: does the payload carry everything the consumer
+   needs (2), is the consumer idempotent (3), and if it feeds a projection does it carry `updatedAt`
+   so stale deliveries can be dropped (4)?
 
 1. Define event DTO in `common/event/` of the publishing service
 2. Add routing key constant to `RabbitMQConfig` in both services
