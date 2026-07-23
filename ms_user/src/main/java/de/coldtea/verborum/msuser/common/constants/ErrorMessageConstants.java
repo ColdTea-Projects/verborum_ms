@@ -15,6 +15,11 @@ public final class ErrorMessageConstants {
     public static final String INTERNAL_SERVER_ERROR = "Internal server error";
     public static final String NO_AUTHENTICATED_USER = "No authenticated user found";
 
+    //OutboundEventPublisher — log message ({} placeholder)
+    public static final String EVENT_PUBLISH_FAILED =
+            "Failed to publish {} after commit. The write succeeded but the event never went out; "
+                    + "consumers will not see it without a re-publish or a reconciliation run.";
+
     //KeycloakUserService — log messages ({} placeholders, not concatenated)
     public static final String KEYCLOAK_ADMIN_NOT_CONFIGURED =
             "keycloak.admin.client-secret is not set - the Keycloak identity for {} was NOT deleted. "

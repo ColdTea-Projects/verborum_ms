@@ -1,5 +1,7 @@
 package de.coldtea.verborum.msuser.user.service.impl;
 
+import de.coldtea.verborum.msuser.common.event.KeycloakUserDeletionRequested;
+import de.coldtea.verborum.msuser.common.event.OutboundEvent;
 import de.coldtea.verborum.msuser.common.event.UserDeletedEvent;
 import de.coldtea.verborum.msuser.common.exception.ForbiddenOperationException;
 import de.coldtea.verborum.msuser.common.exception.RecordNotFoundException;
@@ -8,16 +10,14 @@ import de.coldtea.verborum.msuser.user.dto.UserRequestDTO;
 import de.coldtea.verborum.msuser.user.dto.UserResponseDTO;
 import de.coldtea.verborum.msuser.user.entity.User;
 import de.coldtea.verborum.msuser.user.repository.UserRepository;
-import de.coldtea.verborum.msuser.user.service.KeycloakUserService;
 import de.coldtea.verborum.msuser.user.service.UserService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
 
-import static de.coldtea.verborum.msuser.common.config.RabbitMQConfig.EXCHANGE;
 import static de.coldtea.verborum.msuser.common.config.RabbitMQConfig.ROUTING_KEY_USER_DELETED;
 import static de.coldtea.verborum.msuser.common.constants.ErrorMessageConstants.NOT_THE_OWNER;
 import static de.coldtea.verborum.msuser.common.constants.ErrorMessageConstants.USER_WAS_NOT_FOUND_ID;
@@ -30,9 +30,9 @@ public class UserServiceImpl implements UserService {
 
     private final UserMapper userMapper;
 
-    private final RabbitTemplate rabbitTemplate;
-
-    private final KeycloakUserService keycloakUserService;
+    // Not RabbitTemplate: the service raises application events and the after-commit listeners do
+    // the sending (rules 1 and 7 in docs/agent/rabbitmq.md)
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     @Override
@@ -96,26 +96,22 @@ public class UserServiceImpl implements UserService {
             return;
         }
 
-        // Published inside the transaction, as the last statement, exactly like ms_dictionary's
-        // publishers: RabbitTemplate is not transactional, so anything throwing after the send
-        // would roll the delete back while the event stays published. Keep it last.
-        // The known flip side — the send happens before commit, so a consumer can beat it — is
-        // tracked in roadmap P1-03/P4-03, where publishing moves to @TransactionalEventListener
-        // (AFTER_COMMIT) for every publisher at once.
-        rabbitTemplate.convertAndSend(
-                EXCHANGE,
+        // Both of these happen AFTER this transaction commits (rules 1 and 7 in rabbitmq.md).
+        // Raising them here only queues them; OutboundEventPublisher and KeycloakUserDeletionListener
+        // act once the delete is durable.
+        //
+        // This is not a cosmetic ordering fix. ms_dictionary consumes user.deleted by deleting that
+        // user's dictionaries and words, and a Keycloak identity cannot be recreated with the same
+        // subject — so under the old "publish as the last statement inside the transaction" pattern,
+        // any rollback after this point destroyed live data for a user who still existed.
+        eventPublisher.publishEvent(new OutboundEvent(
                 ROUTING_KEY_USER_DELETED,
                 UserDeletedEvent.builder()
                         .userId(user.getUserId())
                         .keycloakId(user.getKeycloakId())
                         .eventTimestamp(OffsetDateTime.now())
-                        .build()
-        );
+                        .build()));
 
-        // Last, and non-throwing by contract (P3-04): without this the Keycloak account outlives the
-        // profile, so the person can still log in and — since sign-up is hosted — simply re-register.
-        // It runs after the publish because a failure here must not roll back a deletion that has
-        // already been announced to the other services.
-        keycloakUserService.deleteUser(user.getKeycloakId());
+        eventPublisher.publishEvent(new KeycloakUserDeletionRequested(user.getKeycloakId()));
     }
 }

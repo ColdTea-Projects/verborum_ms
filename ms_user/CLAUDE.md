@@ -62,6 +62,16 @@ unchanged (`creation_dt`/`update_dt`/`imported_at`).
   entry that is not there is a silent 200, matching `deleteUser`/`deleteDictionary`.
 
 ## Events (see `docs/agent/rabbitmq.md`)
+- **Publishing happens after commit, not inside the transaction** (rule 1). Services never touch
+  `RabbitTemplate`: they raise an `OutboundEvent` application event and `OutboundEventPublisher`
+  sends it once the transaction commits. Deleting the Keycloak identity works the same way
+  (`KeycloakUserDeletionRequested` → `KeycloakUserDeletionListener`, rule 7).
+  - Why it matters here specifically: ms_dictionary reacts to `user.deleted` by deleting that user's
+    dictionaries and words, and a Keycloak account cannot be recreated with the same subject. Under
+    the old pattern a rollback after the send destroyed live data for a user who still existed.
+  - `UserDeletedAfterCommitTest` drives a real transaction and asserts a rollback publishes nothing.
+    That test is the regression guard — do not delete it.
+  - Unit tests verify `ApplicationEventPublisher`, not `RabbitTemplate`.
 - **Publishes:** `user.deleted` from `UserServiceImpl.deleteUser()` (P2-08 done). `common/config/
   RabbitMQConfig` mirrors ms_dictionary's — same exchange, fanout DLX + DLQ, ISO-8601-pinned message
   converter. Publisher-only until P2-09, so no consumer queue is declared yet.
