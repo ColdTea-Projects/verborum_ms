@@ -37,6 +37,7 @@ verborum_ms/
 | `docs/agent/testing.md` | Writing or reviewing any test code |
 | `docs/agent/roadmap.md` | Asked "what's next?", "what should I build?", or "what's the status?" |
 | `docs/integration/client-login-guide.md` | Any question from a client team (Android/iOS/web) about login, sign-up, tokens or identity ids |
+| `docs/ops/local-development.md` | Running the stack, getting a token, running tests, verifying events by hand, troubleshooting |
 
 ---
 
