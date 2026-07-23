@@ -100,7 +100,7 @@ update_dt       TIMESTAMPTZ  Auto-set by Hibernate @UpdateTimestamp; JSON key up
 ```
 tag_id              VARCHAR PK   UUID string, SERVER-generated (not client-supplied)
 fk_dictionary_id    VARCHAR      Real DB FK → dictionaries(dictionary_id) ON DELETE CASCADE
-tag                 VARCHAR(50)  Normalised: trimmed and lower-cased
+tag                 TEXT         Normalised: trimmed and lower-cased; no length limit
 creation_dt         TIMESTAMPTZ  Auto-set by Hibernate; JSON key createdAt
 ```
 A dictionary carries many tags, one row each. **UNIQUE (fk_dictionary_id, tag)** keeps a

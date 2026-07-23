@@ -22,8 +22,9 @@ Full CRUD for **Dictionaries** and **Words** — the core vocabulary store.
 - `Word` (`words`) — `wordId`, `dictionaryId` (fk_dictionary_id), `word`, `wordMeta` (json),
   `translation`, `translationMeta` (json), `level` (int, nullable), timestamps
 - `DictionaryTag` (`dictionary_tags`) — `tagId` (**server-generated**), `dictionaryId`
-  (fk_dictionary_id), `tag`, `createdAt`. Many per dictionary. Migration
-  `2026/07/23-01-changelog.json`. For marketplace discovery and the later AI word-prediction work.
+  (fk_dictionary_id), `tag` (`TEXT`, no length cap), `createdAt`. Many per dictionary. Migrations
+  `2026/07/23-01-changelog.json` (table) and `-02` (widened `tag` from `VARCHAR(50)` to `TEXT`).
+  For marketplace discovery and the later AI word-prediction work.
 
 ## Events
 - **Publishes:** `dictionary.visibility.public/private`, `dictionary.deleted`, `word.created`

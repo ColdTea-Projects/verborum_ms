@@ -1,11 +1,9 @@
 package de.coldtea.verborum.msdictionary.tag.dto;
 
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Size;
 import lombok.*;
 
 import static de.coldtea.verborum.msdictionary.common.constants.DTOMessageConstants.TAG_TAG;
-import static de.coldtea.verborum.msdictionary.common.constants.DTOMessageConstants.TAG_TAG_TOO_LONG;
 
 /**
  * Body of POST /dictionaries/{dictionaryId}/tags. Carries only the tag text — the dictionary comes
@@ -17,8 +15,8 @@ import static de.coldtea.verborum.msdictionary.common.constants.DTOMessageConsta
 @Builder
 public class DictionaryTagRequestDTO {
 
+    // No length cap — the column is TEXT. Only "must not be blank" is enforced.
     @NotBlank(message = TAG_TAG)
-    @Size(max = 50, message = TAG_TAG_TOO_LONG)
     private String tag;
 
 }

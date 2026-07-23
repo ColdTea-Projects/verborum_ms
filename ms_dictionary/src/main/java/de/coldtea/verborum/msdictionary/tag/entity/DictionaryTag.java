@@ -40,8 +40,9 @@ public class DictionaryTag {
     @Column(name = "fk_dictionary_id", nullable = false, updatable = false)
     private String dictionaryId;
 
-    // UNIQUE (fk_dictionary_id, tag) in the migration keeps a dictionary's tags a set
-    @Column(name = "tag", nullable = false, length = 50)
+    // UNIQUE (fk_dictionary_id, tag) in the migration keeps a dictionary's tags a set.
+    // TEXT, no length cap (2026/07/23-02-changelog.json) — same treatment as word/translation
+    @Column(name = "tag", nullable = false, columnDefinition = "TEXT")
     private String tag;
 
     @CreationTimestamp

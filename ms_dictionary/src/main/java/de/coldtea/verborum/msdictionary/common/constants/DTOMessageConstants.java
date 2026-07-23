@@ -25,7 +25,6 @@ public final class DTOMessageConstants {
 
     //Dictionary tag DTOs
     public static final String TAG_TAG = "tag is mandatory";
-    public static final String TAG_TAG_TOO_LONG = "tag must be at most 50 characters";
 
 
 }

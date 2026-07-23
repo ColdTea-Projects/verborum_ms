@@ -132,7 +132,7 @@ Rules a client must know:
   They are grouping keys for marketplace browse and the later AI word-prediction work, not display
   text — render your own label if you want capitalisation. Delete normalises too, so
   `DELETE .../tags/Travel` removes `travel`.
-- **Max 50 characters**, non-blank; otherwise 400.
+- **No length limit** — only "must not be blank" is enforced (400 otherwise). Tags are `TEXT`.
 - **Adding is idempotent** — re-adding an existing tag returns the existing one, no duplicate, no
   error. Safe to retry.
 - **Deleting a dictionary deletes its tags** (database-level cascade). No client cleanup needed.

@@ -752,7 +752,10 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
     immediately, and the data is only useful once it has accumulated — the marketplace and the AI
     word-prediction work (Phase 6) both consume it later.
   - `dictionary_tags` table (`2026/07/23-01-changelog.json`): `tag_id` PK, `fk_dictionary_id`,
-    `tag` VARCHAR(50), `creation_dt`. Plus the `tag` slice: entity, repository, DTOs, MapStruct
+    `tag`, `creation_dt`. **`tag` is `TEXT` with no length cap** — it shipped as `VARCHAR(50)` and was
+    widened the same day at your request (`2026/07/23-02-changelog.json`); only "not blank" is
+    validated now. The one remaining ceiling is Postgres's btree index row limit (~2704 bytes) via the
+    unique constraint, so a pathological tag fails at the index instead of at validation. Plus the `tag` slice: entity, repository, DTOs, MapStruct
     mapper, service + impl, controller. 9 new tests (ms_dictionary suite now 65).
   - Endpoints, deliberately separate from the dictionary payload so tagging does not require
     re-sending or racing with the whole dictionary:

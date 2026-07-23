@@ -1,0 +1,36 @@
+{
+  "databaseChangeLog": [
+    {
+      "changeSet": {
+        "id": "20260723-02-widen-dictionary-tag",
+        "author": "claude",
+        "comment": "Drop the 50-character cap on a tag: tag becomes TEXT, matching how word/translation were widened. The UNIQUE (fk_dictionary_id, tag) constraint and the tag index are rebuilt by Postgres automatically. Note the remaining hard limit is the btree index row size (~2704 bytes), not a column length - a pathologically long tag now fails at the index rather than at validation.",
+        "changes": [
+          {
+            "modifyDataType": {
+              "tableName": "dictionary_tags",
+              "columnName": "tag",
+              "newDataType": "TEXT"
+            }
+          },
+          {
+            "addNotNullConstraint": {
+              "tableName": "dictionary_tags",
+              "columnName": "tag",
+              "columnDataType": "TEXT"
+            }
+          }
+        ],
+        "rollback": [
+          {
+            "modifyDataType": {
+              "tableName": "dictionary_tags",
+              "columnName": "tag",
+              "newDataType": "VARCHAR(50)"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
