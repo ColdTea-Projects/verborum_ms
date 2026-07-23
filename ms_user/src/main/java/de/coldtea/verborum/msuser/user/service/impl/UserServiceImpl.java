@@ -7,6 +7,7 @@ import de.coldtea.verborum.msuser.user.dto.UserRequestDTO;
 import de.coldtea.verborum.msuser.user.dto.UserResponseDTO;
 import de.coldtea.verborum.msuser.user.entity.User;
 import de.coldtea.verborum.msuser.user.repository.UserRepository;
+import de.coldtea.verborum.msuser.user.service.KeycloakUserService;
 import de.coldtea.verborum.msuser.user.service.UserService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +29,8 @@ public class UserServiceImpl implements UserService {
     private final UserMapper userMapper;
 
     private final RabbitTemplate rabbitTemplate;
+
+    private final KeycloakUserService keycloakUserService;
 
     @Transactional
     @Override
@@ -77,5 +80,11 @@ public class UserServiceImpl implements UserService {
                         .eventTimestamp(LocalDateTime.now())
                         .build()
         );
+
+        // Last, and non-throwing by contract (P3-04): without this the Keycloak account outlives the
+        // profile, so the person can still log in and — since sign-up is hosted — simply re-register.
+        // It runs after the publish because a failure here must not roll back a deletion that has
+        // already been announced to the other services.
+        keycloakUserService.deleteUser(user.getKeycloakId());
     }
 }

@@ -7,10 +7,12 @@ import de.coldtea.verborum.msuser.user.dto.UserRequestDTO;
 import de.coldtea.verborum.msuser.user.dto.UserResponseDTO;
 import de.coldtea.verborum.msuser.user.entity.User;
 import de.coldtea.verborum.msuser.user.repository.UserRepository;
+import de.coldtea.verborum.msuser.user.service.KeycloakUserService;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
@@ -36,6 +38,9 @@ class UserServiceImplTest {
 
     @Mock
     private RabbitTemplate rabbitTemplate;
+
+    @Mock
+    private KeycloakUserService keycloakUserService;
 
     @InjectMocks
     private UserServiceImpl userService;
@@ -156,8 +161,27 @@ class UserServiceImplTest {
         // Act
         userService.deleteUser(userId);
 
-        // Assert — still a no-op 200, but no deletion is announced
+        // Assert — still a no-op 200, but no deletion is announced and no identity is touched
         verify(userRepository).deleteById(userId);
         verifyNoInteractions(rabbitTemplate);
+        verifyNoInteractions(keycloakUserService);
+    }
+
+    @Test
+    void deleteUser_DeletesTheKeycloakIdentity() {
+        // Arrange — without this the account outlives the profile and can simply re-register
+        String userId = "1";
+        User user = User.builder().userId(userId).keycloakId("kc-1").build();
+
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+
+        // Act
+        userService.deleteUser(userId);
+
+        // Assert — after the row is gone and the event is out
+        InOrder inOrder = inOrder(userRepository, rabbitTemplate, keycloakUserService);
+        inOrder.verify(userRepository).deleteById(userId);
+        inOrder.verify(rabbitTemplate).convertAndSend(anyString(), anyString(), any(UserDeletedEvent.class));
+        inOrder.verify(keycloakUserService).deleteUser("kc-1");
     }
 }

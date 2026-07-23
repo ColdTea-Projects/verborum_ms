@@ -287,6 +287,12 @@ exact variables.
 (`registrationAllowed: true`) because sign-up is hosted — review that before any realm that is not a
 developer laptop.
 
+**Account deletion (P3-04).** `verborum-backend`'s service account holds `realm-management`
+`manage-users` + `view-users`, granted by the realm import. ms_user uses it to delete the Keycloak
+identity when a profile is deleted — otherwise the account survives and can simply re-register
+through hosted sign-up. It never creates identities. Without `KEYCLOAK_ADMIN_CLIENT_SECRET` the call
+is skipped with a WARN, so local dev still works.
+
 **Secrets.** `verborum-backend`'s secret is `local-dev-only-change-me` in the committed realm file —
 a placeholder for local dev, never a real credential. Services read it from
 `KEYCLOAK_ADMIN_CLIENT_SECRET`; `ms_user/application.properties` deliberately leaves it blank. Any

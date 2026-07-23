@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -65,6 +66,21 @@ public class GlobalExceptionHandler {
                         .build(),
                 badRequest
         );
+    }
+
+    /**
+     * A request for a path that does not map to anything. Without this handler it falls into the
+     * generic `Exception` handler and a plain 404 is reported as a 500 — the same class of bug as
+     * P0-14, found at P3-06 when `/actuator/env` stopped being exposed and started returning
+     * "No static resource actuator/env" as a server error.
+     * <p>
+     * Logged at WARN, not ERROR: an unknown URL is a client mistake (or a scanner), not a fault.
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    @ResponseStatus(HttpStatus.NOT_FOUND)
+    public ResponseEntity<ErrorResponse> handleNoResourceFoundException(NoResourceFoundException ex, WebRequest request) {
+        log.warn("{}: {}", NoResourceFoundException.class.getCanonicalName(), ex.getMessage());
+        return buildErrorResponse(HttpStatus.NOT_FOUND, NoResourceFoundException.class.getSimpleName(), ex.getMessage(), request);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

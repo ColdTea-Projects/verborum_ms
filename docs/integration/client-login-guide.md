@@ -123,6 +123,16 @@ So: dictionaries and words you upload carry `userId` = **the JWT `sub`**, not ms
 
 ---
 
+## 5a. Account deletion
+
+`DELETE /users/{userId}` now removes **everything**: the profile, its vault and stats, the user's
+dictionaries and words in ms_dictionary (via the `user.deleted` event), and **the Keycloak account
+itself**. After it the person cannot log in — their tokens are for an identity that no longer
+exists — and signing up again produces a genuinely new account.
+
+Clients should treat it as irreversible, confirm it explicitly, and afterwards clear local data and
+return to the login screen rather than attempting a refresh (which will fail).
+
 ## 6. Logout
 
 1. `POST {issuer}/protocol/openid-connect/logout`, form-encoded `client_id` + `refresh_token`.

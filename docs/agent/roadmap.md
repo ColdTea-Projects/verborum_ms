@@ -592,15 +592,39 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
     deployed to their dev machine. `docs/integration/client-login-guide.md` is updated, but a heads-up
     matters more than a doc edit here
   - Done when: the Android/iOS repos know they must attach a bearer token to ms_dictionary calls
-- [ ] `P3-04` **Add Spring Security to ms_user**
+- [x] `P3-04` **Add Spring Security to ms_user**
   - Same pattern as ms_dictionary
   - Add Keycloak Admin Client for user registration flows
   - Done when: ms_user endpoints are protected and user registration works end-to-end
+  - The security half was already done — ms_user shipped with `SecurityConfig` from P2-01 and its
+    role mapping was fixed at P2-11.
+  - **Rescoped 2026-07-23 (your call): the Admin Client deletes identities, it does not create
+    them.** Registration is Keycloak-hosted (P3-02 follow-up), so an Admin API create path would
+    duplicate a working flow and split identity ownership. What did need building is the reverse:
+    `DELETE /users/{userId}` removed the profile but left the Keycloak account alive, so the person
+    could still log in and simply re-register.
+  - `KeycloakUserService` / `KeycloakUserServiceImpl` (client-credentials Admin API call), invoked
+    from `UserServiceImpl.deleteUser` **after** the DB delete and the `user.deleted` publish — a
+    failure there must not roll back a deletion already announced to the other services.
+  - **Non-throwing by contract.** The profile and its cascade are gone by the time it runs, so
+    failing the caller would imply nothing happened. A failure logs ERROR with the id; that line is
+    the record that a manual cleanup is owed. 404 from Keycloak is treated as success (already gone).
+  - With no `KEYCLOAK_ADMIN_CLIENT_SECRET` set it logs a WARN and skips, so local dev without a
+    secret still works — the identity just outlives the profile, as before.
+  - The realm import now grants the `verborum-backend` service account `manage-users` + `view-users`
+    on `realm-management`. Re-importing the realm requires the volume wipe documented in
+    `security.md`.
+  - Verified live 2026-07-23: service account obtains a token and shows both roles; a throwaway
+    Keycloak identity plus its profile, deleted via `DELETE /users/{userId}`, left the account
+    **404 in Keycloak** and 0 profile rows. Re-run without the secret: delete still returns 200, the
+    identity survives, and the WARN names the id.
+  - Known limitation: a failed identity deletion is only a log line. If account deletion becomes a
+    compliance requirement, this wants an outbox/retry rather than best-effort.
 - [ ] `P3-05` **Extract userId from JWT in controllers (stop trusting client-provided userId)**
   - Create `common/utils/SecurityUtils.java` in each secured service
   - Update create/mutate endpoints to use `SecurityUtils.getCurrentUserId()`
   - Done when: userId in Dictionary and Word always comes from the token, not request body
-- [ ] `P3-06` **Lock down actuator exposure in all services** (added 2026-07-12 after full review)
+- [x] `P3-06` **Lock down actuator exposure in all services** (added 2026-07-12 after full review)
   - `management.endpoints.web.exposure.include=*` combined with `permitAll` on `/actuator/**`
     exposes `/actuator/env`, heapdump, etc. publicly — in ms_user this can leak
     `KEYCLOAK_ADMIN_CLIENT_SECRET` via the env endpoint
@@ -611,6 +635,16 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
     `spring.datasource.password`. `permitAll` on `/actuator/**` plus `exposure.include=*` is doing
     exactly what it says. Both services are affected; ms_user additionally has
     `KEYCLOAK_ADMIN_CLIENT_SECRET` in its environment.
+  - Done 2026-07-23: `management.endpoints.web.exposure.include=health,info` in both services.
+    `/actuator/**` stays `permitAll` — health and info are meant to be reachable, and restricting
+    the *set* is the fix rather than authenticating a set that should not exist. Verified live:
+    `env`, `beans`, `heapdump` and `configprops` all 404; `health` and `info` still 200.
+  - Found while verifying: unmapped paths were returning **500**, not 404. Spring 6 raises
+    `NoResourceFoundException`, which had no handler and fell into the generic `Exception` one — so
+    hiding the actuator endpoints turned them into fake server errors, and any typo'd URL looked
+    like a backend fault. Added a `NoResourceFoundException` handler (404, logged at WARN since an
+    unknown URL is a client mistake) to **both** services' `GlobalExceptionHandler`. Same class of
+    bug as P0-14 and P0-07.
 - [x] `P3-07` **Document the auth contract in `security.md`** (added 2026-07-21, recommended by the
     Integration doc §11)
   - Done 2026-07-23, together with P3-01/P3-02 as the task itself asked: `security.md` has an

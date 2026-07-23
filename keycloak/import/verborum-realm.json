@@ -105,6 +105,17 @@
   ],
   "users": [
     {
+      "username": "service-account-verborum-backend",
+      "enabled": true,
+      "serviceAccountClientId": "verborum-backend",
+      "clientRoles": {
+        "realm-management": [
+          "view-users",
+          "manage-users"
+        ]
+      }
+    },
+    {
       "username": "testuser",
       "enabled": true,
       "emailVerified": true,

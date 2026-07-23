@@ -88,9 +88,16 @@ unchanged (`creation_dt`/`update_dt`/`imported_at`).
   name, not a path, so it mapped nothing while authentication still succeeded — every `hasRole(...)`
   silently denied. Do not revert to the built-in converter. Realm roles only; client roles under
   `resource_access` are unused.
-- ms_user is unique among services: besides being a JWT resource server, it also acts as a
-  Keycloak Admin API client (via `keycloak-admin-client`) to create/link users during
-  registration. See `docs/agent/security.md` for the `KeycloakUserService` pattern.
+- ms_user is unique among services: besides being a JWT resource server, it also acts as a Keycloak
+  Admin API client (via `keycloak-admin-client`). **It deletes identities, it does not create them**
+  — sign-up is Keycloak-hosted, so `KeycloakUserService` exists only so that deleting a profile also
+  deletes the account (P3-04). Without it the person could log back in and re-register.
+  - Called from `UserServiceImpl.deleteUser` *after* the DB delete and the `user.deleted` publish,
+    and **never throws**: the data is already gone, so a failure is an ERROR log naming the id, not
+    a failed request. Keycloak 404 counts as success.
+  - No `KEYCLOAK_ADMIN_CLIENT_SECRET` → WARN and skip, so local dev works without a secret.
+  - Requires the `verborum-backend` service account to hold `realm-management` `manage-users`; the
+    realm import grants it.
 - `keycloak.admin.client-secret` is intentionally left blank in `application.properties` and
   sourced from the `KEYCLOAK_ADMIN_CLIENT_SECRET` environment variable — never hardcode it.
 
