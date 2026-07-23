@@ -1,5 +1,6 @@
 package de.coldtea.verborum.msuser.user.service.impl;
 
+import de.coldtea.verborum.msuser.common.event.UserDeletedEvent;
 import de.coldtea.verborum.msuser.common.exception.RecordNotFoundException;
 import de.coldtea.verborum.msuser.common.mapper.UserMapper;
 import de.coldtea.verborum.msuser.user.dto.UserRequestDTO;
@@ -9,14 +10,20 @@ import de.coldtea.verborum.msuser.user.repository.UserRepository;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 
 import java.util.Optional;
 
+import static de.coldtea.verborum.msuser.common.config.RabbitMQConfig.EXCHANGE;
+import static de.coldtea.verborum.msuser.common.config.RabbitMQConfig.ROUTING_KEY_USER_DELETED;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 class UserServiceImplTest {
@@ -26,6 +33,9 @@ class UserServiceImplTest {
 
     @Mock
     private UserMapper userMapper;
+
+    @Mock
+    private RabbitTemplate rabbitTemplate;
 
     @InjectMocks
     private UserServiceImpl userService;
@@ -106,11 +116,48 @@ class UserServiceImplTest {
     void deleteUser_Success() {
         // Arrange
         String userId = "1";
+        User user = User.builder().userId(userId).keycloakId("kc-1").build();
+
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
 
         // Act
         userService.deleteUser(userId);
 
         // Assert
         verify(userRepository).deleteById(userId);
+        verify(rabbitTemplate).convertAndSend(eq(EXCHANGE), eq(ROUTING_KEY_USER_DELETED), any(UserDeletedEvent.class));
+    }
+
+    @Test
+    void deleteUser_PublishesBothIds() {
+        // Arrange — consumers in other services match on keycloakId (their fk_user_id is the JWT
+        // subject), so the event is useless to them without it
+        String userId = "1";
+        User user = User.builder().userId(userId).keycloakId("kc-1").build();
+
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+
+        // Act
+        userService.deleteUser(userId);
+
+        // Assert
+        ArgumentCaptor<UserDeletedEvent> eventCaptor = ArgumentCaptor.forClass(UserDeletedEvent.class);
+        verify(rabbitTemplate).convertAndSend(anyString(), anyString(), eventCaptor.capture());
+        assertEquals(userId, eventCaptor.getValue().getUserId());
+        assertEquals("kc-1", eventCaptor.getValue().getKeycloakId());
+    }
+
+    @Test
+    void deleteUser_UnknownUser_PublishesNothing() {
+        // Arrange
+        String userId = "1";
+        when(userRepository.findById(userId)).thenReturn(Optional.empty());
+
+        // Act
+        userService.deleteUser(userId);
+
+        // Assert — still a no-op 200, but no deletion is announced
+        verify(userRepository).deleteById(userId);
+        verifyNoInteractions(rabbitTemplate);
     }
 }

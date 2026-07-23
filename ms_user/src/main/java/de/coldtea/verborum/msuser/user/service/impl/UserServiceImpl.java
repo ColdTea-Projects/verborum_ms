@@ -1,5 +1,6 @@
 package de.coldtea.verborum.msuser.user.service.impl;
 
+import de.coldtea.verborum.msuser.common.event.UserDeletedEvent;
 import de.coldtea.verborum.msuser.common.exception.RecordNotFoundException;
 import de.coldtea.verborum.msuser.common.mapper.UserMapper;
 import de.coldtea.verborum.msuser.user.dto.UserRequestDTO;
@@ -9,8 +10,13 @@ import de.coldtea.verborum.msuser.user.repository.UserRepository;
 import de.coldtea.verborum.msuser.user.service.UserService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
+
+import static de.coldtea.verborum.msuser.common.config.RabbitMQConfig.EXCHANGE;
+import static de.coldtea.verborum.msuser.common.config.RabbitMQConfig.ROUTING_KEY_USER_DELETED;
 import static de.coldtea.verborum.msuser.common.constants.ErrorMessageConstants.USER_WAS_NOT_FOUND_ID;
 
 @Service
@@ -20,6 +26,8 @@ public class UserServiceImpl implements UserService {
     private final UserRepository userRepository;
 
     private final UserMapper userMapper;
+
+    private final RabbitTemplate rabbitTemplate;
 
     @Transactional
     @Override
@@ -40,11 +48,34 @@ public class UserServiceImpl implements UserService {
     @Transactional
     @Override
     public void deleteUser(String userId) {
-        // user_stats and vault_entries are removed by their DB FK ON DELETE CASCADE.
-        // deleteById is a silent no-op on a missing row in Spring Data JPA 3.x, so this stays a 200
-        // either way (same behaviour as DictionaryServiceImpl.deleteDictionary).
-        // Publishing the user.deleted event (so ms_dictionary / ms_marketplace can cascade their
-        // own data) is P2-08 — ms_user has no RabbitMQ wiring yet.
+        // Read before deleting: the event carries keycloakId, and a user that is not there must not
+        // announce a deletion that never happened. deleteById is a silent no-op on a missing row in
+        // Spring Data JPA 3.x, so this stays a 200 either way (same shape as
+        // DictionaryServiceImpl.deleteDictionary).
+        User user = userRepository.findById(userId).orElse(null);
+
+        // user_stats and vault_entries are removed by their DB FK ON DELETE CASCADE — this event is
+        // what lets the OTHER services (ms_dictionary P2-10, ms_marketplace) drop their own rows.
         userRepository.deleteById(userId);
+
+        if (user == null) {
+            return;
+        }
+
+        // Published inside the transaction, as the last statement, exactly like ms_dictionary's
+        // publishers: RabbitTemplate is not transactional, so anything throwing after the send
+        // would roll the delete back while the event stays published. Keep it last.
+        // The known flip side — the send happens before commit, so a consumer can beat it — is
+        // tracked in roadmap P1-03/P4-03, where publishing moves to @TransactionalEventListener
+        // (AFTER_COMMIT) for every publisher at once.
+        rabbitTemplate.convertAndSend(
+                EXCHANGE,
+                ROUTING_KEY_USER_DELETED,
+                UserDeletedEvent.builder()
+                        .userId(user.getUserId())
+                        .keycloakId(user.getKeycloakId())
+                        .eventTimestamp(LocalDateTime.now())
+                        .build()
+        );
     }
 }

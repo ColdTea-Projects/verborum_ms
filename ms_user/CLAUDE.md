@@ -12,9 +12,9 @@ Keycloak), Dictionary Vault (imported public dictionaries), and User Stats.
 - **DB:** `vdbprofile` (PostgreSQL) — docker-compose in this module (Postgres on 5433 + Adminer on 8081)
 - **Base package:** `de.coldtea.verborum.msuser`
 - **Status:** All three Phase-2 entities exist (`User`, `UserStats`, `VaultEntry`; P2-03/04/05 done)
-  and both REST APIs are implemented — User (P2-06) and Vault (P2-07). Remaining: the RabbitMQ
-  events (P2-08 publish `user.deleted`, P2-09 consume `dictionary.imported`), and the Keycloak
-  role-mapping fix (P2-11).
+  and both REST APIs are implemented — User (P2-06) and Vault (P2-07). RabbitMQ is wired and
+  `user.deleted` is published (P2-08). Remaining: consuming `dictionary.imported` (P2-09) and the
+  Keycloak role-mapping fix (P2-11).
 
 ## Entities
 - `User` (`users`) — `userId` (PK, client UUID), `keycloakId`, `email`, `displayName`,
@@ -58,9 +58,17 @@ unchanged (`creation_dt`/`update_dt`/`imported_at`).
 - POST 404s on an unknown user (`fk_user_id` is a real FK — the DB would otherwise 500). DELETE of an
   entry that is not there is a silent 200, matching `deleteUser`/`deleteDictionary`.
 
-## Events (planned — requires RabbitMQ, see roadmap Phase 1 and `docs/agent/rabbitmq.md`)
-- **Publishes:** `user.deleted` (consumed by ms_dictionary, ms_marketplace to cascade-delete)
-- **Consumes:** `dictionary.imported` (published by ms_marketplace on import → creates a VaultEntry)
+## Events (see `docs/agent/rabbitmq.md`)
+- **Publishes:** `user.deleted` from `UserServiceImpl.deleteUser()` (P2-08 done). `common/config/
+  RabbitMQConfig` mirrors ms_dictionary's — same exchange, fanout DLX + DLQ, ISO-8601-pinned message
+  converter. Publisher-only until P2-09, so no consumer queue is declared yet.
+  - The payload carries **both `userId` and `keycloakId`**. Consumers in other services must match on
+    **`keycloakId`** — their `fk_user_id` is the JWT subject, which is this service's `keycloak_id`
+    (see the quirk below). Matching on `userId` silently deletes nothing.
+  - A delete of an unknown id publishes nothing and still returns 200.
+- **Consumes:** `dictionary.imported` (published by ms_marketplace on import → creates a VaultEntry).
+  Not wired yet — P2-09. Build the listener on `VaultService.addVaultEntry`, which is already
+  idempotent, so a redelivery cannot create a duplicate.
 
 ## Security
 - `common/config/SecurityConfig.java` is already in place: stateless JWT resource server,

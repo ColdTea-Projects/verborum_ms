@@ -57,6 +57,8 @@ API Gateway ──► Autofil Service  (word suggestions from community data, No
 - **Base package:** `de.coldtea.verborum.msuser`
 - **What it does:** User profile, auth integration with Keycloak, Dictionary Vault, User Stats
 - **Mirror:** Follow ms_dictionary structure exactly
+- **Built so far:** `User`/`UserStats`/`VaultEntry` entities, the User REST API (`/users`), the Vault
+  REST API (`/users/{userId}/vault`), and RabbitMQ publishing `user.deleted` (roadmap P2-03…P2-08)
 
 ### ❌ ms_marketplace — TO BE BUILT
 - **Port:** TBD (suggest 8087)
@@ -209,7 +211,12 @@ throwing sends the message here after the configured retries rather than redeliv
 The DLX is a fanout on purpose — dead-lettered messages keep their original routing key, which a
 direct DLX would fail to match and drop. See `docs/agent/rabbitmq.md`.
 
-**Current wiring state (2026-07-16):** Phase 1 is complete. ms_dictionary declares the exchange and
+**`user.deleted` carries both `userId` and `keycloakId`.** ms_dictionary and ms_marketplace store the
+JWT subject in `fk_user_id`, and that value is ms_user's `keycloak_id`, not its `user_id` — so a
+consumer cascading a user deletion must match on **`keycloakId`**. Matching on `userId` deletes
+nothing and reports success. Added at P2-08; `rabbitmq.md`'s minimal sample payload was wrong.
+
+**Current wiring state (2026-07-16, updated 2026-07-23):** Phase 1 is complete. ms_dictionary declares the exchange and
 the dead letter infrastructure (roadmap P1-02) and publishes every event it owns:
 `dictionary.visibility.public` / `dictionary.visibility.private` (P1-03), `dictionary.deleted`
 (P1-04) and `word.created` (P1-05). Nothing consumes any of them yet — ms_marketplace and
@@ -217,6 +224,9 @@ ms_autofil do not exist, and a topic exchange discards a message with no bound q
 fire-and-forget until P4-03. ms_dictionary has no consumer queue until it starts consuming
 `user.deleted` (P2-10). All services declare the same exchange; declarations are idempotent, so
 whichever service starts first creates it.
+As of 2026-07-23 (P2-08) ms_user is wired too: same exchange and dead letter infrastructure, and it
+publishes `user.deleted`. It is likewise publisher-only — nothing consumes that event until P2-10,
+and ms_user gets its own consumer queue at P2-09 (`dictionary.imported`).
 
 **Every ms_dictionary event fires on change only, never on a plain re-save.** `saveDictionary()`
 and `saveWords()` each back both POST and PUT, so both compare against stored state first:

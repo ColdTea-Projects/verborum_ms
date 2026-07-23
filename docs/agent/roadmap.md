@@ -390,10 +390,35 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
   - Not verified live: ms_user endpoints require a JWT and Keycloak is not configured until Phase 3
     (same limitation recorded for P0-20). The `contextLoads` `@SpringBootTest` also needs the compose
     Postgres and was not run in this session — Docker Desktop was not running.
-- [ ] `P2-08` **Publish `user.deleted` event from ms_user**
+- [x] `P2-08` **Publish `user.deleted` event from ms_user**
   - Create `common/event/UserDeletedEvent.java`
   - Publish from `UserServiceImpl.deleteUser()`
   - Done when: deleting a user publishes a message to `user.deleted` routing key
+  - Done 2026-07-23: `spring-boot-starter-amqp` added to the ms_user pom, `common/config/RabbitMQConfig`
+    created mirroring ms_dictionary's (same exchange, same fanout DLX + DLQ + binding, same
+    ISO-8601-pinned `Jackson2JsonMessageConverter` — the timestamp format is a wire contract, not a
+    local choice), RabbitMQ connection + listener-retry properties added to `application.properties`
+    as `${ENV_VAR:default}`. ms_user is publisher-only until P2-09.
+  - **The event carries BOTH `userId` and `keycloakId`, and P2-10 must match on `keycloakId`.**
+    `rabbitmq.md` shows a minimal `{userId, eventTimestamp}` payload, which would have been a silent
+    bug: ms_dictionary and ms_marketplace store the *JWT subject* in their `fk_user_id` columns, and
+    that value is ms_user's `keycloak_id`, not its `user_id` (the quirk documented in
+    `ms_user/CLAUDE.md`). A consumer matching on `userId` would delete nothing and report success.
+    `rabbitmq.md`'s `UserDeletedEvent` sample is updated to match.
+  - `deleteUser()` now reads the user before deleting (the event needs `keycloakId`); a delete of an
+    unknown id publishes nothing rather than announcing a deletion that never happened, and still
+    returns 200. Same shape as `deleteDictionary`.
+  - Publishes inside `@Transactional` as the last statement, inheriting the two known dual-write
+    races documented in P1-03. The AFTER_COMMIT switch stays a single coordinated change for all
+    publishers at P4-03 — but note the second race is worse here than for visibility events: a
+    ms_dictionary consumer that beats the commit cascades a delete that may then roll back.
+  - Verified live 2026-07-23 against the compose broker with a throwaway `@SpringBootTest` (bound a
+    temp queue to `user.deleted`, then deleted a real user through the service; test removed after,
+    temp queue deleted). On the wire:
+    `{"userId":"51b2dbe6-…","keycloakId":"8502ce45-…","eventTimestamp":"2026-07-23T11:17:59.0721981"}`
+    — both ids present, timestamp ISO-8601 as required. Deleting an unknown id emitted nothing.
+    The HTTP path (`DELETE /users/{userId}`) still cannot be curled: it requires a JWT and Keycloak
+    arrives in Phase 3. Full suite: 14 tests green (3 of them new, covering the publish).
 - [ ] `P2-09` **Consume `dictionary.imported` event in ms_user**
   - Create `common/config/RabbitMQConfig.java` in ms_user
   - Create `common/listener/MarketplaceEventListener.java`
@@ -404,6 +429,11 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
   - Create `common/listener/UserEventListener.java` in ms_dictionary
   - On `user.deleted`: delete all dictionaries and words for that userId
   - Done when: deleting a user cascades to remove their dictionaries and words
+  - **Match on the event's `keycloakId`, not its `userId`** — ms_dictionary's `fk_user_id` holds the
+    JWT subject, which equals ms_user's `keycloak_id`. See the P2-08 note; matching on `userId`
+    silently deletes nothing.
+  - The listener must be idempotent (a redelivery must not fail) and this is the task where P1-03's
+    pre-commit publish race stops being theoretical for deletes — see P2-08.
 - [ ] `P2-11` **Fix Keycloak role mapping in ms_user `SecurityConfig`** (added 2026-07-12 after full review)
   - `JwtGrantedAuthoritiesConverter.setAuthoritiesClaimName("realm_access.roles")` does NOT
     resolve nested claims — Keycloak realm roles live under `realm_access` → `roles`, so no

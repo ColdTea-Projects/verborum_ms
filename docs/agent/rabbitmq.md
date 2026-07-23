@@ -164,12 +164,17 @@ public class DictionaryDeletedEvent {
 }
 
 // common/event/UserDeletedEvent.java
+// Carries BOTH ids on purpose. ms_dictionary and ms_marketplace store the JWT subject in their
+// fk_user_id columns, and that value is ms_user's keycloak_id — NOT its user_id. A consumer
+// cascading in another service must match on keycloakId; matching on userId deletes nothing and
+// reports success. userId is carried for correlation.
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class UserDeletedEvent {
     private String userId;
+    private String keycloakId;
     private LocalDateTime eventTimestamp;
 }
 
