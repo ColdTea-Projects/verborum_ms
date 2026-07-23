@@ -1,6 +1,6 @@
 package de.coldtea.verborum.msdictionary.word.service.impl;
 
-import de.coldtea.verborum.msdictionary.common.config.RabbitMQConfig;
+import de.coldtea.verborum.msdictionary.common.event.OutboundEvent;
 import de.coldtea.verborum.msdictionary.common.event.WordCreatedEvent;
 import de.coldtea.verborum.msdictionary.common.exception.ForbiddenOperationException;
 import de.coldtea.verborum.msdictionary.common.exception.RecordNotFoundException;
@@ -18,7 +18,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -45,7 +45,7 @@ class WordServiceImplTest {
     private WordMapper wordMapper;
 
     @Mock
-    private RabbitTemplate rabbitTemplate;
+    private ApplicationEventPublisher eventPublisher;
 
     @InjectMocks
     private WordServiceImpl wordService;
@@ -75,7 +75,7 @@ class WordServiceImplTest {
         // Assert
         verify(dictionaryRepository).findById(dictionaryId);
         verify(wordRepository).saveAllAndFlush(any());
-        verifyNoInteractions(rabbitTemplate);
+        verifyNoInteractions(eventPublisher);
     }
 
     @Test
@@ -93,10 +93,10 @@ class WordServiceImplTest {
         wordService.saveWords(wordBundles, OWNER);
 
         // Assert
-        ArgumentCaptor<WordCreatedEvent> captor = ArgumentCaptor.forClass(WordCreatedEvent.class);
-        verify(rabbitTemplate).convertAndSend(eq(RabbitMQConfig.EXCHANGE), eq(ROUTING_KEY_WORD_CREATED), captor.capture());
+        OutboundEvent outbound = capturedEvents().get(0);
+        assertEquals(ROUTING_KEY_WORD_CREATED, outbound.routingKey());
 
-        WordCreatedEvent event = captor.getValue();
+        WordCreatedEvent event = (WordCreatedEvent) outbound.payload();
         assertEquals("word1", event.getWordId());
         assertEquals(dictionaryId, event.getDictionaryId());
         assertEquals("house", event.getWord());
@@ -124,7 +124,7 @@ class WordServiceImplTest {
 
         // Assert
         verify(wordRepository).saveAllAndFlush(any());
-        verifyNoInteractions(rabbitTemplate);
+        verifyNoInteractions(eventPublisher);
     }
 
     @Test
@@ -145,9 +145,19 @@ class WordServiceImplTest {
         wordService.saveWords(wordBundles, OWNER);
 
         // Assert
-        ArgumentCaptor<WordCreatedEvent> captor = ArgumentCaptor.forClass(WordCreatedEvent.class);
-        verify(rabbitTemplate, times(1)).convertAndSend(eq(RabbitMQConfig.EXCHANGE), eq(ROUTING_KEY_WORD_CREATED), captor.capture());
-        assertEquals("brandNew", captor.getValue().getWordId());
+        List<OutboundEvent> raised = capturedEvents();
+        assertEquals(1, raised.size());
+        assertEquals("brandNew", ((WordCreatedEvent) raised.get(0).payload()).getWordId());
+    }
+
+    /**
+     * The service raises OutboundEvents; OutboundEventPublisher sends them after commit (rule 1),
+     * so these tests assert on what was raised rather than on RabbitTemplate.
+     */
+    private List<OutboundEvent> capturedEvents() {
+        ArgumentCaptor<OutboundEvent> captor = ArgumentCaptor.forClass(OutboundEvent.class);
+        verify(eventPublisher, atLeastOnce()).publishEvent(captor.capture());
+        return captor.getAllValues();
     }
 
     @Test
@@ -166,7 +176,7 @@ class WordServiceImplTest {
 
         // Act & Assert
         assertThrows(RecordNotFoundException.class, () -> wordService.saveWords(wordBundles, OWNER));
-        verifyNoInteractions(rabbitTemplate);
+        verifyNoInteractions(eventPublisher);
     }
 
     @Test
@@ -437,7 +447,7 @@ class WordServiceImplTest {
         // Act & Assert
         assertThrows(ForbiddenOperationException.class, () -> wordService.saveWords(bundles, OWNER));
         verify(wordRepository, never()).saveAllAndFlush(any());
-        verifyNoInteractions(rabbitTemplate);
+        verifyNoInteractions(eventPublisher);
     }
 
     @Test

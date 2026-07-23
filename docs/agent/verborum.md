@@ -293,6 +293,17 @@ not already exist. Without this, a rename would give ms_marketplace a duplicate 
 would make ms_autofil double-count a translation. The trade-off is that edits are invisible to
 consumers — see the P1-03 and P1-05 notes in `roadmap.md` for the two gaps this leaves.
 
+**All events are published AFTER the transaction commits** (2026-07-23, rule 1 in `rabbitmq.md`).
+Services raise a Spring `OutboundEvent` and a `@TransactionalEventListener(AFTER_COMMIT)` sends it.
+Publishing inside the transaction meant a rollback could announce something that never happened —
+and since ms_dictionary reacts to `user.deleted` by deleting data, that phantom event destroyed live
+rows. The trade is deliberate: an event can now be lost if the process dies in the gap, which leaves
+recoverable orphans instead.
+
+**`DictionaryVisibilityEvent` carries the dictionary's `updatedAt`** as an ordering key. A consumer
+building a projection must ignore an event that is not newer than the state it already holds; out-of
+-order delivery of two quick edits would otherwise leave a permanently stale listing.
+
 **Event payloads are JSON with ISO-8601 timestamps** (`"eventTimestamp":"2026-07-16T15:38:13.85"`).
 This is a wire contract, not a local preference — every service's `RabbitMQConfig` must build its
 `Jackson2JsonMessageConverter` the same way or publishers and consumers will disagree on the

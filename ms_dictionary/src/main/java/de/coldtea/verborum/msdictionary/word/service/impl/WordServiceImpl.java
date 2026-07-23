@@ -1,5 +1,6 @@
 package de.coldtea.verborum.msdictionary.word.service.impl;
 
+import de.coldtea.verborum.msdictionary.common.event.OutboundEvent;
 import de.coldtea.verborum.msdictionary.common.event.WordCreatedEvent;
 import de.coldtea.verborum.msdictionary.common.exception.ForbiddenOperationException;
 import de.coldtea.verborum.msdictionary.common.exception.RecordNotFoundException;
@@ -15,7 +16,7 @@ import de.coldtea.verborum.msdictionary.word.service.WordService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
@@ -26,7 +27,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static de.coldtea.verborum.msdictionary.common.config.RabbitMQConfig.EXCHANGE;
+
 import static de.coldtea.verborum.msdictionary.common.config.RabbitMQConfig.ROUTING_KEY_WORD_CREATED;
 import static de.coldtea.verborum.msdictionary.common.constants.ErrorMessageConstants.DICTIONARY_WAS_NOT_FOUND_ID;
 import static de.coldtea.verborum.msdictionary.common.constants.ErrorMessageConstants.NOT_THE_OWNER;
@@ -39,7 +40,7 @@ public class WordServiceImpl implements WordService {
 
     private final DictionaryRepository dictionaryRepository;
     private final WordMapper wordMapper;
-    private final RabbitTemplate rabbitTemplate;
+    private final ApplicationEventPublisher eventPublisher;
     private final ListUtils listUtils = new ListUtils();
 
     @Transactional
@@ -57,8 +58,9 @@ public class WordServiceImpl implements WordService {
 
         wordRepository.saveAllAndFlush(words);
 
-        // Published last: RabbitTemplate is not transactional, so anything that throws after the
-        // send would roll back the write while the events stay published
+        // Raising these only queues them; OutboundEventPublisher sends after commit (rule 1), so an
+        // exception later in this method can no longer leave events announcing words that were
+        // rolled back
         publishWordCreatedEvents(words.stream()
                 .filter(word -> !alreadyStored.contains(word.getWordId()))
                 .toList());
@@ -86,8 +88,7 @@ public class WordServiceImpl implements WordService {
                 throw new RecordNotFoundException(DICTIONARY_WAS_NOT_FOUND_ID + word.getDictionaryId());
             }
 
-            rabbitTemplate.convertAndSend(
-                    EXCHANGE,
+            eventPublisher.publishEvent(new OutboundEvent(
                     ROUTING_KEY_WORD_CREATED,
                     WordCreatedEvent.builder()
                             .wordId(word.getWordId())
@@ -98,8 +99,7 @@ public class WordServiceImpl implements WordService {
                             .fromLang(dictionary.getFromLang())
                             .toLang(dictionary.getToLang())
                             .eventTimestamp(OffsetDateTime.now())
-                            .build()
-            );
+                            .build()));
         });
     }
 

@@ -762,18 +762,28 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
 - [ ] `P4-03` **Consume `dictionary.visibility.public` event**
   - On event: create a `DictionaryStats` record for the dictionary
   - Done when: making a dictionary public creates a marketplace entry
-  - **Two decisions to make BEFORE writing code here** (surfaced by the 2026-07-23 review):
-    1. **The AFTER_COMMIT switch must cover ms_user too, not just ms_dictionary.** It is currently
-       only prose in the P2-08 note, which is how it gets missed. `UserServiceImpl.deleteUser`
-       publishes `user.deleted` inside its transaction, and ms_dictionary now *acts* on that event by
-       deleting data — so a rollback after the send means a cascade that cannot be undone. Treat this
-       as an explicit sub-task of P4-03.
-    2. **The stale-listing problem needs a decision, not a discovery mid-task.** A renamed public
-       dictionary emits nothing, so a marketplace listing's `name`/`fromLang`/`toLang` drift.
-       *Recommended (both the review and the assistant independently landed here): have
-       ms_marketplace re-read from ms_dictionary on access, rather than adding a `dictionary.updated`
-       event.* Re-reading avoids a whole event type and a queue that exists only to fix staleness.
-       **This is an architecture call and is NOT yet signed off — get agreement before coding.**
+  - **The AFTER_COMMIT work is DONE (2026-07-23), in both services** — it was pulled forward out of
+    this task because ms_dictionary already acts on `user.deleted` by deleting data, so the phantom-
+    event window was live, not theoretical. Publishers raise an `OutboundEvent` and
+    `OutboundEventPublisher` sends it after commit; ms_user does the same for the Keycloak identity
+    deletion. `UserDeletedAfterCommitTest` asserts a rollback publishes nothing. **Nothing about
+    publishing remains for P4-03 to do.**
+  - **Still open, and it is an architecture call for the Phase 4 owner: the stale-listing problem.**
+    A renamed public dictionary emits nothing, so a listing's `name`/`fromLang`/`toLang` drift.
+    - The earlier recommendation here was "re-read from ms_dictionary on access". **That was
+      withdrawn on 2026-07-23** after re-reading this phase's own spec: `P4-02` stores `name`,
+      `fromLang`, `toLang`, and `P4-06` needs a *paginated* language filter and a popularity sort.
+      You cannot filter, sort or page in the database on fields you do not store, and re-reading
+      would also hit the P3-08 ownership filter, which returns nothing to a service account.
+    - **Now recommended: keep the local copy — it is a read model — and add a `dictionary.updated`
+      event.** Fire it only when a *public* dictionary's marketplace-relevant fields change, upsert
+      on `dictionaryId`, and use the `updatedAt` already on `DictionaryVisibilityEvent` (rule 4) to
+      drop out-of-order deliveries. Marketplace then keeps serving when ms_dictionary is down.
+    - Still needs sign-off before coding.
+  - **`P4-02` must ship with a reconciliation job** (rule 6): a periodic re-sync of public
+    dictionaries into the projection. It is the backstop both for a lost event (the window
+    AFTER_COMMIT deliberately accepts) and for drift if an update is ever missed. Write it with the
+    projection, not after the first drift is reported.
   - Read the P1-03 notes first — this is the task where two known issues stop being theoretical:
     1. ms_dictionary publishes *before* its transaction commits, so a listener that calls back
        into ms_dictionary can beat the commit. Switch ms_dictionary to

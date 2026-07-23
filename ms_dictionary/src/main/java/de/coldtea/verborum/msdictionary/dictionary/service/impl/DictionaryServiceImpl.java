@@ -2,6 +2,7 @@ package de.coldtea.verborum.msdictionary.dictionary.service.impl;
 
 import de.coldtea.verborum.msdictionary.common.event.DictionaryDeletedEvent;
 import de.coldtea.verborum.msdictionary.common.event.DictionaryVisibilityEvent;
+import de.coldtea.verborum.msdictionary.common.event.OutboundEvent;
 import de.coldtea.verborum.msdictionary.common.exception.ForbiddenOperationException;
 import de.coldtea.verborum.msdictionary.common.exception.RecordNotFoundException;
 import de.coldtea.verborum.msdictionary.common.mapper.DictionaryMapper;
@@ -13,14 +14,13 @@ import de.coldtea.verborum.msdictionary.dictionary.service.DictionaryService;
 import de.coldtea.verborum.msdictionary.word.repository.WordRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 
-import static de.coldtea.verborum.msdictionary.common.config.RabbitMQConfig.EXCHANGE;
 import static de.coldtea.verborum.msdictionary.common.config.RabbitMQConfig.ROUTING_KEY_DICTIONARY_DELETED;
 import static de.coldtea.verborum.msdictionary.common.config.RabbitMQConfig.ROUTING_KEY_DICTIONARY_VISIBILITY_PRIVATE;
 import static de.coldtea.verborum.msdictionary.common.config.RabbitMQConfig.ROUTING_KEY_DICTIONARY_VISIBILITY_PUBLIC;
@@ -37,7 +37,9 @@ public class DictionaryServiceImpl implements DictionaryService {
 
     private final DictionaryMapper dictionaryMapper;
 
-    private final RabbitTemplate rabbitTemplate;
+    // Not RabbitTemplate: the service raises application events and OutboundEventPublisher sends
+    // them after commit (rule 1 in docs/agent/rabbitmq.md)
+    private final ApplicationEventPublisher eventPublisher;
 
 
     @Transactional
@@ -69,14 +71,12 @@ public class DictionaryServiceImpl implements DictionaryService {
 
         Dictionary savedDictionary = dictionaryRepository.saveAndFlush(dictionary);
 
-        // Map before publishing so the send is the last thing that can happen in the transaction:
-        // RabbitTemplate is not transactional, so anything that throws after it would roll back
-        // the write while the event stays published
-        DictionaryResponseDTO responseDTO = dictionaryMapper.toDictionaryResponseDTO(savedDictionary);
-
+        // Raising the event only queues it; OutboundEventPublisher sends after this transaction
+        // commits (rule 1). Ordering inside the method no longer matters for correctness — the old
+        // "keep the send last" comment was mitigation for publishing inside the transaction.
         publishVisibilityChange(savedDictionary, wasPublic);
 
-        return responseDTO;
+        return dictionaryMapper.toDictionaryResponseDTO(savedDictionary);
     }
 
     /**
@@ -90,8 +90,7 @@ public class DictionaryServiceImpl implements DictionaryService {
             return;
         }
 
-        rabbitTemplate.convertAndSend(
-                EXCHANGE,
+        eventPublisher.publishEvent(new OutboundEvent(
                 isPublic ? ROUTING_KEY_DICTIONARY_VISIBILITY_PUBLIC : ROUTING_KEY_DICTIONARY_VISIBILITY_PRIVATE,
                 DictionaryVisibilityEvent.builder()
                         .dictionaryId(dictionary.getDictionaryId())
@@ -100,9 +99,12 @@ public class DictionaryServiceImpl implements DictionaryService {
                         .fromLang(dictionary.getFromLang())
                         .toLang(dictionary.getToLang())
                         .dictionaryName(dictionary.getName())
+                        // The projection's ordering key (rule 4): a consumer must ignore an event
+                        // older than the state it already holds, or two quick renames delivered out
+                        // of order leave the listing permanently stale
+                        .updatedAt(dictionary.getUpdatedAt())
                         .eventTimestamp(OffsetDateTime.now())
-                        .build()
-        );
+                        .build()));
     }
 
     @Transactional
@@ -141,15 +143,13 @@ public class DictionaryServiceImpl implements DictionaryService {
             return;
         }
 
-        rabbitTemplate.convertAndSend(
-                EXCHANGE,
+        eventPublisher.publishEvent(new OutboundEvent(
                 ROUTING_KEY_DICTIONARY_DELETED,
                 DictionaryDeletedEvent.builder()
                         .dictionaryId(dictionary.getDictionaryId())
                         .userId(dictionary.getUserId())
                         .eventTimestamp(OffsetDateTime.now())
-                        .build()
-        );
+                        .build()));
     }
 
     /**

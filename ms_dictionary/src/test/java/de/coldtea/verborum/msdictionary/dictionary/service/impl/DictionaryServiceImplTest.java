@@ -9,9 +9,9 @@ import de.coldtea.verborum.msdictionary.dictionary.entity.Dictionary;
 import de.coldtea.verborum.msdictionary.dictionary.repository.DictionaryRepository;
 import de.coldtea.verborum.msdictionary.word.repository.WordRepository;
 
-import de.coldtea.verborum.msdictionary.common.config.RabbitMQConfig;
 import de.coldtea.verborum.msdictionary.common.event.DictionaryDeletedEvent;
 import de.coldtea.verborum.msdictionary.common.event.DictionaryVisibilityEvent;
+import de.coldtea.verborum.msdictionary.common.event.OutboundEvent;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -20,7 +20,7 @@ import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.context.ApplicationEventPublisher;
 
 
 import java.util.Arrays;
@@ -50,7 +50,7 @@ class DictionaryServiceImplTest {
     private DictionaryMapper dictionaryMapper;
 
     @Mock
-    private RabbitTemplate rabbitTemplate;
+    private ApplicationEventPublisher eventPublisher;
 
     @InjectMocks
     private DictionaryServiceImpl dictionaryService;
@@ -114,11 +114,11 @@ class DictionaryServiceImplTest {
         dictionaryService.saveDictionary(requestDTO, OWNER);
 
         // Assert
-        ArgumentCaptor<DictionaryVisibilityEvent> captor = ArgumentCaptor.forClass(DictionaryVisibilityEvent.class);
-        verify(rabbitTemplate).convertAndSend(eq(RabbitMQConfig.EXCHANGE),
-                eq(ROUTING_KEY_DICTIONARY_VISIBILITY_PUBLIC), captor.capture());
+        OutboundEvent outbound = capturedEvent();
+        assertEquals(ROUTING_KEY_DICTIONARY_VISIBILITY_PUBLIC, outbound.routingKey());
+        DictionaryVisibilityEvent captured = (DictionaryVisibilityEvent) outbound.payload();
 
-        DictionaryVisibilityEvent event = captor.getValue();
+        DictionaryVisibilityEvent event = captured;
         assertEquals("dict1", event.getDictionaryId());
         assertEquals("user1", event.getUserId());
         assertEquals("Test Dictionary", event.getDictionaryName());
@@ -142,7 +142,7 @@ class DictionaryServiceImplTest {
         dictionaryService.saveDictionary(requestDTO, OWNER);
 
         // Assert
-        verifyNoInteractions(rabbitTemplate);
+        verifyNoInteractions(eventPublisher);
     }
 
     @Test
@@ -160,11 +160,11 @@ class DictionaryServiceImplTest {
         dictionaryService.saveDictionary(requestDTO, OWNER);
 
         // Assert
-        ArgumentCaptor<DictionaryVisibilityEvent> captor = ArgumentCaptor.forClass(DictionaryVisibilityEvent.class);
-        verify(rabbitTemplate).convertAndSend(eq(RabbitMQConfig.EXCHANGE),
-                eq(ROUTING_KEY_DICTIONARY_VISIBILITY_PUBLIC), captor.capture());
+        OutboundEvent outbound = capturedEvent();
+        assertEquals(ROUTING_KEY_DICTIONARY_VISIBILITY_PUBLIC, outbound.routingKey());
+        DictionaryVisibilityEvent captured = (DictionaryVisibilityEvent) outbound.payload();
 
-        DictionaryVisibilityEvent event = captor.getValue();
+        DictionaryVisibilityEvent event = captured;
         assertEquals("dict1", event.getDictionaryId());
         assertEquals("user1", event.getUserId());
         assertTrue(event.getIsPublic());
@@ -185,10 +185,10 @@ class DictionaryServiceImplTest {
         dictionaryService.saveDictionary(requestDTO, OWNER);
 
         // Assert
-        ArgumentCaptor<DictionaryVisibilityEvent> captor = ArgumentCaptor.forClass(DictionaryVisibilityEvent.class);
-        verify(rabbitTemplate).convertAndSend(eq(RabbitMQConfig.EXCHANGE),
-                eq(ROUTING_KEY_DICTIONARY_VISIBILITY_PRIVATE), captor.capture());
-        assertEquals(false, captor.getValue().getIsPublic());
+        OutboundEvent outbound = capturedEvent();
+        assertEquals(ROUTING_KEY_DICTIONARY_VISIBILITY_PRIVATE, outbound.routingKey());
+        DictionaryVisibilityEvent captured = (DictionaryVisibilityEvent) outbound.payload();
+        assertEquals(false, captured.getIsPublic());
     }
 
     @Test
@@ -208,7 +208,7 @@ class DictionaryServiceImplTest {
         dictionaryService.saveDictionary(requestDTO, OWNER);
 
         // Assert
-        verifyNoInteractions(rabbitTemplate);
+        verifyNoInteractions(eventPublisher);
     }
 
     @Test
@@ -226,7 +226,7 @@ class DictionaryServiceImplTest {
         dictionaryService.saveDictionary(requestDTO, OWNER);
 
         // Assert
-        verifyNoInteractions(rabbitTemplate);
+        verifyNoInteractions(eventPublisher);
     }
 
     @Test
@@ -246,8 +246,7 @@ class DictionaryServiceImplTest {
         dictionaryService.saveDictionary(requestDTO, OWNER);
 
         // Assert
-        verify(rabbitTemplate).convertAndSend(eq(RabbitMQConfig.EXCHANGE),
-                eq(ROUTING_KEY_DICTIONARY_VISIBILITY_PUBLIC), any(DictionaryVisibilityEvent.class));
+        assertEquals(ROUTING_KEY_DICTIONARY_VISIBILITY_PUBLIC, capturedEvent().routingKey());
     }
 
     @Test
@@ -262,7 +261,7 @@ class DictionaryServiceImplTest {
                 () -> dictionaryService.deleteDictionary(dictionaryId, OWNER));
         verify(dictionaryRepository, never()).deleteById(anyString());
         verify(wordRepository, never()).deleteByDictionaryIdIn(any());
-        verifyNoInteractions(rabbitTemplate);
+        verifyNoInteractions(eventPublisher);
     }
 
     @Test
@@ -293,6 +292,16 @@ class DictionaryServiceImplTest {
         // Assert — dropped silently rather than refused, so the response cannot be used to probe ids
         assertEquals(1, result.size());
         verify(dictionaryMapper, times(1)).toDictionaryResponseDTO(any(Dictionary.class));
+    }
+
+    /**
+     * The service raises an OutboundEvent; OutboundEventPublisher does the actual send after commit
+     * (rule 1). These tests therefore assert on what was raised, not on RabbitTemplate.
+     */
+    private OutboundEvent capturedEvent() {
+        ArgumentCaptor<OutboundEvent> captor = ArgumentCaptor.forClass(OutboundEvent.class);
+        verify(eventPublisher).publishEvent(captor.capture());
+        return captor.getValue();
     }
 
     private static DictionaryRequestDTO requestDTO(String dictionaryId) {
@@ -334,11 +343,11 @@ class DictionaryServiceImplTest {
         dictionaryService.deleteDictionary("dict1", OWNER);
 
         // Assert
-        ArgumentCaptor<DictionaryDeletedEvent> captor = ArgumentCaptor.forClass(DictionaryDeletedEvent.class);
-        verify(rabbitTemplate).convertAndSend(eq(RabbitMQConfig.EXCHANGE),
-                eq(ROUTING_KEY_DICTIONARY_DELETED), captor.capture());
+        OutboundEvent outbound = capturedEvent();
+        assertEquals(ROUTING_KEY_DICTIONARY_DELETED, outbound.routingKey());
+        DictionaryDeletedEvent captured = (DictionaryDeletedEvent) outbound.payload();
 
-        DictionaryDeletedEvent event = captor.getValue();
+        DictionaryDeletedEvent event = captured;
         assertEquals("dict1", event.getDictionaryId());
         assertEquals("user1", event.getUserId());
         verify(wordRepository).deleteByDictionaryIdIn(List.of("dict1"));
@@ -357,7 +366,7 @@ class DictionaryServiceImplTest {
         dictionaryService.deleteDictionary("dict1", OWNER);
 
         // Assert
-        verifyNoInteractions(rabbitTemplate);
+        verifyNoInteractions(eventPublisher);
         verify(wordRepository).deleteByDictionaryIdIn(List.of("dict1"));
     }
 
@@ -466,7 +475,7 @@ class DictionaryServiceImplTest {
         // Act & Assert
         assertThrows(ForbiddenOperationException.class, () -> dictionaryService.saveDictionary(requestDTO, OWNER));
         verify(dictionaryRepository, never()).saveAndFlush(any());
-        verifyNoInteractions(rabbitTemplate);
+        verifyNoInteractions(eventPublisher);
     }
 
     @Test
@@ -521,7 +530,7 @@ class DictionaryServiceImplTest {
         // Assert — an empty IN (...) delete would be pointless, and must not blow up
         verify(wordRepository, never()).deleteByDictionaryIdIn(anyList());
         verify(dictionaryRepository, never()).deleteByDictionaryIdIn(anyList());
-        verifyNoInteractions(rabbitTemplate);
+        verifyNoInteractions(eventPublisher);
     }
 
     @Test
@@ -536,6 +545,6 @@ class DictionaryServiceImplTest {
         dictionaryService.deleteAllByUserId(keycloakId);
 
         // Assert
-        verifyNoInteractions(rabbitTemplate);
+        verifyNoInteractions(eventPublisher);
     }
 }

@@ -27,7 +27,15 @@ Full CRUD for **Dictionaries** and **Words** — the core vocabulary store.
   For marketplace discovery and the later AI word-prediction work.
 
 ## Events
+- **Publishes after commit, never inside the transaction** (rule 1 in `docs/agent/rabbitmq.md`).
+  Services raise an `OutboundEvent` application event; `OutboundEventPublisher` is the only class
+  here that touches `RabbitTemplate`. Unit tests verify `ApplicationEventPublisher`. The rollback
+  guarantee is proven once, in ms_user's `UserDeletedAfterCommitTest` — both services share the
+  listener.
 - **Publishes:** `dictionary.visibility.public/private`, `dictionary.deleted`, `word.created`
+- `DictionaryVisibilityEvent` carries the dictionary's `updatedAt` as an ordering key (rule 4): the
+  marketplace projection must drop an event older than the state it holds, or two quick edits
+  delivered out of order leave the listing permanently stale.
 - **Consumes:** `user.deleted` on the durable queue `dictionary.user.deleted` →
   `UserEventListener` → `DictionaryService.deleteAllByUserId` (P2-10 done)
   - **Cascades on the event's `keycloakId`, not its `userId`.** `fk_user_id` holds the JWT subject,

@@ -149,7 +149,8 @@ public class DictionaryVisibilityEvent {
     private String fromLang;
     private String toLang;
     private String dictionaryName;
-    private LocalDateTime eventTimestamp;
+    private OffsetDateTime updatedAt;      // ordering key for the projection - rule 4
+    private OffsetDateTime eventTimestamp; // when the event was raised, not when the data changed
 }
 
 // common/event/DictionaryDeletedEvent.java
