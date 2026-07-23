@@ -747,6 +747,39 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
 - [ ] `P4-07` **Publish `dictionary.imported` event from ms_marketplace**
   - On import: publish event so ms_user can add to vault
   - Done when: importing triggers a vault entry in ms_user
+- [x] `P4-08` **Dictionary tags** (requested 2026-07-23; built ahead of the phase)
+  - Built now rather than with the rest of Phase 4 because the clients can start attaching tags
+    immediately, and the data is only useful once it has accumulated — the marketplace and the AI
+    word-prediction work (Phase 6) both consume it later.
+  - `dictionary_tags` table (`2026/07/23-01-changelog.json`): `tag_id` PK, `fk_dictionary_id`,
+    `tag` VARCHAR(50), `creation_dt`. Plus the `tag` slice: entity, repository, DTOs, MapStruct
+    mapper, service + impl, controller. 9 new tests (ms_dictionary suite now 65).
+  - Endpoints, deliberately separate from the dictionary payload so tagging does not require
+    re-sending or racing with the whole dictionary:
+    `GET`/`POST /dictionaries/{dictionaryId}/tags`, `DELETE /dictionaries/{dictionaryId}/tags/{tag}`.
+  - **Real DB FK with `ON DELETE CASCADE`** — as requested, and the first one in this service. It does
+    not contradict the `word → dictionary` "no FK" rule: words are split-ready, a tag is a
+    same-service satellite with no life of its own. Deleting a dictionary (directly or via the
+    `user.deleted` cascade) removes its tags at the database.
+  - **Decisions worth reviewing:**
+    1. `tag_id` is **server-generated**, not client-supplied like `dictionaryId`/`wordId` — clients
+       send a string, they do not track tag identity. Same call as `VaultEntry`.
+    2. Tags are **normalised (trimmed + lower-cased)** on write and on delete. They are grouping keys
+       for marketplace browse and AI aggregation, so `Food`/`food `/`FOOD` must be one tag. Reverse
+       this if the product ever wants tags rendered exactly as typed — that would want a separate
+       display column rather than dropping normalisation.
+    3. `UNIQUE (fk_dictionary_id, tag)` makes adding idempotent; re-adding returns the existing row.
+    4. Tags are **not** included in `DictionaryResponseDTO`. Keeping the read contract untouched
+       avoids a join on every dictionary read and a client-contract change — but it means the sync
+       engine needs a second call per dictionary. Revisit if that becomes a measured problem.
+  - Ownership follows the dictionary (P3-05/P3-08): writes on someone else's dictionary 403, reads 404.
+  - Verified live 2026-07-23: table created with the FK (`ON DELETE CASCADE`), unique constraint and a
+    `tag` index; adding `"Travel"` then `"  FOOD "` stored `travel`/`food`; re-adding `"travel"`
+    returned the existing row (still 2 rows); `DELETE .../tags/Travel` removed `travel`; a blank tag
+    is 400; a non-owner got 404/403/403 on list/add/delete; and **deleting the dictionary left 0 tag
+    rows**.
+  - Not built (say the word if wanted): a "find dictionaries by tag" lookup. That is really a
+    marketplace query and belongs with P4-06, not in ms_dictionary.
 
 ---
 

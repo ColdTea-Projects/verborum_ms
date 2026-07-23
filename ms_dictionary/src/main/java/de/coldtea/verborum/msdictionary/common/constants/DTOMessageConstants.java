@@ -23,5 +23,9 @@ public final class DTOMessageConstants {
     public static final String INVALID_LANGUAGE_CODE = "Invalid language code: ";
     public static final String WORD_ID = "wordId";
 
+    //Dictionary tag DTOs
+    public static final String TAG_TAG = "tag is mandatory";
+    public static final String TAG_TAG_TOO_LONG = "tag must be at most 50 characters";
+
 
 }

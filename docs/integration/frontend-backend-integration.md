@@ -116,6 +116,30 @@ harmless), then clients.
 > already carry all 19 codes. The earlier "backend still validates the original 8, pt/nl uploads
 > fail" gap is closed — clients may ship the 19-language set whenever ready.
 
+### 4.1a Dictionary tags (backend P4-08, added 2026-07-23)
+
+A dictionary can carry many tags. They are **not part of the dictionary payload** — tagging uses its
+own endpoints, so a client never has to re-send (or race with) the whole dictionary to add one:
+
+| Method | Path | Body |
+|---|---|---|
+| `GET` | `/dictionaries/{dictionaryId}/tags` | — |
+| `POST` | `/dictionaries/{dictionaryId}/tags` | `{"tag": "travel"}` |
+| `DELETE` | `/dictionaries/{dictionaryId}/tags/{tag}` | — |
+
+Rules a client must know:
+- **Tags are normalised server-side**: trimmed and lower-cased. Send `"Travel"`, read back `"travel"`.
+  They are grouping keys for marketplace browse and the later AI word-prediction work, not display
+  text — render your own label if you want capitalisation. Delete normalises too, so
+  `DELETE .../tags/Travel` removes `travel`.
+- **Max 50 characters**, non-blank; otherwise 400.
+- **Adding is idempotent** — re-adding an existing tag returns the existing one, no duplicate, no
+  error. Safe to retry.
+- **Deleting a dictionary deletes its tags** (database-level cascade). No client cleanup needed.
+- Ownership follows the dictionary: another user's dictionary gives 403 on write, 404 on read.
+- `GET /dictionaries/...` still returns **no** tags — fetching them is a second call per dictionary.
+  Say so if that hurts your sync and the backend can reconsider.
+
 ### 4.2 Word content — the canonical meta schema
 Defined by the Android implementation and documented normatively in the Android doc §4. Summary of
 what web/iOS must reproduce exactly:

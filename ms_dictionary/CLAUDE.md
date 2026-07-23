@@ -21,6 +21,9 @@ Full CRUD for **Dictionaries** and **Words** — the core vocabulary store.
   `fromLang`, `toLang`, timestamps
 - `Word` (`words`) — `wordId`, `dictionaryId` (fk_dictionary_id), `word`, `wordMeta` (json),
   `translation`, `translationMeta` (json), `level` (int, nullable), timestamps
+- `DictionaryTag` (`dictionary_tags`) — `tagId` (**server-generated**), `dictionaryId`
+  (fk_dictionary_id), `tag`, `createdAt`. Many per dictionary. Migration
+  `2026/07/23-01-changelog.json`. For marketplace discovery and the later AI word-prediction work.
 
 ## Events
 - **Publishes:** `dictionary.visibility.public/private`, `dictionary.deleted`, `word.created`
@@ -57,7 +60,17 @@ Full CRUD for **Dictionaries** and **Words** — the core vocabulary store.
   fields were renamed from `creationTimestamp`/`updateTimestamp`; DB columns stay `creation_dt`/
   `update_dt`). Server-authoritative. NB: the `Response`/`ErrorResponse` envelope `timestamp` is a
   different field and uses the server's local offset — see `docs/integration/…` §4.4.
-- Deleting a dictionary also deletes its words in the service layer (no DB-level FK).
+- Deleting a dictionary also deletes its words in the service layer (no DB-level FK), and its tags
+  via the DB-level FK cascade.
+- **`dictionary_tags` is the one table here with a real FK** (`ON DELETE CASCADE` to `dictionaries`).
+  That is deliberate and not a break with the `word → dictionary` convention: words are split-ready
+  (they could move to their own service), a tag is a same-service satellite with no independent life.
+  Same reasoning as `UserStats`/`VaultEntry` in ms_user.
+- **Tags are normalised (trimmed + lower-cased) on write *and* on delete.** They are grouping keys
+  for marketplace browse and the later AI aggregation, so `Food`/`food `/`FOOD` must be one tag. If a
+  client ever needs the original casing for display, that is a new column, not a change here.
+- Adding a tag is idempotent (`UNIQUE (fk_dictionary_id, tag)`); re-adding returns the existing row.
+- Tags follow their dictionary's ownership rules: writes on someone else's dictionary 403, reads 404.
 - Authorization (P3-05/P3-08): services take an explicit `ownerId` — the token subject, passed in by
   the controller — and never trust an id from the body or path. Writes 403 on a mismatch; reads by id
   404 (so a caller cannot probe which ids exist); batch/list endpoints filter to the caller instead

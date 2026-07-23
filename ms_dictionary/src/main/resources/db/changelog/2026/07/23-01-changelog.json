@@ -1,0 +1,95 @@
+{
+  "databaseChangeLog": [
+    {
+      "changeSet": {
+        "id": "20260723-01-dictionary-tags",
+        "author": "claude",
+        "comment": "Tags on dictionaries: a dictionary can carry many tags, one row per tag. Real FK to dictionaries with ON DELETE CASCADE - unlike words (which are split-ready and have no DB FK), tags are a same-service satellite of Dictionary and are meant to die with it. UNIQUE (fk_dictionary_id, tag) keeps the tag set a set, which also makes the add endpoint idempotent. Intended consumer: marketplace discovery and the later AI word-prediction work.",
+        "changes": [
+          {
+            "createTable": {
+              "tableName": "dictionary_tags",
+              "columns": [
+                {
+                  "column": {
+                    "name": "tag_id",
+                    "type": "VARCHAR(255)",
+                    "constraints": {
+                      "nullable": false,
+                      "primaryKey": true,
+                      "primaryKeyName": "pk_dictionary_tags"
+                    }
+                  }
+                },
+                {
+                  "column": {
+                    "name": "fk_dictionary_id",
+                    "type": "VARCHAR(255)",
+                    "constraints": {
+                      "nullable": false
+                    }
+                  }
+                },
+                {
+                  "column": {
+                    "name": "tag",
+                    "type": "VARCHAR(50)",
+                    "constraints": {
+                      "nullable": false
+                    }
+                  }
+                },
+                {
+                  "column": {
+                    "name": "creation_dt",
+                    "type": "TIMESTAMP WITH TIME ZONE",
+                    "constraints": {
+                      "nullable": false
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "addForeignKeyConstraint": {
+              "baseTableName": "dictionary_tags",
+              "baseColumnNames": "fk_dictionary_id",
+              "referencedTableName": "dictionaries",
+              "referencedColumnNames": "dictionary_id",
+              "constraintName": "fk_dictionary_tags_dictionary",
+              "onDelete": "CASCADE"
+            }
+          },
+          {
+            "addUniqueConstraint": {
+              "tableName": "dictionary_tags",
+              "columnNames": "fk_dictionary_id, tag",
+              "constraintName": "uq_dictionary_tags_dictionary_tag"
+            }
+          },
+          {
+            "createIndex": {
+              "tableName": "dictionary_tags",
+              "indexName": "idx_dictionary_tags_tag",
+              "columns": [
+                {
+                  "column": {
+                    "name": "tag"
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        "rollback": [
+          {
+            "dropTable": {
+              "tableName": "dictionary_tags"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

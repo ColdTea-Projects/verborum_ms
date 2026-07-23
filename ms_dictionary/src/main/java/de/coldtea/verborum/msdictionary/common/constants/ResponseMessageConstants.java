@@ -14,4 +14,8 @@ public final class ResponseMessageConstants {
     public static final String DICTIONARY_SAVED_SUCCESSFULLY = "Saved successfully into dictionary ";
     public static final String DICTIONARY_UPDATED_SUCCESSFULLY = "Updated successfully into dictionary ";
     public static final String DICTIONARY_DELETED_SUCCESSFULLY = "Deleted successfully ";
+
+    //DictionaryTagController
+    public static final String TAG_SAVED_SUCCESSFULLY = "Saved successfully tag ";
+    public static final String TAG_DELETED_SUCCESSFULLY = "Deleted successfully tag ";
 }

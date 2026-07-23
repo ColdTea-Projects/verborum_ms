@@ -96,6 +96,26 @@ creation_dt     TIMESTAMPTZ  Auto-set by Hibernate @CreationTimestamp; JSON key 
 update_dt       TIMESTAMPTZ  Auto-set by Hibernate @UpdateTimestamp; JSON key updatedAt
 ```
 
+### DictionaryTag (`dictionary_tags` table in ms_dictionary)
+```
+tag_id              VARCHAR PK   UUID string, SERVER-generated (not client-supplied)
+fk_dictionary_id    VARCHAR      Real DB FK → dictionaries(dictionary_id) ON DELETE CASCADE
+tag                 VARCHAR(50)  Normalised: trimmed and lower-cased
+creation_dt         TIMESTAMPTZ  Auto-set by Hibernate; JSON key createdAt
+```
+A dictionary carries many tags, one row each. **UNIQUE (fk_dictionary_id, tag)** keeps a
+dictionary's tags a set, which also makes the add endpoint idempotent.
+
+Added 2026-07-23. Purpose: marketplace discovery (browse by topic) and the later AI work that
+predicts which words a user will meet — so tags are grouping keys, not display text. That is why
+they are normalised on the way in: `"Food"`, `"food "` and `"FOOD"` must aggregate as one tag. A
+client that wants a pretty label renders it itself.
+
+**This is the one place in ms_dictionary with a real DB-level FK.** `word → dictionary` has none
+because words are split-ready; a tag is a same-service satellite with no independent life, so the FK
+is the correct model and the cascade is free and correct. Deleting a dictionary — directly, or via
+the `user.deleted` cascade — removes its tags at the database.
+
 ### Word (`words` table in ms_dictionary)
 ```
 word_id             VARCHAR PK   UUID string, provided by client
@@ -170,7 +190,19 @@ Entities needed:
 | GET | `/dictionaries/dictionary/{dictionaryId}` | — | `DictionaryResponseDTO` (404 if not found) |
 | GET | `/dictionaries/batch?ids=id1,id2` | — | `List<DictionaryResponseDTO>` (empty list for no matches) |
 
-Note: DELETE `/dictionaries/{dictionaryId}` also deletes all words of that dictionary (no DB-level FK).
+Note: DELETE `/dictionaries/{dictionaryId}` also deletes all words of that dictionary (no DB-level FK)
+and all its tags (DB-level FK cascade).
+
+### ms_dictionary — DictionaryTagController (`/dictionaries/{dictionaryId}/tags`)
+| Method | Path | Body | Returns |
+|---|---|---|---|
+| GET | `/dictionaries/{dictionaryId}/tags` | — | `List<DictionaryTagResponseDTO>` (404 if the dictionary is not yours) |
+| POST | `/dictionaries/{dictionaryId}/tags` | `{"tag": "travel"}` | `Response` (201; idempotent — re-adding returns the existing tag) |
+| DELETE | `/dictionaries/{dictionaryId}/tags/{tag}` | — | `Response` (200; removing an absent tag is a no-op) |
+
+Tags are a **separate endpoint on purpose**: tagging must not require re-sending — or racing with —
+the whole dictionary payload. The tag in the path is normalised the same way as on write, so
+`DELETE .../tags/Travel` removes what `POST {"tag":"travel"}` stored.
 
 ### ms_dictionary — WordController (`/words`)
 | Method | Path | Body | Returns |
