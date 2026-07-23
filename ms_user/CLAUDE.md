@@ -13,8 +13,9 @@ Keycloak), Dictionary Vault (imported public dictionaries), and User Stats.
 - **Base package:** `de.coldtea.verborum.msuser`
 - **Status:** All three Phase-2 entities exist (`User`, `UserStats`, `VaultEntry`; P2-03/04/05 done)
   and both REST APIs are implemented — User (P2-06) and Vault (P2-07). RabbitMQ is fully wired:
-  publishes `user.deleted` (P2-08) and consumes `dictionary.imported` (P2-09). Remaining for
-  Phase 2: the Keycloak role-mapping fix (P2-11).
+  publishes `user.deleted` (P2-08) and consumes `dictionary.imported` (P2-09), and realm-role
+  mapping is fixed (P2-11). **Phase 2 is complete for this service.** Its REST endpoints have never
+  been exercised over HTTP, though — they all require a JWT and Keycloak arrives at P3-01/P3-02.
 
 ## Entities
 - `User` (`users`) — `userId` (PK, client UUID), `keycloakId`, `email`, `displayName`,
@@ -82,6 +83,11 @@ unchanged (`creation_dt`/`update_dt`/`imported_at`).
 ## Security
 - `common/config/SecurityConfig.java` is already in place: stateless JWT resource server,
   `/actuator/**` and Swagger permitted, everything else requires authentication.
+- Realm roles are mapped by `SecurityConfig.extractRealmRoles(Jwt)`, written by hand (P2-11).
+  `JwtGrantedAuthoritiesConverter.setAuthoritiesClaimName("realm_access.roles")` takes a flat claim
+  name, not a path, so it mapped nothing while authentication still succeeded — every `hasRole(...)`
+  silently denied. Do not revert to the built-in converter. Realm roles only; client roles under
+  `resource_access` are unused.
 - ms_user is unique among services: besides being a JWT resource server, it also acts as a
   Keycloak Admin API client (via `keycloak-admin-client`) to create/link users during
   registration. See `docs/agent/security.md` for the `KeycloakUserService` pattern.

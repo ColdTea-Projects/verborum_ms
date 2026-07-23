@@ -467,11 +467,24 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
     is a class ms_dictionary does not have, and every message fails to deserialize.
   - The listener must be idempotent (a redelivery must not fail) and this is the task where P1-03's
     pre-commit publish race stops being theoretical for deletes — see P2-08.
-- [ ] `P2-11` **Fix Keycloak role mapping in ms_user `SecurityConfig`** (added 2026-07-12 after full review)
+- [x] `P2-11` **Fix Keycloak role mapping in ms_user `SecurityConfig`** (added 2026-07-12 after full review)
   - `JwtGrantedAuthoritiesConverter.setAuthoritiesClaimName("realm_access.roles")` does NOT
     resolve nested claims — Keycloak realm roles live under `realm_access` → `roles`, so no
     roles are ever mapped to authorities. Needs a custom converter that reads the nested claim
   - Done when: a token with realm role `user` yields authority `ROLE_user` in the security context
+  - Done 2026-07-23: `SecurityConfig.extractRealmRoles(Jwt)` reads `realm_access` → `roles` by hand
+    and maps each to `ROLE_{role}`; `jwtAuthConverter()` uses it instead of the built-in converter.
+    5 `SecurityConfigTest` cases (module suite now 24): nested roles map to `ROLE_user`/`ROLE_admin`,
+    and a missing `realm_access`, a `realm_access` without `roles`, a non-list `roles`, and
+    non-string entries all yield no authorities without throwing — a malformed token must not turn
+    into a 500 on the authentication path.
+  - **The same bug was in the `security.md` template**, which is what P3-03 (ms_dictionary) and
+    P4-01 (ms_marketplace) copy from. Fixed there too, with a warning note, so the bug is not
+    re-introduced into the two services that have yet to be secured.
+  - Realm roles only. Client roles (`resource_access.{clientId}.roles`) are not used in Verborum.
+  - Verified against a synthetic `Jwt`, not a Keycloak-issued token — there is no Keycloak to issue
+    one until P3-01/P3-02. Re-check this against a real token when the realm exists; the claim shape
+    asserted here is Keycloak's documented one.
 
 ---
 

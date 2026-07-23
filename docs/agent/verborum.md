@@ -51,14 +51,17 @@ API Gateway ──► Autofil Service  (word suggestions from community data, No
   Security will be added in Phase 3 once Keycloak is configured via ms_user.
   Until then, do not expose ms_dictionary to public traffic.
 
-### 🚧 ms_user — SCAFFOLDED, NO FEATURES YET
+### 🚧 ms_user — PHASE 2 COMPLETE, NOT YET EXERCISED OVER HTTP
 - **Port:** 8086
 - **DB:** `vdbprofile` (PostgreSQL) — docker-compose in `ms_user/` (Postgres 5433 + Adminer 8081)
 - **Base package:** `de.coldtea.verborum.msuser`
 - **What it does:** User profile, auth integration with Keycloak, Dictionary Vault, User Stats
 - **Mirror:** Follow ms_dictionary structure exactly
 - **Built so far:** `User`/`UserStats`/`VaultEntry` entities, the User REST API (`/users`), the Vault
-  REST API (`/users/{userId}/vault`), and RabbitMQ publishing `user.deleted` (roadmap P2-03…P2-08)
+  REST API (`/users/{userId}/vault`), RabbitMQ publishing `user.deleted` and consuming
+  `dictionary.imported`, and Keycloak realm-role mapping (roadmap P2-03…P2-11 — all of Phase 2)
+- **Caveat:** every endpoint requires a JWT and no Keycloak exists yet, so the REST surface has only
+  been unit-tested — never called over HTTP. First chance to do that is P3-01/P3-02.
 
 ### ❌ ms_marketplace — TO BE BUILT
 - **Port:** TBD (suggest 8087)

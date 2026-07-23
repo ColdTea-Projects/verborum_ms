@@ -101,17 +101,36 @@ public class SecurityConfig {
 
     @Bean
     public JwtAuthenticationConverter jwtAuthConverter() {
-        JwtGrantedAuthoritiesConverter authoritiesConverter =
-                new JwtGrantedAuthoritiesConverter();
-        authoritiesConverter.setAuthorityPrefix("ROLE_");
-        authoritiesConverter.setAuthoritiesClaimName("realm_access.roles");
-
         JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
-        converter.setJwtGrantedAuthoritiesConverter(authoritiesConverter);
+        converter.setJwtGrantedAuthoritiesConverter(SecurityConfig::extractRealmRoles);
         return converter;
+    }
+
+    // Keycloak nests realm roles: { "realm_access": { "roles": ["user", "admin"] } }
+    static Collection<GrantedAuthority> extractRealmRoles(Jwt jwt) {
+        Map<String, Object> realmAccess = jwt.getClaimAsMap("realm_access");
+        if (realmAccess == null) {
+            return List.of();
+        }
+        if (!(realmAccess.get("roles") instanceof Collection<?> roles)) {
+            return List.of();
+        }
+        return roles.stream()
+                .filter(String.class::isInstance)
+                .map(String.class::cast)
+                .map(role -> (GrantedAuthority) new SimpleGrantedAuthority("ROLE_" + role))
+                .toList();
     }
 }
 ```
+
+> **Do not use `JwtGrantedAuthoritiesConverter` with
+> `setAuthoritiesClaimName("realm_access.roles")` here.** That setter takes a flat claim name, not a
+> path expression: it looks for a top-level claim literally named `realm_access.roles`, finds
+> nothing, and grants no authorities at all. Authentication still succeeds, so nothing looks broken
+> until every `hasRole(...)` check silently denies. This template carried that bug until it was
+> fixed in ms_user at roadmap P2-11 — ms_dictionary (P3-03) and ms_marketplace (P4-01) must use the
+> hand-written extraction above.
 
 **application.properties for resource servers:**
 ```properties
