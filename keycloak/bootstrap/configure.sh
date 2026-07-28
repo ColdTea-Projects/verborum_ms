@@ -36,8 +36,8 @@ log "Logging in to ${KC_URL} (realm master) as ${KEYCLOAK_ADMIN}"
 # Not a secret, always desired. Set it here too (not just in the realm import) so the Verborum
 # branding applies on an EXISTING Keycloak volume without a full re-import. The theme files are
 # mounted at /opt/keycloak/themes/verborum.
-log "Setting realm loginTheme=verborum."
-"$KCADM" update "realms/${KC_REALM}" -s loginTheme=verborum
+log "Setting realm loginTheme=verborum, emailTheme=verborum."
+"$KCADM" update "realms/${KC_REALM}" -s loginTheme=verborum -s emailTheme=verborum
 
 # --- Identity providers -------------------------------------------------------
 # upsert_idp <alias> <providerId> <clientId> <clientSecret> <defaultScope>

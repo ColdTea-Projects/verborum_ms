@@ -9,6 +9,7 @@
   "loginWithEmailAllowed": true,
   "duplicateEmailsAllowed": false,
   "loginTheme": "verborum",
+  "emailTheme": "verborum",
   "verifyEmail": true,
   "accessTokenLifespan": 300,
   "smtpServer": {
