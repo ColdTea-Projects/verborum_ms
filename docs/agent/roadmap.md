@@ -784,6 +784,14 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
   - Same pattern as P3B-04, `providerId=facebook`. Meta App Review is required before non-test users
     can grant `email` — plan lead time.
   - Done when: "Continue with Facebook" completes a login for a non-test user.
+- [x] `P3B-07` **Brand the hosted login page (Keycloak theme)** (done 2026-07-28)
+  - `keycloak/themes/verborum/login/` — extends the stock `keycloak` theme, layers a stylesheet
+    mirroring the Android design language (`core/theme/Color.kt`): crimson accent `#C41E3A`/`#E63946`,
+    gold secondary, near-black/white surfaces, system sans-serif, light **and** dark via
+    `prefers-color-scheme`. Mounted into the container (dev) and applied via `loginTheme=verborum`
+    in the realm import + the bootstrap (so it also applies to an existing volume). Prod bakes it into
+    the image (COPY). **Zero client work** — the hosted page Android already opens is simply branded.
+  - Done when: the login/registration/verify-email pages render in Verborum colours in both schemes.
 - [ ] `P3B-06` **Passwordless email-code login** (SPI + custom flow — the only step touching the image)
   - Keycloak 23 has no native email-OTP authenticator: needs a community SPI baked into a custom
     Keycloak image + a custom browser flow offering password OR email-code as alternatives, the code

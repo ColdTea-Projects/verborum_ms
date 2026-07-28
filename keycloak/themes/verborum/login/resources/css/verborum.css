@@ -1,0 +1,242 @@
+/*
+ * Verborum login theme — design tokens mirror the Android app (core/theme/Color.kt).
+ * Loaded after Keycloak's stock login.css, so these rules win.
+ *
+ * Light is the default; dark is applied via prefers-color-scheme so the login page follows the
+ * same system setting the Android app does. Framework overrides use !important because we are
+ * restyling PatternFly, and we target both legacy ids (#kc-*) and PatternFly classes (.pf-c-*)
+ * so this holds across Keycloak template versions.
+ */
+
+:root {
+  --v-bg:            #FFFFFF;
+  --v-surface:       #F5F5F5;
+  --v-surface-alt:   #ECECEC;
+  --v-text:          #1A1A1A;
+  --v-text-2:        #666666;
+  --v-text-3:        #999999;
+  --v-accent:        #C41E3A;   /* crimson */
+  --v-accent-hover:  #A5182F;
+  --v-gold:          #D4AF37;
+  --v-border:        #E0E0E0;
+  --v-error:         #B3261E;
+  --v-radius:        14px;
+  --v-radius-sm:     10px;
+  --v-shadow:        0 10px 40px rgba(0, 0, 0, 0.08);
+  --v-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --v-bg:            #0F0F0F;
+    --v-surface:       #1A1A1A;
+    --v-surface-alt:   #252525;
+    --v-text:          #E8E8E8;
+    --v-text-2:        #A0A0A0;
+    --v-text-3:        #707070;
+    --v-accent:        #E63946;
+    --v-accent-hover:  #F2505E;
+    --v-gold:          #E6C547;
+    --v-border:        #333333;
+    --v-error:         #CF6679;
+    --v-shadow:        0 10px 40px rgba(0, 0, 0, 0.55);
+  }
+}
+
+/* ---- Page canvas -------------------------------------------------------- */
+html,
+body,
+body.login-pf,
+.login-pf body,
+.login-pf-page {
+  background: var(--v-bg) !important;
+  color: var(--v-text) !important;
+  font-family: var(--v-font) !important;
+  letter-spacing: 0.2px;
+}
+
+/* Kill the stock background image/gradient. */
+.login-pf body {
+  background-image: none !important;
+}
+
+.login-pf-page {
+  padding-top: 6vh;
+}
+
+/* ---- Brand header (realm display name → "Verborum" wordmark) ------------ */
+#kc-header,
+#kc-header-wrapper {
+  color: var(--v-text) !important;
+  font-family: var(--v-font) !important;
+  font-weight: 700 !important;
+  font-size: 30px !important;
+  letter-spacing: 3px !important;
+  text-transform: uppercase;
+  padding: 8px 0 22px !important;
+  background: transparent !important;
+  text-shadow: none !important;
+}
+/* Gold underline flourish under the wordmark — the app's literary/gold accent. */
+#kc-header-wrapper::after {
+  content: "";
+  display: block;
+  width: 46px;
+  height: 3px;
+  margin: 12px auto 0;
+  background: var(--v-gold);
+  border-radius: 2px;
+}
+
+/* ---- The card ----------------------------------------------------------- */
+.card-pf,
+#kc-content-wrapper .card-pf,
+.login-pf-page .card-pf {
+  background: var(--v-surface) !important;
+  border: 1px solid var(--v-border) !important;
+  border-radius: var(--v-radius) !important;
+  box-shadow: var(--v-shadow) !important;
+  padding: 34px 32px !important;
+  max-width: 420px;
+  margin: 0 auto;
+}
+
+/* Headings inside the card (e.g. "Sign in to your account"). */
+#kc-page-title,
+.pf-c-title {
+  color: var(--v-text) !important;
+  font-family: var(--v-font) !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.3px;
+}
+
+/* ---- Labels & text ------------------------------------------------------ */
+label,
+.pf-c-form__label,
+#kc-form-options,
+.control-label {
+  color: var(--v-text-2) !important;
+  font-family: var(--v-font) !important;
+  font-weight: 500 !important;
+}
+
+/* ---- Inputs ------------------------------------------------------------- */
+input[type="text"],
+input[type="password"],
+input[type="email"],
+input[type="number"],
+.pf-c-form-control,
+#kc-form-login input {
+  background: var(--v-bg) !important;
+  color: var(--v-text) !important;
+  border: 1px solid var(--v-border) !important;
+  border-radius: var(--v-radius-sm) !important;
+  padding: 12px 14px !important;
+  height: auto !important;
+  font-family: var(--v-font) !important;
+  font-size: 15px !important;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+input[type="text"]:focus,
+input[type="password"]:focus,
+input[type="email"]:focus,
+.pf-c-form-control:focus,
+#kc-form-login input:focus {
+  border-color: var(--v-accent) !important;
+  box-shadow: 0 0 0 3px rgba(196, 30, 58, 0.15) !important;
+  outline: none !important;
+}
+input::placeholder { color: var(--v-text-3) !important; }
+
+/* ---- Primary button ----------------------------------------------------- */
+input[type="submit"],
+button[type="submit"],
+.pf-c-button.pf-m-primary,
+#kc-login,
+.btn-primary {
+  background: var(--v-accent) !important;
+  border: 1px solid var(--v-accent) !important;
+  color: #FFFFFF !important;
+  border-radius: var(--v-radius-sm) !important;
+  padding: 12px 16px !important;
+  font-family: var(--v-font) !important;
+  font-weight: 600 !important;
+  font-size: 15px !important;
+  letter-spacing: 0.5px;
+  width: 100%;
+  transition: background 0.15s ease, transform 0.05s ease;
+}
+input[type="submit"]:hover,
+button[type="submit"]:hover,
+.pf-c-button.pf-m-primary:hover,
+#kc-login:hover,
+.btn-primary:hover {
+  background: var(--v-accent-hover) !important;
+  border-color: var(--v-accent-hover) !important;
+}
+input[type="submit"]:active,
+#kc-login:active { transform: translateY(1px); }
+
+/* ---- Links (forgot password, register, back) ---------------------------- */
+a,
+#kc-registration a,
+#kc-form-options a,
+.pf-c-button.pf-m-link {
+  color: var(--v-accent) !important;
+  font-family: var(--v-font) !important;
+  text-decoration: none !important;
+  font-weight: 500;
+}
+a:hover { color: var(--v-accent-hover) !important; text-decoration: underline !important; }
+
+/* ---- Social providers (Google / Facebook) ------------------------------- */
+#kc-social-providers { margin-top: 20px; }
+#kc-social-providers h2,
+#kc-social-providers .kc-social-section-title {
+  color: var(--v-text-3) !important;
+  font-size: 12px !important;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  text-align: center;
+  border: 0;
+}
+#kc-social-providers a,
+.pf-c-login__main-footer-links a,
+a.zocial,
+a[id^="social-"] {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--v-bg) !important;
+  color: var(--v-text) !important;
+  border: 1px solid var(--v-border) !important;
+  border-radius: var(--v-radius-sm) !important;
+  padding: 11px 14px !important;
+  margin-top: 10px;
+  font-weight: 500 !important;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+#kc-social-providers a:hover,
+a.zocial:hover,
+a[id^="social-"]:hover {
+  border-color: var(--v-accent) !important;
+  background: var(--v-surface-alt) !important;
+  text-decoration: none !important;
+}
+
+/* ---- Alerts / feedback -------------------------------------------------- */
+.alert-error,
+.pf-c-alert.pf-m-danger {
+  background: rgba(196, 30, 58, 0.08) !important;
+  border: 1px solid var(--v-error) !important;
+  color: var(--v-error) !important;
+  border-radius: var(--v-radius-sm) !important;
+}
+.alert-success,
+.pf-c-alert.pf-m-success {
+  border-radius: var(--v-radius-sm) !important;
+}
+
+/* ---- Checkbox accent (remember me) -------------------------------------- */
+input[type="checkbox"] { accent-color: var(--v-accent); }

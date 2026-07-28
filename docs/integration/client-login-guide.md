@@ -22,6 +22,7 @@ Last verified against a running stack: **2026-07-23** (backend roadmap P3-01/P3-
 | SMTP (local) | **Configured via Mailpit** — verification/reset mail is captured, readable at http://localhost:8025 (never actually sent) |
 | Google / Facebook sign-in | Wiring built (federated behind Keycloak); **OFF until real OAuth credentials are set** per environment |
 | Passwordless email-code login | Scoped, not yet live (roadmap P3B-06) |
+| Login page branding | **Themed** — hosted login/registration/verify-email carry the Verborum design (crimson/gold, light + dark). Nothing to build client-side; the page AppAuth opens is simply branded |
 | ms_user (`:8086`) | Secured. All endpoints require a valid JWT |
 | ms_dictionary (`:8085`) | **Secured as of 2026-07-23 (P3-03)** — every call needs a bearer token. Still trusts a client-supplied `userId` (P3-05) |
 | Google sign-in | **Not configured** — needs real Google OAuth2 credentials |
