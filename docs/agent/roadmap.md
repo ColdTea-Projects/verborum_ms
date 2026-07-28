@@ -833,22 +833,28 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
       escaping, crimson submit button on the password screen (input-scoping fix), styled password
       reveal button. **Enabled by default** now (`EMAIL_CODE_ENABLED=true`);
       `configure-email-code-flow.sh` builds + binds the flow on boot.
-- [ ] `P3B-08` **Auth hardening** (added 2026-07-28 — abuse/rate-limit protections not yet configured)
-  - **Brute-force detection** (Keycloak built-in, realm flags — currently OFF): set
-    `bruteForceProtected: true` with `failureFactor`, `waitIncrementSeconds`, `maxFailureWaitSeconds`,
-    and decide `permanentLockout` vs temporary. This is the login rate-limit.
-  - **Email-code resend cooldown:** the SPI caps code *attempts* (3) and TTL (5 min) but does not
-    rate-limit "Send a new code" — add a per-session cooldown / daily cap so it can't be used to spam
-    mail. (Code change in `EmailCodeAuthenticator`.)
-  - **Registration bot protection:** enable Keycloak's reCAPTCHA on the hosted registration form
+- [ ] `P3B-08` **Auth hardening** (added 2026-07-28 — first batch done, rest tracked below)
+  - [x] **Brute-force detection** (done 2026-07-28): realm now has `bruteForceProtected: true`,
+    `failureFactor: 5`, temporary lockout (`permanentLockout: false`), `waitIncrementSeconds: 60`,
+    `maxFailureWaitSeconds: 900`. **Verified live:** 5 wrong passwords for `testuser` locked the account
+    (even the correct password was refused with the generic "Invalid user credentials"); admin unlock
+    via `attack-detection/brute-force/users/{id}` restored it.
+  - [x] **Email-code resend cooldown** (done 2026-07-28): `EmailCodeAuthenticator` now enforces a
+    30-second cooldown and a 3-per-session cap on "Send a new code". **Verified live:** an immediate
+    resend shows "Please wait N seconds…" and sends no extra mail.
+  - [x] **Password policy** (done 2026-07-28): `length(8) and notEmail`. NOTE: `notUsername` was left
+    out because the throwaway dev users (`testuser`/`testadmin`) have password == username and would
+    fail validation on import — **add `notUsername` (and stronger complexity) in the prod realm**,
+    which has no such users.
+  - [ ] **Registration bot protection:** enable Keycloak's reCAPTCHA on the hosted registration form
     before opening public sign-up, or bots will create accounts.
-  - **Password policy:** none set — add a `passwordPolicy` (min length, maybe breach/complexity).
-  - **Secret rotation before any shared/prod realm:** `admin`/`admin`, the `verborum-backend` client
-    secret, and the Google/Facebook client secrets (the last two were shared in chat) must be rotated;
+  - [ ] **Secret rotation before any shared/prod realm:** `admin`/`admin`, the `verborum-backend`
+    client secret, and the Google/Facebook client secrets (shared in chat + `.env`) must be rotated;
     delete `verborum-dev-cli` (password-grant) from non-local realms.
-  - **Edge rate-limiting + TLS** land with the gateway/reverse proxy (Phase 5 + `docs/ops/dockerization-and-environments.md`): rate-limit the token/auth endpoints, enforce HTTPS, secure cookies.
-  - Done when: brute-force is on, resend is throttled, registration has CAPTCHA, and a documented
-    secret-rotation step exists for staging/prod.
+  - [ ] **Edge rate-limiting + TLS** land with the gateway/reverse proxy (Phase 5 +
+    `docs/ops/dockerization-and-environments.md`): rate-limit the token/auth endpoints, enforce HTTPS,
+    secure cookies.
+  - Done when: the four remaining boxes above are checked.
 
 ---
 

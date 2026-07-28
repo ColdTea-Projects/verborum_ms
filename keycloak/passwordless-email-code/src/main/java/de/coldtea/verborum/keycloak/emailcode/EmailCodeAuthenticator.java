@@ -31,10 +31,16 @@ public class EmailCodeAuthenticator implements Authenticator {
     private static final String CODE_NOTE = "verborum-email-code";
     private static final String EXPIRY_NOTE = "verborum-email-code-expiry";
     private static final String ATTEMPTS_NOTE = "verborum-email-code-attempts";
+    private static final String LAST_SENT_NOTE = "verborum-email-code-last-sent";
+    private static final String RESENDS_NOTE = "verborum-email-code-resends";
 
     private static final int CODE_LENGTH = 6;
     private static final long TTL_SECONDS = 300;   // 5 minutes
     private static final int MAX_ATTEMPTS = 3;
+    // Abuse protection on "Send a new code": a per-request cooldown and a per-session cap so the
+    // button cannot be used to flood a user's inbox.
+    private static final long RESEND_COOLDOWN_SECONDS = 30;
+    private static final int MAX_RESENDS = 3;
     private static final SecureRandom RANDOM = new SecureRandom();
 
     private static final String FORM = "login-email-code.ftl";
@@ -48,13 +54,7 @@ public class EmailCodeAuthenticator implements Authenticator {
             return;
         }
 
-        String code = generateCode();
-        AuthenticationSessionModel authSession = context.getAuthenticationSession();
-        authSession.setAuthNote(CODE_NOTE, code);
-        authSession.setAuthNote(EXPIRY_NOTE, Long.toString(now() + TTL_SECONDS * 1000L));
-        authSession.setAuthNote(ATTEMPTS_NOTE, "0");
-
-        if (!sendCode(context, user, code)) {
+        if (!issueCode(context, user, 0)) {
             context.failureChallenge(
                     AuthenticationFlowError.INTERNAL_ERROR,
                     context.form().setError("emailCodeSendFailed").createErrorPage(Response.Status.INTERNAL_SERVER_ERROR));
@@ -64,12 +64,24 @@ public class EmailCodeAuthenticator implements Authenticator {
         context.challenge(context.form().createForm(FORM));
     }
 
+    /** Generates a fresh code, resets the per-code notes, records the send time & resend count, and mails it. */
+    private boolean issueCode(AuthenticationFlowContext context, UserModel user, int resendCount) {
+        String code = generateCode();
+        AuthenticationSessionModel authSession = context.getAuthenticationSession();
+        authSession.setAuthNote(CODE_NOTE, code);
+        authSession.setAuthNote(EXPIRY_NOTE, Long.toString(now() + TTL_SECONDS * 1000L));
+        authSession.setAuthNote(ATTEMPTS_NOTE, "0");
+        authSession.setAuthNote(LAST_SENT_NOTE, Long.toString(now()));
+        authSession.setAuthNote(RESENDS_NOTE, Integer.toString(resendCount));
+        return sendCode(context, user, code);
+    }
+
     @Override
     public void action(AuthenticationFlowContext context) {
         MultivaluedMap<String, String> formData = context.getHttpRequest().getDecodedFormParameters();
 
         if (formData.containsKey("resend")) {
-            authenticate(context);
+            handleResend(context);
             return;
         }
 
@@ -103,6 +115,33 @@ public class EmailCodeAuthenticator implements Authenticator {
         context.challenge(context.form().setError("emailCodeInvalid").createForm(FORM));
     }
 
+    /** "Send a new code" — throttled by a cooldown and capped per session so it cannot flood mail. */
+    private void handleResend(AuthenticationFlowContext context) {
+        AuthenticationSessionModel authSession = context.getAuthenticationSession();
+        long lastSent = parseLong(authSession.getAuthNote(LAST_SENT_NOTE));
+        int resends = parseInt(authSession.getAuthNote(RESENDS_NOTE));
+
+        long elapsedSeconds = (now() - lastSent) / 1000L;
+        if (lastSent > 0 && elapsedSeconds < RESEND_COOLDOWN_SECONDS) {
+            long wait = RESEND_COOLDOWN_SECONDS - elapsedSeconds;
+            context.challenge(context.form().setError("emailCodeResendWait", wait).createForm(FORM));
+            return;
+        }
+        if (resends >= MAX_RESENDS) {
+            context.challenge(context.form().setError("emailCodeResendLimit").createForm(FORM));
+            return;
+        }
+
+        UserModel user = context.getUser();
+        if (user == null || !issueCode(context, user, resends + 1)) {
+            context.failureChallenge(
+                    AuthenticationFlowError.INTERNAL_ERROR,
+                    context.form().setError("emailCodeSendFailed").createErrorPage(Response.Status.INTERNAL_SERVER_ERROR));
+            return;
+        }
+        context.challenge(context.form().setSuccess("emailCodeResent").createForm(FORM));
+    }
+
     private boolean sendCode(AuthenticationFlowContext context, UserModel user, String code) {
         try {
             KeycloakSession session = context.getSession();
@@ -125,6 +164,8 @@ public class EmailCodeAuthenticator implements Authenticator {
         authSession.removeAuthNote(CODE_NOTE);
         authSession.removeAuthNote(EXPIRY_NOTE);
         authSession.removeAuthNote(ATTEMPTS_NOTE);
+        authSession.removeAuthNote(LAST_SENT_NOTE);
+        authSession.removeAuthNote(RESENDS_NOTE);
     }
 
     private static String generateCode() {
