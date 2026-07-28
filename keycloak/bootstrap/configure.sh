@@ -44,18 +44,20 @@ log "Setting realm loginTheme=verborum."
 # Creates the IdP if absent, otherwise updates its credentials. trustEmail=true so a provider that
 # already vouches for the address does not trigger a second Keycloak email verification.
 upsert_idp() {
-  local alias="$1" provider_id="$2" client_id="$3" client_secret="$4" scope="$5"
+  local alias="$1" provider_id="$2" client_id="$3" client_secret="$4" scope="$5" display_name="$6"
 
   if [[ -z "$client_id" || -z "$client_secret" ]]; then
     log "IdP '${alias}': credentials not set — skipping (this provider stays OFF)."
     return 0
   fi
 
+  # displayName is the button label on the login page (the theme adds the brand icon via CSS).
   if "$KCADM" get "identity-provider/instances/${alias}" -r "$KC_REALM" >/dev/null 2>&1; then
     log "IdP '${alias}': exists — updating credentials."
     "$KCADM" update "identity-provider/instances/${alias}" -r "$KC_REALM" \
       -s enabled=true \
       -s trustEmail=true \
+      -s "displayName=${display_name}" \
       -s "config.clientId=${client_id}" \
       -s "config.clientSecret=${client_secret}" \
       -s "config.defaultScope=${scope}"
@@ -66,6 +68,7 @@ upsert_idp() {
       -s "providerId=${provider_id}" \
       -s enabled=true \
       -s trustEmail=true \
+      -s "displayName=${display_name}" \
       -s "config.clientId=${client_id}" \
       -s "config.clientSecret=${client_secret}" \
       -s "config.useJwksUrl=true" \
@@ -74,8 +77,8 @@ upsert_idp() {
   log "IdP '${alias}': done."
 }
 
-upsert_idp "google"   "google"   "${GOOGLE_CLIENT_ID:-}"     "${GOOGLE_CLIENT_SECRET:-}"     "openid profile email"
-upsert_idp "facebook" "facebook" "${FACEBOOK_CLIENT_ID:-}"   "${FACEBOOK_CLIENT_SECRET:-}"   "email public_profile"
+upsert_idp "google"   "google"   "${GOOGLE_CLIENT_ID:-}"     "${GOOGLE_CLIENT_SECRET:-}"     "openid profile email"  "Google"
+upsert_idp "facebook" "facebook" "${FACEBOOK_CLIENT_ID:-}"   "${FACEBOOK_CLIENT_SECRET:-}"   "email public_profile"  "Facebook"
 
 # --- Real SMTP override (staging/prod) ---------------------------------------
 # The realm JSON already ships a working local smtpServer pointing at Mailpit. Only override it when
