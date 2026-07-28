@@ -8,6 +8,30 @@
  * so this holds across Keycloak template versions.
  */
 
+/* Roboto, self-hosted (resources/fonts/) — matches the Android app's Material typography.
+   No external CDN at runtime, so it works offline and leaks nothing. */
+@font-face {
+  font-family: "Roboto";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../fonts/roboto-latin-400-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Roboto";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("../fonts/roboto-latin-500-normal.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Roboto";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("../fonts/roboto-latin-700-normal.woff2") format("woff2");
+}
+
 :root {
   --v-bg:            #FFFFFF;
   --v-surface:       #F5F5F5;
@@ -23,7 +47,7 @@
   --v-radius:        14px;
   --v-radius-sm:     10px;
   --v-shadow:        0 10px 40px rgba(0, 0, 0, 0.08);
-  --v-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --v-font: "Roboto", -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -52,7 +76,9 @@ body.login-pf,
   background: var(--v-bg) !important;
   color: var(--v-text) !important;
   font-family: var(--v-font) !important;
-  letter-spacing: 0.2px;
+  letter-spacing: normal;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* Kill the stock background image/gradient. */
@@ -101,13 +127,15 @@ body.login-pf,
   margin: 0 auto;
 }
 
-/* Headings inside the card (e.g. "Sign in to your account"). */
+/* Headings inside the card (e.g. "Sign in to your account"). Roboto reads cleaner at medium
+   weight with slightly tighter tracking than the stock heavy heading. */
 #kc-page-title,
 .pf-c-title {
   color: var(--v-text) !important;
   font-family: var(--v-font) !important;
-  font-weight: 600 !important;
-  letter-spacing: 0.3px;
+  font-weight: 500 !important;
+  font-size: 21px !important;
+  letter-spacing: -0.2px !important;
 }
 
 /* ---- Labels & text ------------------------------------------------------ */
