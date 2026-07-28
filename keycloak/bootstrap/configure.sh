@@ -99,4 +99,16 @@ else
   log "SMTP: no SMTP_HOST set — keeping the Mailpit defaults from the realm import."
 fi
 
+# --- Passwordless email-code browser flow ------------------------------------
+# Needs the verborum-email-code SPI (baked into the custom Keycloak image). OFF by default: the SPI
+# itself is verified working, but the password-vs-code *selection* UX still needs browser-based
+# finalization before we bind a custom browser flow to the shared realm (a mis-bound flow risks
+# lockout — see keycloak/passwordless-email-code/README.md). Flip EMAIL_CODE_ENABLED=true to enable.
+if [[ "${EMAIL_CODE_ENABLED:-false}" == "true" ]]; then
+  log "Configuring passwordless email-code browser flow."
+  bash /bootstrap/configure-email-code-flow.sh
+else
+  log "EMAIL_CODE_ENABLED=false — leaving the stock browser flow (password only)."
+fi
+
 log "Bootstrap complete."

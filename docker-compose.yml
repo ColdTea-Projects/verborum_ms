@@ -62,7 +62,10 @@ services:
   #   docker compose down && docker volume rm verborum_ms_keycloak_data
   # to re-import. Changes made in the admin console are NOT written back to the file.
   keycloak:
-    image: quay.io/keycloak/keycloak:23.0.0
+    # Custom image = stock Keycloak 23 + the Verborum email-code authenticator SPI baked in.
+    # See keycloak/passwordless-email-code/Dockerfile. Themes are still bind-mounted below.
+    build: ./keycloak/passwordless-email-code
+    image: verborum-keycloak:local
     container_name: verborum-keycloak
     command: start-dev --import-realm
     ports:
@@ -150,6 +153,9 @@ services:
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       SMTP_STARTTLS: ${SMTP_STARTTLS:-true}
       SMTP_AUTH: ${SMTP_AUTH:-true}
+      # Passwordless email-code login (needs the SPI in the custom keycloak image). OFF by default
+      # until the choose-password-or-code UX is browser-verified; set true to build+bind the flow.
+      EMAIL_CODE_ENABLED: ${EMAIL_CODE_ENABLED:-false}
     volumes:
       - ./keycloak/bootstrap:/bootstrap:ro
 

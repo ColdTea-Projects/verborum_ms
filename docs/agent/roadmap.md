@@ -802,6 +802,20 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
   - Done when: on a throwaway realm, a verified user can log in with a password OR an emailed code,
     the code option is hidden for an unverified email, and `testuser`/`testadmin` still log in — then
     the shared realm's `browserFlow` is switched over.
+  - **Progress 2026-07-28 — SPI built and verified working, flow gated OFF pending browser QA:**
+    - Hand-written authenticator SPI (`keycloak/passwordless-email-code/`, provider
+      `verborum-email-code`) + custom Keycloak image (`verborum-keycloak:local`) that bakes it in.
+      6-digit code, 5-min TTL, 3 attempts, resend; self-gates on a verified email.
+    - Login form (`login-email-code.ftl`) + branded code email (`email-code.ftl`) + messages.
+    - **Verified live end-to-end:** with email-code as the active first factor, username → emailed
+      code (delivered to Mailpit) → validation → `302` with an OAuth authorization code. Password
+      login also verified. Clean `docker compose up` reproduces the SPI + custom image.
+    - **Remaining:** the password-vs-code *selection* UX. Keycloak's "Try another way" is
+      credential-oriented and did not list the non-credential email-code authenticator in scripted
+      HTTP tests; this needs **interactive browser verification** (headless curl can't follow the
+      redirect-based UI). Until then the flow is **gated off by default** (`EMAIL_CODE_ENABLED=false`)
+      so the shared realm keeps the stock, fully-working password flow — no half-bound flow, no
+      lockout risk. `configure-email-code-flow.sh` builds+binds it when the flag is set.
 
 ---
 
