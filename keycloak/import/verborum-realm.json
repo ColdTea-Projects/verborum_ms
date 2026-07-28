@@ -11,7 +11,6 @@
   "loginTheme": "verborum",
   "verifyEmail": true,
   "accessTokenLifespan": 300,
-  "_comment_smtp": "Points at the Mailpit container (docker-compose). No auth/TLS — Mailpit accepts everything and shows it at http://localhost:8025. NEVER put a real SMTP password here: native --import-realm does not reliably substitute ${ENV} (Keycloak #12069/#26275), so staging/prod SMTP is overridden after import by keycloak/bootstrap/configure.sh via kcadm.sh. See docs/agent/security.md.",
   "smtpServer": {
     "host": "mailpit",
     "port": "1025",
