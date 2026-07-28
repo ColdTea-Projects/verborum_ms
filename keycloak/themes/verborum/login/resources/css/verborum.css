@@ -126,7 +126,7 @@ input[type="password"],
 input[type="email"],
 input[type="number"],
 .pf-c-form-control,
-#kc-form-login input {
+#kc-form-login input:not([type="submit"]):not([type="button"]) {
   background: var(--v-bg) !important;
   color: var(--v-text) !important;
   border: 1px solid var(--v-border) !important;
@@ -141,7 +141,7 @@ input[type="text"]:focus,
 input[type="password"]:focus,
 input[type="email"]:focus,
 .pf-c-form-control:focus,
-#kc-form-login input:focus {
+#kc-form-login input:not([type="submit"]):not([type="button"]):focus {
   border-color: var(--v-accent) !important;
   box-shadow: 0 0 0 3px rgba(196, 30, 58, 0.15) !important;
   outline: none !important;
@@ -263,3 +263,18 @@ a#social-facebook::before {
 
 /* ---- Checkbox accent (remember me) -------------------------------------- */
 input[type="checkbox"] { accent-color: var(--v-accent); }
+
+/* ---- Password reveal (eye) toggle --------------------------------------- */
+/* Keycloak's show/hide-password button ships with a white control background that clashes with the
+   dark field. Match it to the input. */
+.pf-c-button.pf-m-control,
+button.pf-c-button.pf-m-control,
+.pf-c-input-group > button {
+  background: var(--v-bg) !important;
+  color: var(--v-text-2) !important;
+  border: 1px solid var(--v-border) !important;
+  border-left: 0 !important;
+  border-radius: 0 var(--v-radius-sm) var(--v-radius-sm) 0 !important;
+}
+.pf-c-button.pf-m-control:hover,
+.pf-c-input-group > button:hover { color: var(--v-accent) !important; }

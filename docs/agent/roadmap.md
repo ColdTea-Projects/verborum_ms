@@ -792,7 +792,7 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
     in the realm import + the bootstrap (so it also applies to an existing volume). Prod bakes it into
     the image (COPY). **Zero client work** — the hosted page Android already opens is simply branded.
   - Done when: the login/registration/verify-email pages render in Verborum colours in both schemes.
-- [ ] `P3B-06` **Passwordless email-code login** (hand-written SPI + custom flow — the only step touching the image)
+- [x] `P3B-06` **Passwordless email-code login** (hand-written SPI + custom flow) — **done 2026-07-28, browser-verified**
   - **Decided 2026-07-28: hand-write a minimal authenticator SPI** (not a community jar, not deferred)
     — keeps the auth path fully owned, no supply-chain risk, guaranteed KC23 compat; ~2 small classes.
   - Keycloak 23 has no native email-OTP authenticator: build the SPI into a custom Keycloak image +
@@ -810,12 +810,14 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
     - **Verified live end-to-end:** with email-code as the active first factor, username → emailed
       code (delivered to Mailpit) → validation → `302` with an OAuth authorization code. Password
       login also verified. Clean `docker compose up` reproduces the SPI + custom image.
-    - **Remaining:** the password-vs-code *selection* UX. Keycloak's "Try another way" is
-      credential-oriented and did not list the non-credential email-code authenticator in scripted
-      HTTP tests; this needs **interactive browser verification** (headless curl can't follow the
-      redirect-based UI). Until then the flow is **gated off by default** (`EMAIL_CODE_ENABLED=false`)
-      so the shared realm keeps the stock, fully-working password flow — no half-bound flow, no
-      lockout risk. `configure-email-code-flow.sh` builds+binds it when the flag is set.
+    - **Browser-verified 2026-07-28 (via real Chrome):** username → password screen → "Try another
+      way" lists **Password** and **"Email me a sign-in code"** → picking the code emails it (Mailpit)
+      → entering it logs in (`302` + OAuth code). Password path also works. The earlier scripted-HTTP
+      doubt about the selection listing was a headless-tooling artifact — the option lists fine in the
+      real redirect-based UI. Polish applied: friendly selection labels (message keys), apostrophe
+      escaping, crimson submit button on the password screen (input-scoping fix), styled password
+      reveal button. **Enabled by default** now (`EMAIL_CODE_ENABLED=true`);
+      `configure-email-code-flow.sh` builds + binds the flow on boot.
 
 ---
 

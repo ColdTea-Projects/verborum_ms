@@ -153,9 +153,9 @@ services:
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       SMTP_STARTTLS: ${SMTP_STARTTLS:-true}
       SMTP_AUTH: ${SMTP_AUTH:-true}
-      # Passwordless email-code login (needs the SPI in the custom keycloak image). OFF by default
-      # until the choose-password-or-code UX is browser-verified; set true to build+bind the flow.
-      EMAIL_CODE_ENABLED: ${EMAIL_CODE_ENABLED:-false}
+      # Passwordless email-code login (needs the SPI in the custom keycloak image). ON by default —
+      # the choose-password-or-code UX is browser-verified. Set false to fall back to password-only.
+      EMAIL_CODE_ENABLED: ${EMAIL_CODE_ENABLED:-true}
     volumes:
       - ./keycloak/bootstrap:/bootstrap:ro
 
