@@ -775,11 +775,15 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
     real SMTP override from env vars after the realm is healthy.
   - Done when: `docker compose up` runs the bootstrap clean with an empty `.env` (configures nothing)
     and, with Google/FB env vars set, the providers appear on the login page.
-- [ ] `P3B-04` **Enable Google sign-in** (blocked on real Google OAuth2 credentials)
-  - Create a Google OAuth app; redirect URI `{KEYCLOAK_HOSTNAME_URL}/realms/verborum/broker/google/endpoint`.
-    Put the id/secret in the environment's `.env`; the bootstrap does the rest. Separate app per env.
-  - Done when: "Continue with Google" completes a login and lands a normal `sub`; `POST /users/`
-    creates the profile as usual.
+- [x] `P3B-04` **Enable Google sign-in** — **done 2026-07-28, browser-verified**
+  - Google OAuth client `verborum-keycloak` (project `verborum-503810`), redirect URI
+    `http://localhost:8180/realms/verborum/broker/google/endpoint`. Id/secret live in git-ignored
+    `.env`; the bootstrap creates the `google` IdP from them (`trustEmail=true`, scope
+    `openid profile email`). Separate OAuth app per environment (redirect host differs).
+  - Verified live via real Chrome: "Continue with Google" → Google consent → Keycloak broker →
+    `302` + auth code, and a federated user (`verborum2026@gmail.com`) was provisioned in the realm.
+  - Login-theme polish: hid Keycloak's default monochrome provider glyph so only the injected
+    4-colour Google mark shows (was doubled).
 - [ ] `P3B-05` **Enable Facebook sign-in** (blocked on a Meta app + App Review for the `email` scope)
   - Same pattern as P3B-04, `providerId=facebook`. Meta App Review is required before non-test users
     can grant `email` — plan lead time.

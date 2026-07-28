@@ -225,10 +225,14 @@ a[id^="social-"]:hover {
   text-decoration: none !important;
 }
 
-/* Authentic brand marks. Keycloak renders each provider as <a id="social-{alias}"> with no logo by
-   default (it would show a generic Font-Awesome glyph only if iconClasses were configured). We inject
-   the real Google G and Facebook f as a leading ::before, inline as SVG data URIs so nothing is
-   fetched (CSP-safe). Aliases come from keycloak/bootstrap/configure.sh: `google`, `facebook`. */
+/* Authentic brand marks. Keycloak renders each provider as <a id="social-{alias}"> with a default
+   monochrome Font-Awesome glyph (i.kc-social-provider-logo). Hide that and inject the real Google G
+   and Facebook f as a leading ::before, inline as SVG data URIs so nothing is fetched (CSP-safe).
+   Aliases come from keycloak/bootstrap/configure.sh: `google`, `facebook`. */
+a[id^="social-"] .kc-social-provider-logo,
+a[id^="social-"] > i.fa {
+  display: none !important;
+}
 a#social-google::before,
 a#social-facebook::before {
   content: "";
