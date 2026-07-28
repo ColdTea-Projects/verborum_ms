@@ -217,6 +217,28 @@ a,
 }
 a:hover { color: var(--v-accent-hover) !important; text-decoration: underline !important; }
 
+/* ---- Footer "New user? Register" (#kc-info-wrapper) ---------------------- */
+/* Stock Keycloak gives this a light #F0F0F0 strip that looks out of place on the dark card.
+   Make it colourless/borderless and match the muted grey of the "Or sign in with" label. */
+#kc-info-wrapper,
+#kc-info,
+.login-pf-signup {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+#kc-info-wrapper {
+  padding: 18px 0 2px !important;
+}
+#kc-info-wrapper,
+#kc-registration,
+#kc-registration span,
+#kc-info-wrapper span {
+  color: var(--v-text-3) !important;
+}
+/* keep the Register link itself in the crimson accent */
+#kc-registration a { color: var(--v-accent) !important; }
+
 /* ---- Social providers (Google / Facebook) ------------------------------- */
 #kc-social-providers { margin-top: 20px; }
 #kc-social-providers h2,
