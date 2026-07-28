@@ -236,21 +236,34 @@ a[id^="social-"] {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  background: var(--v-bg) !important;
+  /* Soft filled button, no outline — a visible border read as a stray "line" on the dark card. */
+  background: var(--v-surface-alt) !important;
   color: var(--v-text) !important;
-  border: 1px solid var(--v-border) !important;
+  border: 1px solid transparent !important;
+  box-shadow: none !important;
   border-radius: var(--v-radius-sm) !important;
-  padding: 11px 14px !important;
+  padding: 12px 14px !important;
   margin-top: 10px;
   font-weight: 500 !important;
-  transition: border-color 0.15s ease, background 0.15s ease;
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
 #kc-social-providers a:hover,
 a.zocial:hover,
 a[id^="social-"]:hover {
   border-color: var(--v-accent) !important;
-  background: var(--v-surface-alt) !important;
+  background: var(--v-border) !important;
   text-decoration: none !important;
+}
+/* PatternFly draws each .pf-c-button's border with an ::after pseudo-element that turns dark (dark
+   theme) / blue (its default link colour, light theme) on hover & focus. That is the stray "line"
+   that appeared on hover. Our own border handles the visual, so remove PatternFly's ::after here.
+   (Our brand icon is ::before, so it is untouched.) */
+#kc-social-providers a::after,
+a.zocial::after,
+a[id^="social-"]::after {
+  display: none !important;
+  border: 0 !important;
+  content: none !important;
 }
 
 /* Authentic brand marks. Keycloak renders each provider as <a id="social-{alias}"> with a default
