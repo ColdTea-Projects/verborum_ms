@@ -784,17 +784,28 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
     `302` + auth code, and a federated user (`verborum2026@gmail.com`) was provisioned in the realm.
   - Login-theme polish: hid Keycloak's default monochrome provider glyph so only the injected
     4-colour Google mark shows (was doubled).
-- [ ] `P3B-05` **Enable Facebook sign-in** (blocked on a Meta app + App Review for the `email` scope)
-  - Same pattern as P3B-04, `providerId=facebook`. Meta App Review is required before non-test users
-    can grant `email` — plan lead time.
-  - Done when: "Continue with Facebook" completes a login for a non-test user.
+- [x] `P3B-05` **Enable Facebook sign-in** — **wired + browser-verified 2026-07-28** (public access gated on Meta App Review)
+  - Meta app "Verborum" (App ID `1778675863140525`), `providerId=facebook`, scope `email public_profile`,
+    `trustEmail=true`. Id/secret in git-ignored `.env`; bootstrap creates the `facebook` IdP. Localhost
+    redirect is auto-allowed in Meta dev mode, so no redirect URI to register locally.
+  - Verified live: "Continue with Facebook" button renders (blue f mark) and Keycloak builds the correct
+    OAuth request (right App ID, redirect, scopes). **Full consent round-trip not completed in-session.**
+  - **Two gates remain for real users:** (a) app is in **Meta dev mode** → only app roles (admin/dev/
+    tester) can log in until **App Review** approves the `email` scope; (b) each teammate's FB account
+    must be added as a **Tester** on the Meta app.
 - [x] `P3B-07` **Brand the hosted login page (Keycloak theme)** (done 2026-07-28)
   - `keycloak/themes/verborum/login/` — extends the stock `keycloak` theme, layers a stylesheet
     mirroring the Android design language (`core/theme/Color.kt`): crimson accent `#C41E3A`/`#E63946`,
-    gold secondary, near-black/white surfaces, system sans-serif, light **and** dark via
-    `prefers-color-scheme`. Mounted into the container (dev) and applied via `loginTheme=verborum`
-    in the realm import + the bootstrap (so it also applies to an existing volume). Prod bakes it into
-    the image (COPY). **Zero client work** — the hosted page Android already opens is simply branded.
+    gold secondary, near-black/white surfaces, light **and** dark via `prefers-color-scheme`.
+    Mounted into the container (dev) and applied via `loginTheme=verborum` in the realm import + the
+    bootstrap. Prod bakes it into the image (COPY). **Zero client work** — the hosted page Android
+    already opens is simply branded.
+  - **Polish pass (2026-07-28), all browser-verified:** self-hosted **Roboto** (matches the app's
+    Material type); **Verborum favicon** (crimson/gold "V"); real 4-colour Google + blue Facebook
+    marks with Keycloak's default glyph hidden and even spacing; social buttons restyled as soft
+    filled buttons (killed PatternFly's `::after` hover line + the lopsided border); crimson submit
+    on the password screen; styled password reveal button; branded/themed **email** theme + logout
+    page; colourless borderless "New user?/Register" footer; removed the near-white social divider.
   - Done when: the login/registration/verify-email pages render in Verborum colours in both schemes.
 - [x] `P3B-06` **Passwordless email-code login** (hand-written SPI + custom flow) — **done 2026-07-28, browser-verified**
   - **Decided 2026-07-28: hand-write a minimal authenticator SPI** (not a community jar, not deferred)
@@ -822,6 +833,22 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
       escaping, crimson submit button on the password screen (input-scoping fix), styled password
       reveal button. **Enabled by default** now (`EMAIL_CODE_ENABLED=true`);
       `configure-email-code-flow.sh` builds + binds the flow on boot.
+- [ ] `P3B-08` **Auth hardening** (added 2026-07-28 — abuse/rate-limit protections not yet configured)
+  - **Brute-force detection** (Keycloak built-in, realm flags — currently OFF): set
+    `bruteForceProtected: true` with `failureFactor`, `waitIncrementSeconds`, `maxFailureWaitSeconds`,
+    and decide `permanentLockout` vs temporary. This is the login rate-limit.
+  - **Email-code resend cooldown:** the SPI caps code *attempts* (3) and TTL (5 min) but does not
+    rate-limit "Send a new code" — add a per-session cooldown / daily cap so it can't be used to spam
+    mail. (Code change in `EmailCodeAuthenticator`.)
+  - **Registration bot protection:** enable Keycloak's reCAPTCHA on the hosted registration form
+    before opening public sign-up, or bots will create accounts.
+  - **Password policy:** none set — add a `passwordPolicy` (min length, maybe breach/complexity).
+  - **Secret rotation before any shared/prod realm:** `admin`/`admin`, the `verborum-backend` client
+    secret, and the Google/Facebook client secrets (the last two were shared in chat) must be rotated;
+    delete `verborum-dev-cli` (password-grant) from non-local realms.
+  - **Edge rate-limiting + TLS** land with the gateway/reverse proxy (Phase 5 + `docs/ops/dockerization-and-environments.md`): rate-limit the token/auth endpoints, enforce HTTPS, secure cookies.
+  - Done when: brute-force is on, resend is throttled, registration has CAPTCHA, and a documented
+    secret-rotation step exists for staging/prod.
 
 ---
 
