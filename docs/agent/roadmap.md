@@ -792,10 +792,12 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
     in the realm import + the bootstrap (so it also applies to an existing volume). Prod bakes it into
     the image (COPY). **Zero client work** — the hosted page Android already opens is simply branded.
   - Done when: the login/registration/verify-email pages render in Verborum colours in both schemes.
-- [ ] `P3B-06` **Passwordless email-code login** (SPI + custom flow — the only step touching the image)
-  - Keycloak 23 has no native email-OTP authenticator: needs a community SPI baked into a custom
-    Keycloak image + a custom browser flow offering password OR email-code as alternatives, the code
-    path gated on `emailVerified`. Full design + build steps + rollback in
+- [ ] `P3B-06` **Passwordless email-code login** (hand-written SPI + custom flow — the only step touching the image)
+  - **Decided 2026-07-28: hand-write a minimal authenticator SPI** (not a community jar, not deferred)
+    — keeps the auth path fully owned, no supply-chain risk, guaranteed KC23 compat; ~2 small classes.
+  - Keycloak 23 has no native email-OTP authenticator: build the SPI into a custom Keycloak image +
+    add a custom browser flow offering password OR email-code as alternatives, the code path gated on
+    `emailVerified`. Full design + build steps + rollback in
     `keycloak/passwordless-email-code/README.md`. Staged last: a mis-bound flow risks lockout.
   - Done when: on a throwaway realm, a verified user can log in with a password OR an emailed code,
     the code option is hidden for an unverified email, and `testuser`/`testadmin` still log in — then
