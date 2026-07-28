@@ -17,7 +17,11 @@ Last verified against a running stack: **2026-07-23** (backend roadmap P3-01/P3-
 | `verborum-app` (mobile) | Public client, Authorization Code + **PKCE S256 enforced** |
 | `verborum-web` | Public client, PKCE S256, redirect `http://localhost:3000/*` |
 | Hosted sign-up | **Enabled** — clients build no registration form |
-| Password reset | Enabled (hosted "Forgot Password"); **no SMTP in local dev**, so mail does not send |
+| Email verification | **Required** (`verifyEmail: true`) — a new account must confirm its address before it can obtain tokens |
+| Password reset | Enabled (hosted "Forgot Password") |
+| SMTP (local) | **Configured via Mailpit** — verification/reset mail is captured, readable at http://localhost:8025 (never actually sent) |
+| Google / Facebook sign-in | Wiring built (federated behind Keycloak); **OFF until real OAuth credentials are set** per environment |
+| Passwordless email-code login | Scoped, not yet live (roadmap P3B-06) |
 | ms_user (`:8086`) | Secured. All endpoints require a valid JWT |
 | ms_dictionary (`:8085`) | **Secured as of 2026-07-23 (P3-03)** — every call needs a bearer token. Still trusts a client-supplied `userId` (P3-05) |
 | Google sign-in | **Not configured** — needs real Google OAuth2 credentials |
@@ -209,11 +213,17 @@ clients are PKCE-only. Dev users: `testuser`/`testuser` (role `user`),
    Practical upshot for sync: keep uploading your own `sub` as `userId` and nothing changes. If you
    see 403s after this lands, you are sending the wrong owner id — most likely the guest UUID
    (`00000000-...`) that §6.4 says must be rewritten at first login.
-3. **Google sign-in is not configured.** Federated-behind-Keycloak is still the design (never
-   integrate Google SDK directly), but the button cannot work until real credentials exist.
+3. **Google & Facebook sign-in: wiring built, credentials pending.** Both are federated behind
+   Keycloak (never integrate a social SDK directly) and appear on the hosted login page automatically
+   once that environment's OAuth credentials are set — no client change needed. Until then the
+   buttons are simply absent. A social login yields a normal `sub`; the profile-creation dance
+   (`POST /users/` on a 404) is unchanged. Apple was dropped.
 4. **No API gateway** until backend Phase 5. Clients address services directly and must carry per-
    service base URLs.
-5. **No SMTP**, so hosted password reset and email verification do not deliver mail locally.
+5. **Email verification is now required, and SMTP works locally via Mailpit.** After hosted sign-up
+   the account must confirm its address before it can obtain tokens — plan the client UX for "check
+   your email to finish signing up." Locally the mail lands in the Mailpit UI (http://localhost:8025),
+   not a real inbox. Social logins (Google/Facebook) arrive pre-verified and skip this step.
 6. **Roles are not enforced on any endpoint yet.** Realm roles map correctly to
    `ROLE_user` / `ROLE_admin`, but no endpoint requires one, so do not build UI that depends on
    role-based 403s.

@@ -102,6 +102,54 @@ services:
     ports:
       - "8080:8080"
 
+  # Fake SMTP for local dev. Keycloak's realm smtpServer points here (host `mailpit`, 1025,
+  # no auth), so email verification and passwordless email-code mail are captured — never sent —
+  # and readable in the web UI at http://localhost:8025. Real SMTP is prod-only, injected by the
+  # keycloak-bootstrap service. No secrets, safe to commit.
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: verborum-mailpit
+    restart: unless-stopped
+    ports:
+      - "1025:1025"   # SMTP
+      - "8025:8025"   # Web UI
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: "true"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "true"
+
+  # Post-import secret injection. Native `--import-realm` cannot reliably substitute ${ENV} in the
+  # realm JSON (Keycloak #12069/#26275), so anything secret or per-environment is applied AFTER the
+  # realm is live, via kcadm.sh: the Google/Facebook identity providers and (staging/prod) the real
+  # smtpServer credentials. Idempotent, and a NO-OP locally when the credentials are unset — so this
+  # runs clean on a laptop with an empty .env. Exits when done. See keycloak/bootstrap/configure.sh.
+  keycloak-bootstrap:
+    image: quay.io/keycloak/keycloak:23.0.0
+    container_name: verborum-keycloak-bootstrap
+    restart: "no"
+    depends_on:
+      keycloak:
+        condition: service_healthy
+    entrypoint: ["/bin/bash", "/bootstrap/configure.sh"]
+    environment:
+      KC_URL: http://keycloak:8080
+      KC_REALM: verborum
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      FACEBOOK_CLIENT_ID: ${FACEBOOK_CLIENT_ID:-}
+      FACEBOOK_CLIENT_SECRET: ${FACEBOOK_CLIENT_SECRET:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_FROM: ${SMTP_FROM:-no-reply@verborum.app}
+      SMTP_FROM_DISPLAY_NAME: ${SMTP_FROM_DISPLAY_NAME:-Verborum}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_STARTTLS: ${SMTP_STARTTLS:-true}
+      SMTP_AUTH: ${SMTP_AUTH:-true}
+    volumes:
+      - ./keycloak/bootstrap:/bootstrap:ro
+
 volumes:
   rabbitmq_data:
   db_dictionary_data:

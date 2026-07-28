@@ -7,3 +7,8 @@ target/
 # OS noise
 .DS_Store
 Thumbs.db
+
+# Local secrets — real values live here, never committed. See .env.example for the shape.
+.env
+# Local-only Spring overrides (e.g. KEYCLOAK_ADMIN_CLIENT_SECRET)
+application-local.properties

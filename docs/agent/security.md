@@ -265,8 +265,13 @@ code_challenge_method`. Do not treat PKCE as advisory.
 registration form. A native form would need ms_user to create the Keycloak identity through the
 Admin API (P3-04, unbuilt), and would split identity ownership. After first login the client calls
 `POST /users/` once with `keycloakId` = JWT `sub` to create the profile row. Password reset is the
-hosted "Forgot Password" link. **No SMTP is configured**, so reset/verification mail does not send in
-local dev.
+hosted "Forgot Password" link.
+
+**Email verification is required** (`verifyEmail: true`, since the `oauth2-hardening` branch, roadmap
+P3B-02): a newly registered account must confirm its address before it can obtain tokens. **SMTP is
+now configured for local dev** — the realm's `smtpServer` points at the `mailpit` container, so
+verification/reset mail is captured (never sent) and readable at http://localhost:8025. Staging/prod
+use a real provider, injected after import (see the bootstrap note below).
 
 **Logout:** end-session endpoint `{issuer}/protocol/openid-connect/logout` with `client_id` +
 `refresh_token`, optional `revoke`, then delete local tokens. Skipping the end-session call leaves an
@@ -307,9 +312,30 @@ a placeholder for local dev, never a real credential. Services read it from
 `KEYCLOAK_ADMIN_CLIENT_SECRET`; `ms_user/application.properties` deliberately leaves it blank. Any
 non-local realm must have a generated secret supplied through the environment.
 
-**Not configured yet:** Google as an identity provider (§6 assumes it; it needs real Google OAuth2
-credentials that cannot be committed) and the §6.4 guest-data migration, which is client-side and
-needs no backend endpoint.
+**Social sign-in (Google + Facebook)** federates behind Keycloak — the client never touches a social
+SDK. The wiring is built (`oauth2-hardening`, roadmap P3B): the `keycloak-bootstrap` service creates
+each identity provider from environment variables. Both stay **OFF until real OAuth credentials
+exist** — set `GOOGLE_CLIENT_ID`/`_SECRET` and `FACEBOOK_CLIENT_ID`/`_SECRET` in that environment's
+`.env` and the provider appears on the hosted login page. Each environment needs its **own** OAuth
+app (the redirect URI is `{issuer}/broker/{google|facebook}/endpoint`, which differs per environment).
+Apple was considered and dropped.
+
+**Realm-import env substitution is broken — inject secrets after import.** Our compose runs
+`start-dev --import-realm`, and that native path does **not** reliably substitute `${ENV}` inside the
+realm JSON (Keycloak #12069/#26275): a `"clientSecret": "${GOOGLE_CLIENT_SECRET}"` is stored as the
+literal string and silently breaks login. **Never put a secret or an `${ENV}` placeholder for a
+secret into `keycloak/import/verborum-realm.json`.** Non-secret config (realm flags, clients, roles,
+the Mailpit `smtpServer`) lives in the JSON; secrets and per-environment overrides (IdP client
+secrets, real SMTP credentials) are applied afterward by `keycloak/bootstrap/configure.sh` via
+`kcadm.sh`, reading env vars — idempotent, and a no-op locally.
+
+**Passwordless email-code login** (sign in with an emailed one-time code instead of a password, only
+after the email is verified) is scoped but not yet wired: Keycloak 23 has no native email-OTP
+authenticator, so it needs a community SPI in a custom Keycloak image plus a custom browser flow.
+Design, build steps and rollback are in `keycloak/passwordless-email-code/README.md` (roadmap P3B-06).
+
+**Still not configured:** the §6.4 guest-data migration, which is client-side and needs no backend
+endpoint.
 
 ---
 

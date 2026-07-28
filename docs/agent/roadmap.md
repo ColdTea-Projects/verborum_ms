@@ -745,6 +745,56 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
 
 ---
 
+## Phase 3B — OAuth2 Hardening (SSO, email verification, passwordless login)
+> Goal: Social sign-in (Google + Facebook), required email verification, and a passwordless
+> email-code login option — all federated behind Keycloak, so clients change nothing.
+> Depends on: Phase 3 complete (Keycloak realm live, imported from git).
+> Branch: `oauth2-hardening`. Scope agreed 2026-07-28. See `docs/agent/security.md`.
+>
+> **Design constraints that shaped this phase:**
+> - Everything is Keycloak realm config — no new endpoints, no client app changes.
+> - **Native `--import-realm` cannot reliably substitute `${ENV}` in the realm JSON**
+>   (Keycloak #12069/#26275). So secrets + per-environment values are injected AFTER import by
+>   `keycloak/bootstrap/configure.sh` via `kcadm.sh`. Never put a secret in the committed realm JSON.
+> - Social providers federate behind Keycloak — never integrate a social SDK on the client.
+> - Apple was considered and dropped (paid dev account + rotating signed-JWT secret not worth it).
+
+- [x] `P3B-01` **Local SMTP via Mailpit + env-var scaffolding** (done 2026-07-28)
+  - Added `mailpit` to the root compose (SMTP 1025, web UI http://localhost:8025, accepts anything).
+  - Added `.env.example` documenting every env var (DB/RabbitMQ/Keycloak + new SMTP + Google/FB) and
+    git-ignored `.env`. Local dev needs none of them — all have safe defaults.
+  - Done when: mail sent by Keycloak locally lands in the Mailpit UI. (Verify once P3B-02 lands.)
+- [x] `P3B-02` **Require email verification** (done 2026-07-28)
+  - `verifyEmail: true` in the realm import; realm `smtpServer` points at the Mailpit container
+    (non-secret, committed). A new hosted sign-up must confirm the address before obtaining tokens.
+  - Done when: registering a new user through hosted sign-up receives a verification mail in Mailpit
+    and cannot get a token until the link is clicked.
+- [x] `P3B-03` **Env-driven secret bootstrap (kcadm.sh)** (done 2026-07-28)
+  - `keycloak/bootstrap/configure.sh` + the short-lived `keycloak-bootstrap` compose service:
+    idempotent, no-op on a laptop, injects Google/Facebook IdP credentials and (staging/prod) the
+    real SMTP override from env vars after the realm is healthy.
+  - Done when: `docker compose up` runs the bootstrap clean with an empty `.env` (configures nothing)
+    and, with Google/FB env vars set, the providers appear on the login page.
+- [ ] `P3B-04` **Enable Google sign-in** (blocked on real Google OAuth2 credentials)
+  - Create a Google OAuth app; redirect URI `{KEYCLOAK_HOSTNAME_URL}/realms/verborum/broker/google/endpoint`.
+    Put the id/secret in the environment's `.env`; the bootstrap does the rest. Separate app per env.
+  - Done when: "Continue with Google" completes a login and lands a normal `sub`; `POST /users/`
+    creates the profile as usual.
+- [ ] `P3B-05` **Enable Facebook sign-in** (blocked on a Meta app + App Review for the `email` scope)
+  - Same pattern as P3B-04, `providerId=facebook`. Meta App Review is required before non-test users
+    can grant `email` — plan lead time.
+  - Done when: "Continue with Facebook" completes a login for a non-test user.
+- [ ] `P3B-06` **Passwordless email-code login** (SPI + custom flow — the only step touching the image)
+  - Keycloak 23 has no native email-OTP authenticator: needs a community SPI baked into a custom
+    Keycloak image + a custom browser flow offering password OR email-code as alternatives, the code
+    path gated on `emailVerified`. Full design + build steps + rollback in
+    `keycloak/passwordless-email-code/README.md`. Staged last: a mis-bound flow risks lockout.
+  - Done when: on a throwaway realm, a verified user can log in with a password OR an emailed code,
+    the code option is hidden for an unverified email, and `testuser`/`testadmin` still log in — then
+    the shared realm's `browserFlow` is switched over.
+
+---
+
 ## Phase 4 — Build ms_marketplace
 > Goal: Public dictionary listings, stats, ratings.
 > Depends on: Phase 3 complete (needs secured ms_dictionary events flowing via RabbitMQ)
