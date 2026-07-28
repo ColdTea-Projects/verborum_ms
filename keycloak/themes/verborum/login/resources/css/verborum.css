@@ -228,7 +228,17 @@ a:hover { color: var(--v-accent-hover) !important; text-decoration: underline !i
   box-shadow: none !important;
 }
 #kc-info-wrapper {
-  padding: 18px 0 2px !important;
+  padding: 4px 0 0 !important;
+  margin-top: -6px !important;
+}
+
+/* Keycloak's social-section divider <hr> is near-white (#F1F1F1) — a glaring line on the dark card.
+   The "Or sign in with" label already separates the sections, so drop the rule entirely. */
+#kc-social-providers hr,
+#kc-content-wrapper hr,
+form hr,
+hr {
+  display: none !important;
 }
 #kc-info-wrapper,
 #kc-registration,
