@@ -299,9 +299,9 @@ input[type="checkbox"] { accent-color: var(--v-accent); }
 
 /* ---- Password reveal (eye) toggle --------------------------------------- */
 /* Keycloak's show/hide-password button ships with a white control background that clashes with the
-   dark field. Match it to the input. */
-.pf-c-button.pf-m-control,
-button.pf-c-button.pf-m-control,
+   dark field. Match it to the input. SCOPED to the input group — the social provider buttons share
+   the .pf-m-control class, and an unscoped rule stripped their left border / rounded only one side. */
+.pf-c-input-group .pf-c-button.pf-m-control,
 .pf-c-input-group > button {
   background: var(--v-bg) !important;
   color: var(--v-text-2) !important;
@@ -309,5 +309,5 @@ button.pf-c-button.pf-m-control,
   border-left: 0 !important;
   border-radius: 0 var(--v-radius-sm) var(--v-radius-sm) 0 !important;
 }
-.pf-c-button.pf-m-control:hover,
+.pf-c-input-group .pf-c-button.pf-m-control:hover,
 .pf-c-input-group > button:hover { color: var(--v-accent) !important; }
