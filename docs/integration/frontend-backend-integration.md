@@ -180,7 +180,7 @@ its own making.
 
 | | Android | iOS | Web |
 |---|---|---|---|
-| Keycloak client | `verborum-app` (public) | `verborum-app` (public) | `verborum-web` (public) or BFF confidential — §6.3 |
+| Keycloak client | `verborum-app` (public) | `verborum-app` (public) | `verborum-app` (public) — the separate `verborum-web` client was removed 2026-08-06; a BFF would be a new confidential client, §6.3 |
 | Login UI | AppAuth / Custom Tabs | ASWebAuthenticationSession | Browser redirect |
 | Token storage | EncryptedSharedPreferences / DataStore + Keystore | Keychain | §6.3 |
 | Refresh scope | `offline_access` | `offline_access` | none (short sessions) |

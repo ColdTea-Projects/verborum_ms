@@ -237,8 +237,7 @@ lifetimes. **If the two ever disagree, that is a bug — fix both.** Everything 
 
 | Client id | Type | Flow | Used by |
 |---|---|---|---|
-| `verborum-app` | public | Auth Code + PKCE | Android, iOS |
-| `verborum-web` | public | Auth Code + PKCE | Web (may become a BFF confidential client — Integration §6.3 is undecided; the backend accepts `Authorization: Bearer` either way) |
+| `verborum-app` | public | Auth Code + PKCE | Android, iOS, **web** |
 | `verborum-backend` | confidential | client credentials / service account | ms_user → Keycloak Admin API |
 | `verborum-dev-cli` | public | **direct access grants (password)** | **LOCAL DEV ONLY** |
 
@@ -252,11 +251,22 @@ Delete it from any realm export that leaves a developer machine.
 idle 60 days so a device offline for days resumes sync without re-login (Integration §6.2). Clients
 send `Authorization: Bearer <access>`, refresh once on 401, then surface login.
 
-**Redirect URIs:** `verborum-app` → `de.coldtea.verborum://oauth2redirect/*` and `http://localhost:*`
-(emulator only); `verborum-web` → `http://localhost:3000/*`. New URIs go in the realm import file;
-an unregistered one is rejected before the login page renders.
+**One client for every platform.** A separate `verborum-web` client existed until 2026-08-06 and was
+removed: the KMP web app authenticates as `verborum-app` with its own page as the redirect target,
+so `verborum-web` (locked to `http://localhost:3000/*`) was never used by anything. If a web BFF is
+ever built (Integration §6.3), that is a *confidential* client and a new decision, not this one.
 
-**PKCE is enforced.** Both public clients set `pkce.code.challenge.method=S256`; an authorization
+**Redirect URIs:** `verborum-app` → `de.coldtea.verborum://oauth2redirect/*` (Android + iOS) and
+`http://localhost:*` (emulator and the local web dev server). An unregistered URI is rejected before
+the login page renders.
+
+A **deployed** web origin is not committed. It is per-environment, and the realm-import path does not
+substitute `${ENV}` placeholders (see the note at the top of `keycloak/bootstrap/configure.sh`), so it
+is applied after import by that script from `APP_WEB_ORIGIN` — comma-separated, each origin
+contributing `<origin>/*`. The client's `webOrigins` stays `"+"`, which derives the CORS allowlist
+from the redirect URIs, so it follows automatically. Local URIs still live in the realm import file.
+
+**PKCE is enforced.** The public client sets `pkce.code.challenge.method=S256`; an authorization
 request without `code_challenge` fails with `invalid_request: Missing parameter:
 code_challenge_method`. Do not treat PKCE as advisory.
 

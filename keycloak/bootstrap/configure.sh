@@ -80,6 +80,45 @@ upsert_idp() {
 upsert_idp "google"   "google"   "${GOOGLE_CLIENT_ID:-}"     "${GOOGLE_CLIENT_SECRET:-}"     "openid profile email"  "Google"
 upsert_idp "facebook" "facebook" "${FACEBOOK_CLIENT_ID:-}"   "${FACEBOOK_CLIENT_SECRET:-}"   "email public_profile"  "Facebook"
 
+# --- Per-environment redirect URIs and web origins ----------------------------
+# The realm import ships only the local values: the custom scheme (Android + iOS) and
+# `http://localhost:*`. Anything deployed has an origin the import cannot know, and the web client
+# is the one that needs it — the KMP web app authenticates as `verborum-app` with its own page as
+# the redirect target (`https://<origin>/`), not as a custom scheme.
+#
+# So a deployed origin is added here rather than committed, exactly like the IdP secrets above: it
+# is per-environment, and the import path would not substitute it anyway. No-op on a laptop.
+#
+#   APP_WEB_ORIGIN=https://app.verborum.coldtea.de
+#
+# Multiple origins: comma-separate them. Each contributes `<origin>/*` as a redirect URI. Only the
+# redirect list is managed here — the client's `webOrigins` is `"+"`, which tells Keycloak to derive
+# the CORS allowlist from these same redirect URIs, so it follows along on its own.
+if [[ -n "${APP_WEB_ORIGIN:-}" ]]; then
+  log "verborum-app: adding deployed web origin(s) to the redirect allowlist."
+
+  CID=$("$KCADM" get clients -r "$KC_REALM" -q clientId=verborum-app --fields id --format csv | tr -d '"' | tail -n1)
+  if [[ -z "${CID:-}" ]]; then
+    log "verborum-app: client not found — cannot add redirect URIs. Is the realm imported?"
+    exit 1
+  fi
+
+  # Start from what the import defines rather than appending to whatever a previous run left, so a
+  # re-run with a changed APP_WEB_ORIGIN replaces the old origin instead of accumulating stale ones.
+  REDIRECTS='"de.coldtea.verborum://oauth2redirect/*","http://localhost:*"'
+  IFS=',' read -ra ORIGIN_LIST <<< "${APP_WEB_ORIGIN}"
+  for origin in "${ORIGIN_LIST[@]}"; do
+    origin="${origin%/}"                       # a trailing slash would make the pattern `…//*`
+    [[ -z "$origin" ]] && continue
+    REDIRECTS="${REDIRECTS},\"${origin}/*\""
+  done
+
+  "$KCADM" update "clients/${CID}" -r "$KC_REALM" -b "{\"redirectUris\":[${REDIRECTS}]}"
+  log "verborum-app: redirect allowlist updated."
+else
+  log "verborum-app: no APP_WEB_ORIGIN set — keeping the local redirect URIs from the realm import."
+fi
+
 # --- Real SMTP override (staging/prod) ---------------------------------------
 # The realm JSON already ships a working local smtpServer pointing at Mailpit. Only override it when
 # a real SMTP host is provided — i.e. never on a laptop. Mailpit needs no auth; a real provider does.

@@ -48,8 +48,8 @@
   "clients": [
     {
       "clientId": "verborum-app",
-      "name": "Verborum mobile (Android + iOS)",
-      "description": "Public client, Authorization Code + PKCE. Integration doc 6.1.",
+      "name": "Verborum app (Android, iOS, web)",
+      "description": "Public client, Authorization Code + PKCE. Integration doc 6.1. Every Verborum client uses this one - the KMP web app authenticates as verborum-app too, redirecting to its own page rather than a custom scheme, which is why the separate verborum-web client was removed. Deployed origins are added to redirectUris by keycloak/bootstrap/configure.sh from APP_WEB_ORIGIN; only local values are committed here.",
       "enabled": true,
       "protocol": "openid-connect",
       "publicClient": true,
@@ -64,29 +64,6 @@
       ],
       "webOrigins": [
         "+"
-      ],
-      "attributes": {
-        "pkce.code.challenge.method": "S256",
-        "access.token.lifespan": "300"
-      }
-    },
-    {
-      "clientId": "verborum-web",
-      "name": "Verborum web",
-      "description": "Public client, Authorization Code + PKCE. May be replaced by a BFF confidential client - Integration doc 6.3 is undecided.",
-      "enabled": true,
-      "protocol": "openid-connect",
-      "publicClient": true,
-      "standardFlowEnabled": true,
-      "directAccessGrantsEnabled": false,
-      "serviceAccountsEnabled": false,
-      "implicitFlowEnabled": false,
-      "fullScopeAllowed": true,
-      "redirectUris": [
-        "http://localhost:3000/*"
-      ],
-      "webOrigins": [
-        "http://localhost:3000"
       ],
       "attributes": {
         "pkce.code.challenge.method": "S256",

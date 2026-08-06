@@ -4,6 +4,7 @@ import de.coldtea.verborum.msdictionary.common.utils.SupportedLanguage;
 import de.coldtea.verborum.msdictionary.common.utils.ValidUUID;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import lombok.*;
 
 import static de.coldtea.verborum.msdictionary.common.constants.DTOMessageConstants.*;
@@ -23,6 +24,7 @@ public class DictionaryRequestDTO {
     private String userId;
 
     @NotBlank(message = DICTIONARY_NAME)
+    @Size(max = DICTIONARY_NAME_MAX, message = DICTIONARY_NAME_TOO_LONG)
     private String name;
 
     @NotNull(message = DICTIONARY_IS_PUBLIC)

@@ -37,6 +37,7 @@ verborum_ms/
 | `docs/agent/testing.md` | Writing or reviewing any test code |
 | `docs/agent/roadmap.md` | Asked "what's next?", "what should I build?", or "what's the status?" |
 | `docs/integration/client-login-guide.md` | Any question from a client team (Android/iOS/web) about login, sign-up, tokens or identity ids |
+| `docs/integration/kmp-client-alignment.md` | Working on or asked about the KMP (iOS/web) client — what it does not yet use, and what this backend already offers it |
 | `docs/ops/local-development.md` | Running the stack, getting a token, running tests, verifying events by hand, troubleshooting |
 
 ---
