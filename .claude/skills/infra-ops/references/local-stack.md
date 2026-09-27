@@ -2,12 +2,12 @@
 
 ## Containers and volumes
 
-The root `docker-compose.yml` brings up RabbitMQ, both service databases, Keycloak plus its
+The root `docker-compose.yml` brings up RabbitMQ, all three service databases, Keycloak plus its
 bootstrap job, Adminer and Mailpit. Named volumes: `rabbitmq_data`, `db_dictionary_data`,
-`db_user_data`, `keycloak_data`. Every container except `keycloak-bootstrap` and Adminer declares a
+`db_user_data`, `db_market_data`, `keycloak_data`. Every container except `keycloak-bootstrap` and Adminer declares a
 health check, so `docker compose ps` reporting healthy is a real signal.
 
-Per-service compose files exist in `ms_dictionary/` and `ms_user/` for isolated work — Postgres and
+Per-service compose files exist in `ms_dictionary/`, `ms_user/` and `ms_marketplace/` for isolated work — Postgres and
 Adminer only, no broker. They clash on host ports with the root file.
 
 ## Keycloak — three things that surprise people

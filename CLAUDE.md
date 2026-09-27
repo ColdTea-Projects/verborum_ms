@@ -28,6 +28,7 @@ verborum_ms/
 ├── keycloak/                  ← realm import, bootstrap scripts, custom image, themes
 ├── ms_dictionary/             ← ✅ complete and secured (reference implementation)
 ├── ms_user/                   ← ✅ Phase 2 complete, verified over HTTP
+├── ms_marketplace/            ← 🚧 scaffolded and secured (P4-01); entities/endpoints next
 └── sql_dumps/
 ```
 
