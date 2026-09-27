@@ -24,8 +24,8 @@ import org.springframework.context.annotation.Configuration;
  * <p>
  * ms_marketplace keeps its `dictionary_stats` read model current from ms_dictionary's events
  * (P4-03..P4-05): going public, going private, listed-field updates, deletion, and the scheduled
- * `dictionary.snapshot` — plus ms_user's `user.deleted`. Publishing `dictionary.imported` arrives at
- * P4-07.
+ * `dictionary.snapshot` — plus ms_user's `user.deleted`. Publishes `dictionary.imported` (P4-07)
+ * through OutboundEventPublisher, after commit.
  * <p>
  * All services declare the same exchange; declarations are idempotent, so whichever service
  * starts first creates it.
@@ -43,6 +43,8 @@ public class RabbitMQConfig {
     public static final String ROUTING_KEY_DICTIONARY_SNAPSHOT = "dictionary.snapshot";
     public static final String ROUTING_KEY_DICTIONARY_DELETED = "dictionary.deleted";
     public static final String ROUTING_KEY_USER_DELETED = "user.deleted";
+    // Published by this service (P4-07); ms_user consumes it on `user.dictionary.imported`
+    public static final String ROUTING_KEY_DICTIONARY_IMPORTED = "dictionary.imported";
 
     public static final String QUEUE_DICTIONARY_VISIBILITY_PUBLIC = "marketplace.dictionary.visibility.public";
     public static final String QUEUE_DICTIONARY_VISIBILITY_PRIVATE = "marketplace.dictionary.visibility.private";

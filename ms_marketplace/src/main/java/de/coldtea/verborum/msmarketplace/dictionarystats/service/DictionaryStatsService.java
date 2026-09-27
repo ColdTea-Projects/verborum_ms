@@ -65,7 +65,8 @@ public interface DictionaryStatsService {
     void hideDeletedListing(DictionaryDeletedEvent event);
 
     /**
-     * `user.deleted` — deletes every row owned by that user, listed or hidden (P4-05).
+     * `user.deleted` — deletes every row owned by that user, listed or hidden (P4-05), and the
+     * records of what they imported (P4-07).
      *
      * @param keycloakId the event's `keycloakId` — the JWT subject stored in `fk_user_id`. Never the
      *                   event's `userId`, which is ms_user's own key and matches nothing here

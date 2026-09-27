@@ -81,8 +81,8 @@ unchanged (`creation_dt`/`update_dt`/`imported_at`).
   - A delete of an unknown id publishes nothing and still returns 200.
 - **Consumes:** `dictionary.imported` on the durable queue `user.dictionary.imported`
   (`common/listener/MarketplaceEventListener` → `VaultService.importDictionary`, P2-09 done).
-  Nothing publishes it until ms_marketplace ships (P4-07), but the queue is bound already, so
-  imports are captured rather than discarded.
+  Published by ms_marketplace's import endpoint since P4-07 — verified end-to-end 2026-09-27
+  (marketplace import → vault entry here). A repeat import re-sends it; the idempotent insert absorbs it.
   - The event is `{dictionaryId, keycloakId, eventTimestamp}` — **`keycloakId`, not `userId`**, for
     the same reason as `user.deleted`. `importDictionary` resolves it to `user_id` before writing,
     because `vault_entries.fk_user_id` is a real FK.

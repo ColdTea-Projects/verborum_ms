@@ -15,8 +15,8 @@ request time — decided 2026-07-23, see roadmap `P4-03`.
 - **Base package:** `de.coldtea.verborum.msmarketplace`
 - **Status:** Scaffolded (P4-01), `dictionary_stats` table (P4-02), listing projection +
   snapshot reconciliation fed by ms_dictionary events (P4-03), private → hidden (P4-04),
-  deletion and `user.deleted` (P4-05), browse API (P4-06). Import endpoint + `dictionary.imported`
-  next (P4-07).
+  deletion and `user.deleted` (P4-05), browse API (P4-06), import + `dictionary.imported` (P4-07).
+  Phase 4 work left here: none; P4-10 (public read) is in ms_dictionary.
 
 ## Entities
 - `DictionaryStats` (`dictionary_stats`) — `dictionaryId` (PK, ms_dictionary's id, no DB FK),
@@ -30,6 +30,10 @@ request time — decided 2026-07-23, see roadmap `P4-03`.
     purpose as a stale-event guard; **browse must filter `is_listed = true`**. Set explicitly on
     create (Hibernate ignores column defaults). Migration `2026/09/27-02-changelog.json`.
   - `rating` / `viewCount` are deliberately absent until designed.
+- `DictionaryImport` (`dictionary_imports`, P4-07) — `importId` (server-generated), `dictionaryId`
+  (real FK to `dictionary_stats`, ON DELETE CASCADE), `userId` (importer's subject), `importedAt`.
+  UNIQUE (dictionary, user) — `import_count` counts unique importers. Migration
+  `2026/09/27-05-changelog.json`. Own package `dictionaryimport/`.
 
 ## Events (see `docs/agent/rabbitmq.md`)
 - **Consumes (P4-03):** `common/listener/DictionaryEventListener` → `DictionaryStatsService`, one
@@ -60,9 +64,12 @@ request time — decided 2026-07-23, see roadmap `P4-03`.
   `deleteListingsByUser` (P4-05) — **deletes** every row of the user, listed or hidden. Matches on the
   event's **`keycloakId`**, never its `userId` (ms_user's own key; matches nothing here). Deleted, not
   hidden, because ms_user's clock cannot be compared with ms_dictionary's `updatedAt`.
-- **Publishes:** `dictionary.imported` (P4-07) — ms_user already has the queue bound. The payload is
-  `{dictionaryId, keycloakId, eventTimestamp}`: the field is **`keycloakId`**, i.e. the caller's JWT
-  subject.
+- **Publishes:** `dictionary.imported` (P4-07) from `DictionaryImportServiceImpl`, via
+  `OutboundEvent` → `OutboundEventPublisher` after commit (the only class here touching
+  `RabbitTemplate`). Payload `{dictionaryId, keycloakId, eventTimestamp}` — fixed by ms_user's P2-09
+  consumer; **`keycloakId`** is the importer's JWT subject. Sent on every successful import, repeats
+  included (the vault is idempotent; a re-send repairs a lost first event).
+- `user.deleted` also deletes the user's import records; their earlier imports stay counted.
 - `RabbitMQConfig` mirrors the other services: same exchange, fanout DLX + DLQ, ISO-8601 converter
   with `INFERRED` type precedence (ms_dictionary's `__TypeId__` names classes that do not exist here).
 
@@ -81,6 +88,11 @@ request time — decided 2026-07-23, see roadmap `P4-03`.
   ms_dictionary/ms_user are inert (P4-09) — do not copy from them.
 - Language codes are stored and returned **uppercase** (normalized on write, `Locale.ROOT`).
 - `publisherId` = the owner's JWT subject (`fk_user_id`). Safe to expose; no display name (BL-04).
+
+- `POST /{dictionaryId}/import` (P4-07) — the one write. Importer = token subject. 404 hidden or
+  unknown (never reveal a private dictionary exists), 400 `SelfImportException` for your own, 201
+  otherwise and on repeats. The count increment is one atomic `@Modifying` UPDATE in
+  `DictionaryStatsRepository` — never read-modify-write it in Java.
 
 ## Security
 - `common/config/SecurityConfig.java` is in place from the first commit: stateless JWT resource

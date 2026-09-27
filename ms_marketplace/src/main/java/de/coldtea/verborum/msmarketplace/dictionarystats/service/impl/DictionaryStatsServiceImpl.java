@@ -7,6 +7,8 @@ import de.coldtea.verborum.msmarketplace.common.event.DictionaryUpdatedEvent;
 import de.coldtea.verborum.msmarketplace.common.event.DictionaryVisibilityEvent;
 import de.coldtea.verborum.msmarketplace.common.mapper.DictionaryStatsMapper;
 import de.coldtea.verborum.msmarketplace.common.response.PageResponse;
+import de.coldtea.verborum.msmarketplace.dictionaryimport.entity.DictionaryImport;
+import de.coldtea.verborum.msmarketplace.dictionaryimport.repository.DictionaryImportRepository;
 import de.coldtea.verborum.msmarketplace.dictionarystats.dto.DictionaryListingResponseDTO;
 import de.coldtea.verborum.msmarketplace.dictionarystats.entity.DictionaryStats;
 import de.coldtea.verborum.msmarketplace.dictionarystats.repository.DictionaryStatsRepository;
@@ -54,6 +56,8 @@ public class DictionaryStatsServiceImpl implements DictionaryStatsService {
     private final DictionaryStatsRepository dictionaryStatsRepository;
 
     private final DictionaryStatsMapper dictionaryStatsMapper;
+
+    private final DictionaryImportRepository dictionaryImportRepository;
 
     @Override
     public PageResponse<DictionaryListingResponseDTO> getListings(int page, int size) {
@@ -182,6 +186,15 @@ public class DictionaryStatsServiceImpl implements DictionaryStatsService {
     @Transactional
     @Override
     public void deleteListingsByUser(String keycloakId) {
+        // As an importer (P4-07): the record of what they imported is their data too. Counts are left
+        // as they are — popularity is history, and nothing identifies who contributed to it any more
+        List<DictionaryImport> imported = dictionaryImportRepository.findByUserId(keycloakId);
+        if (!imported.isEmpty()) {
+            dictionaryImportRepository.deleteAllInBatch(imported);
+        }
+
+        // As a publisher: their listings. Other users' imports of those listings go with them via the
+        // ON DELETE CASCADE foreign key
         List<DictionaryStats> owned = dictionaryStatsRepository.findByUserId(keycloakId);
         if (owned.isEmpty()) {
             return;

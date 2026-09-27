@@ -7,6 +7,9 @@ package de.coldtea.verborum.msmarketplace.common.constants;
  */
 public final class ResponseMessageConstants {
 
+    //MarketplaceController
+    public static final String DICTIONARY_IMPORTED_SUCCESSFULLY = "Imported successfully dictionary ";
+
     private ResponseMessageConstants() {
     }
 }

@@ -1069,27 +1069,31 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
       400; no token → 401. Suite 67/67 (11 new web-slice tests).
     - **Found, not fixed:** `@SupportedLanguage` and `@ValidUUID` are **inert in ms_dictionary and
       ms_user** — see `P4-09`.
-- [ ] `P4-07` **Import endpoint + publish `dictionary.imported` from ms_marketplace**
+- [x] `P4-07` **Import endpoint + publish `dictionary.imported` from ms_marketplace**
   - `POST /marketplace/dictionaries/{dictionaryId}/import` (moved here from P4-06 on 2026-09-27) —
     only a **listed** dictionary is importable (a hidden row is private or deleted → 404)
   - On import: publish event so ms_user can add to vault, and increment `import_count`
   - Done when: importing triggers a vault entry in ms_user
-- [ ] `P4-09` **Make `@SupportedLanguage` and `@ValidUUID` actually validate** (found 2026-09-27 at P4-06)
-  - **The bug:** in ms_dictionary and ms_user both annotations are plain annotations with no
-    `@Constraint(validatedBy = …)`, so Bean Validation never runs their validators. Verified live on
-    ms_dictionary: `POST /dictionaries/` with `fromLang: "XX"` → 201, with `dictionaryId: "not-a-uuid"`
-    → 201, `GET /words/language/from/XX` → 200. The P3-09 note claiming one of a symmetric pair 400'd
-    was not accurate. Affects `DictionaryRequestDTO`, `WordRequestDTO`, `WordBundleRequestDTO`,
-    `WordController` (ms_dictionary) and `UserRequestDTO`, `VaultEntryRequestDTO` (ms_user).
-  - **Why it matters now:** invalid codes flow into marketplace listings, where they can never match a
-    (validated) language filter; non-UUID ids are stored as primary keys.
-  - **The fix is more than adding `@Constraint`:** both validators *throw* from `isValid`. Once they
-    actually run, the framework wraps that in a `ValidationException`, which no handler catches → 500.
-    They must return false instead (as ms_marketplace's does), and the path-variable uses need the
-    `HandlerMethodValidationException` 400 handler ms_marketplace now has. Then clean up any invalid
-    rows already stored. ms_marketplace's `SupportedLanguage`/`SupportedLanguageValidator` is the
-    working template.
-  - Needs care with clients: requests they send today that succeed will start returning 400.
+  - Done 2026-09-27. **Decisions (project owner):**
+    1. **Import = a reference** (the P2 vault model) — the importer sees the owner's latest version.
+       This needs public dictionaries to be readable in ms_dictionary, which today 404s any
+       non-owner → **P4-10**. Until P4-10 lands, an imported dictionary cannot be opened.
+    2. **`import_count` counts unique importers.** New `dictionary_imports` table
+       (`2026/09/27-05-changelog.json`), UNIQUE (dictionary, user), real FK to `dictionary_stats` with
+       ON DELETE CASCADE. The count rises only on a first import, via an atomic
+       `UPDATE ... SET import_count = import_count + 1` (no lost updates between concurrent importers).
+    3. **Importing your own dictionary → 400** (`SelfImportException`); the clients prevent it.
+    - Hidden (private/deleted) or unknown → 404. `dictionary.imported` is published after commit on
+      every successful call — ms_user's vault is idempotent, and a re-send repairs a lost first event.
+      `OutboundEvent`/`OutboundEventPublisher` copied into ms_marketplace (its first publisher).
+    - `user.deleted` now also deletes the user's import records (counts stay — history).
+    - Known edge: a concurrent double-tap by the same user can make the second transaction fail on the
+      UNIQUE constraint (500); a retry takes the idempotent path. Counts are never wrong.
+    - **Verified live, all three services:** import → 201, `import_count` 0→1, one import row, ms_user
+      vault entry created; re-import → 201, count still 1, vault unchanged; unknown → 404; own → 400;
+      private → 404. DLQ empty. testuser had no ms_user profile, so a temporary one was created and
+      removed afterwards directly in the database (not via `DELETE /users/`, which would cascade).
+      Suite 79/79.
 - [x] `P4-08` **Dictionary tags** (requested 2026-07-23; built ahead of the phase)
   - Built now rather than with the rest of Phase 4 because the clients can start attaching tags
     immediately, and the data is only useful once it has accumulated — the marketplace and the AI
@@ -1126,6 +1130,34 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
     rows**.
   - Not built (say the word if wanted): a "find dictionaries by tag" lookup. That is really a
     marketplace query and belongs with P4-06, not in ms_dictionary.
+- [ ] `P4-09` **Make `@SupportedLanguage` and `@ValidUUID` actually validate** (found 2026-09-27 at P4-06)
+  - **The bug:** in ms_dictionary and ms_user both annotations are plain annotations with no
+    `@Constraint(validatedBy = …)`, so Bean Validation never runs their validators. Verified live on
+    ms_dictionary: `POST /dictionaries/` with `fromLang: "XX"` → 201, with `dictionaryId: "not-a-uuid"`
+    → 201, `GET /words/language/from/XX` → 200. The P3-09 note claiming one of a symmetric pair 400'd
+    was not accurate. Affects `DictionaryRequestDTO`, `WordRequestDTO`, `WordBundleRequestDTO`,
+    `WordController` (ms_dictionary) and `UserRequestDTO`, `VaultEntryRequestDTO` (ms_user).
+  - **Why it matters now:** invalid codes flow into marketplace listings, where they can never match a
+    (validated) language filter; non-UUID ids are stored as primary keys.
+  - **The fix is more than adding `@Constraint`:** both validators *throw* from `isValid`. Once they
+    actually run, the framework wraps that in a `ValidationException`, which no handler catches → 500.
+    They must return false instead (as ms_marketplace's does), and the path-variable uses need the
+    `HandlerMethodValidationException` 400 handler ms_marketplace now has. Then clean up any invalid
+    rows already stored. ms_marketplace's `SupportedLanguage`/`SupportedLanguageValidator` is the
+    working template.
+  - Needs care with clients: requests they send today that succeed will start returning 400.
+- [ ] `P4-10` **Public dictionaries readable by any authenticated user in ms_dictionary** (added 2026-09-27 at P4-07)
+  - **Why:** an import is a reference (P4-07 decision). The importer's client must read the
+    dictionary and its words from ms_dictionary, but every read there 404s a non-owner (P3-08) — so an
+    imported dictionary cannot be opened today.
+  - Change the read rules for **public** dictionaries only: `GET /dictionaries/dictionary/{id}`,
+    `GET /dictionaries/batch`, `GET /words/dictionary/{id}` (and tags) return a public dictionary to any
+    authenticated caller; a private one still 404s a non-owner. Writes stay owner-only (403).
+  - This amends the P3-08 ownership contract — update `docs/agent/security.md`,
+    `.claude/skills/security/references/ownership-rules.md` and the client integration docs, and run
+    the `security-auditor` agent.
+  - When the owner makes it private or deletes it, it disappears from importers too (reference
+    semantics, accepted). A "make my own copy" action would be a separate, later task.
 
 ---
 

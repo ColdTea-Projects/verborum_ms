@@ -11,6 +11,15 @@ public final class ErrorMessageConstants {
     // Returned instead of an unhandled exception's own message, which would leak internals
     public static final String INTERNAL_SERVER_ERROR = "Internal server error";
     public static final String NO_AUTHENTICATED_USER = "No authenticated user found";
+    //Import (P4-07)
+    public static final String LISTING_WAS_NOT_FOUND_ID = "Listing was not found. ID: ";
+    public static final String CANNOT_IMPORT_OWN_DICTIONARY = "A dictionary cannot be imported by its own publisher";
+
+    //OutboundEventPublisher — log message ({} placeholder)
+    public static final String EVENT_PUBLISH_FAILED =
+            "Failed to publish {} after commit. The write succeeded but the event never went out; "
+                    + "consumers will not see it without a re-publish or a reconciliation run.";
+
     // Request parameter that does not convert to its type; the parameter name is appended
     public static final String INVALID_PARAMETER = "Invalid value for parameter: ";
 

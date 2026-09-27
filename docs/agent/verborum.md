@@ -189,6 +189,15 @@ Column-level detail, constraints and quirks (the cross-service user key is `keyc
 - source_updated_at  timestamptz       ← ms_dictionary's updatedAt; rule-4 stale-event guard
 - creation_dt / update_dt timestamptz
 ```
+### DictionaryImport (`dictionary_imports` table in ms_marketplace, P4-07)
+```
+- import_id          VARCHAR(255) PK   ← server-generated
+- fk_dictionary_id   VARCHAR(255)      ← real FK to dictionary_stats, ON DELETE CASCADE
+- fk_user_id         VARCHAR(255)      ← the importer's JWT subject; indexed
+- imported_at        timestamptz
+UNIQUE (fk_dictionary_id, fk_user_id)   ← import_count counts unique importers
+```
+
 A read model, not a source of truth. Browse must filter `is_listed = true`. `rating` /
 `view_count` are not built yet (undesigned).
 
@@ -251,7 +260,16 @@ DictionaryListingResponseDTO { dictionaryId, publisherId, name, fromLang, toLang
 `PageResponse` is Verborum's own paging envelope, not Spring's serialized `Page` (unstable shape).
 `publisherId` is the owner's JWT subject — the value for the publisher endpoint; it grants no access
 (ownership always comes from the caller's token). No display name yet (BL-04). Language codes come
-back uppercase. `POST /marketplace/dictionaries/{dictionaryId}/import` ships with its event at P4-07.
+back uppercase.
+
+| Method | Path | Returns |
+|---|---|---|
+| POST | `/marketplace/dictionaries/{dictionaryId}/import` | `Response` (201) — P4-07. 404 if unknown, private or deleted; 400 (`SelfImportException`) for your own. Idempotent: a repeat is 201 again and counts nothing |
+
+Import records `(dictionary, importer)` once in `dictionary_imports`, increments `import_count` only
+on a first import (unique importers), and publishes `dictionary.imported` on every successful call.
+The importer can open the dictionary only once public dictionaries are readable in ms_dictionary
+(P4-10).
 
 ---
 
@@ -288,7 +306,7 @@ direct DLX would fail to match and drop. See `docs/agent/rabbitmq.md`.
 
 **User-identifying events carry `keycloakId`.** This applies to `user.deleted` (below) and to
 `dictionary.imported`, whose payload is `{dictionaryId, keycloakId, eventTimestamp}` — fixed by the
-P2-09 consumer, and what ms_marketplace must publish at P4-07. ms_marketplace and ms_dictionary only
+P2-09 consumer, and published by ms_marketplace since P4-07. ms_marketplace and ms_dictionary only
 ever see the JWT subject; ms_user's `user_id` is private to ms_user, which resolves
 keycloakId → user_id on the way in.
 
@@ -307,9 +325,8 @@ fire-and-forget until P4-03. ms_dictionary has no consumer queue until it starts
 whichever service starts first creates it.
 As of 2026-07-23 (P2-08, P2-09) ms_user is wired too: same exchange and dead letter infrastructure,
 publishing `user.deleted` and consuming `dictionary.imported` on the durable queue
-`user.dictionary.imported`. Nothing publishes `dictionary.imported` until ms_marketplace ships
-(P4-07), but a bound durable queue captures those imports instead of letting the topic exchange
-discard them.
+`user.dictionary.imported`. ms_marketplace publishes `dictionary.imported` since P4-07 (verified
+end-to-end: marketplace import → vault entry).
 
 As of P2-10 ms_dictionary consumes `user.deleted` on the durable queue `dictionary.user.deleted` and
 cascade-deletes that user's dictionaries and words — **matching on the event's `keycloakId`**, since

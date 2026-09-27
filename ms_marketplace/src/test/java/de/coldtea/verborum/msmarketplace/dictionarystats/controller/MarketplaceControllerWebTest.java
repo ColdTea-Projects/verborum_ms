@@ -2,7 +2,10 @@ package de.coldtea.verborum.msmarketplace.dictionarystats.controller;
 
 import de.coldtea.verborum.msmarketplace.common.config.SecurityConfig;
 import de.coldtea.verborum.msmarketplace.common.exception.GlobalExceptionHandler;
+import de.coldtea.verborum.msmarketplace.common.exception.RecordNotFoundException;
+import de.coldtea.verborum.msmarketplace.common.exception.SelfImportException;
 import de.coldtea.verborum.msmarketplace.common.response.PageResponse;
+import de.coldtea.verborum.msmarketplace.dictionaryimport.service.DictionaryImportService;
 import de.coldtea.verborum.msmarketplace.dictionarystats.dto.DictionaryListingResponseDTO;
 import de.coldtea.verborum.msmarketplace.dictionarystats.service.DictionaryStatsService;
 
@@ -20,11 +23,14 @@ import java.util.List;
 
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 /**
@@ -44,6 +50,9 @@ class MarketplaceControllerWebTest {
 
     @MockBean
     private DictionaryStatsService dictionaryStatsService;
+
+    @MockBean
+    private DictionaryImportService dictionaryImportService;
 
     /** The filter chain needs a decoder bean; the jwt() post-processor supplies the token itself. */
     @MockBean
@@ -150,6 +159,44 @@ class MarketplaceControllerWebTest {
         mockMvc.perform(get("/marketplace/dictionaries?page=abc").with(jwt().jwt(j -> j.subject(SUB))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorDetail").value("Invalid value for parameter: page"));
+    }
+
+    // ---- import (P4-07) ----
+
+    @Test
+    void importDictionary_Unauthenticated_Is401() throws Exception {
+        mockMvc.perform(post("/marketplace/dictionaries/dict1/import"))
+                .andExpect(status().isUnauthorized());
+        verifyNoInteractions(dictionaryImportService);
+    }
+
+    @Test
+    void importDictionary_ImporterIsTheTokenSubject_Is201() throws Exception {
+        mockMvc.perform(post("/marketplace/dictionaries/dict1/import").with(jwt().jwt(j -> j.subject(SUB))))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status").value(201))
+                .andExpect(jsonPath("$.message").value("Imported successfully dictionary dict1"));
+
+        verify(dictionaryImportService).importDictionary("dict1", SUB);
+    }
+
+    @Test
+    void importDictionary_HiddenOrUnknownListing_Is404() throws Exception {
+        doThrow(new RecordNotFoundException("Listing was not found. ID: dict1"))
+                .when(dictionaryImportService).importDictionary("dict1", SUB);
+
+        mockMvc.perform(post("/marketplace/dictionaries/dict1/import").with(jwt().jwt(j -> j.subject(SUB))))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void importDictionary_OwnDictionary_Is400() throws Exception {
+        doThrow(new SelfImportException("A dictionary cannot be imported by its own publisher"))
+                .when(dictionaryImportService).importDictionary("dict1", SUB);
+
+        mockMvc.perform(post("/marketplace/dictionaries/dict1/import").with(jwt().jwt(j -> j.subject(SUB))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("SelfImportException"));
     }
 
     @Test

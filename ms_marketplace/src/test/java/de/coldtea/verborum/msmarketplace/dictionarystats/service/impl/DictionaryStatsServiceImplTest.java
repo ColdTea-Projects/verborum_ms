@@ -7,6 +7,8 @@ import de.coldtea.verborum.msmarketplace.common.event.DictionaryUpdatedEvent;
 import de.coldtea.verborum.msmarketplace.common.event.DictionaryVisibilityEvent;
 import de.coldtea.verborum.msmarketplace.common.mapper.DictionaryStatsMapper;
 import de.coldtea.verborum.msmarketplace.common.response.PageResponse;
+import de.coldtea.verborum.msmarketplace.dictionaryimport.entity.DictionaryImport;
+import de.coldtea.verborum.msmarketplace.dictionaryimport.repository.DictionaryImportRepository;
 import de.coldtea.verborum.msmarketplace.dictionarystats.dto.DictionaryListingResponseDTO;
 import de.coldtea.verborum.msmarketplace.dictionarystats.entity.DictionaryStats;
 import de.coldtea.verborum.msmarketplace.dictionarystats.repository.DictionaryStatsRepository;
@@ -50,6 +52,9 @@ class DictionaryStatsServiceImplTest {
 
     @Mock
     private DictionaryStatsMapper dictionaryStatsMapper;
+
+    @Mock
+    private DictionaryImportRepository dictionaryImportRepository;
 
     @InjectMocks
     private DictionaryStatsServiceImpl dictionaryStatsService;
@@ -475,6 +480,20 @@ class DictionaryStatsServiceImplTest {
     }
 
     @Test
+    void deleteListingsByUser_AlsoDeletesTheUsersImportRecords() {
+        // Arrange — the user as importer: what they imported is their data too
+        DictionaryImport imported = DictionaryImport.builder().importId("i1").dictionaryId("other").userId(OWNER).build();
+        when(dictionaryImportRepository.findByUserId(OWNER)).thenReturn(List.of(imported));
+        when(dictionaryStatsRepository.findByUserId(OWNER)).thenReturn(List.of());
+
+        // Act
+        dictionaryStatsService.deleteListingsByUser(OWNER);
+
+        // Assert
+        verify(dictionaryImportRepository).deleteAllInBatch(List.of(imported));
+    }
+
+    @Test
     void deleteListingsByUser_NoRows_IsANoOp() {
         // Arrange — also what a redelivery sees
         when(dictionaryStatsRepository.findByUserId(OWNER)).thenReturn(List.of());
@@ -484,6 +503,7 @@ class DictionaryStatsServiceImplTest {
 
         // Assert
         verify(dictionaryStatsRepository, never()).deleteAllInBatch(any());
+        verify(dictionaryImportRepository, never()).deleteAllInBatch(any());
     }
 
     // ---- reconcile (dictionary.snapshot) ----

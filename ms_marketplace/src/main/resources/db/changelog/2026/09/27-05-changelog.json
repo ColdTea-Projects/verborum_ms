@@ -1,0 +1,56 @@
+{
+  "databaseChangeLog": [
+    {
+      "changeSet": {
+        "id": "20260927-05-dictionary-imports",
+        "author": "claude (P4-07)",
+        "comment": "Who imported which listed dictionary, so import_count counts unique importers (decided 2026-09-27): UNIQUE (fk_dictionary_id, fk_user_id) makes a repeat import find the existing row instead of counting again. Real FK to dictionary_stats with ON DELETE CASCADE - a same-service satellite of the listing, like dictionary_tags in ms_dictionary; when reconciliation or user.deleted removes a listing, its import records go too. fk_user_id is the importer's JWT subject; indexed for the user.deleted cleanup of a deleted importer's records.",
+        "objectQuotingStrategy": "QUOTE_ONLY_RESERVED_WORDS",
+        "changes": [
+          {
+            "createTable": {
+              "tableName": "dictionary_imports",
+              "columns": [
+                { "column": { "name": "import_id", "type": "VARCHAR(255)",
+                    "constraints": { "nullable": false, "primaryKey": true, "primaryKeyName": "pk_dictionary_imports" } } },
+                { "column": { "name": "fk_dictionary_id", "type": "VARCHAR(255)",
+                    "constraints": { "nullable": false } } },
+                { "column": { "name": "fk_user_id", "type": "VARCHAR(255)",
+                    "constraints": { "nullable": false } } },
+                { "column": { "name": "imported_at", "type": "TIMESTAMP WITH TIME ZONE",
+                    "constraints": { "nullable": false } } }
+              ]
+            }
+          },
+          {
+            "addForeignKeyConstraint": {
+              "baseTableName": "dictionary_imports",
+              "baseColumnNames": "fk_dictionary_id",
+              "referencedTableName": "dictionary_stats",
+              "referencedColumnNames": "dictionary_id",
+              "constraintName": "fk_dictionary_imports_listing",
+              "onDelete": "CASCADE"
+            }
+          },
+          {
+            "addUniqueConstraint": {
+              "tableName": "dictionary_imports",
+              "columnNames": "fk_dictionary_id, fk_user_id",
+              "constraintName": "uq_dictionary_imports_dictionary_user"
+            }
+          },
+          {
+            "createIndex": {
+              "tableName": "dictionary_imports",
+              "indexName": "idx_dictionary_imports_user",
+              "columns": [ { "column": { "name": "fk_user_id" } } ]
+            }
+          }
+        ],
+        "rollback": [
+          { "dropTable": { "tableName": "dictionary_imports" } }
+        ]
+      }
+    }
+  ]
+}
