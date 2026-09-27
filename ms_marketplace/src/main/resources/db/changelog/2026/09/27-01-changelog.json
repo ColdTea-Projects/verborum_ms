@@ -1,0 +1,162 @@
+{
+  "databaseChangeLog": [
+    {
+      "changeSet": {
+        "id": "20260927-01-dictionary-stats",
+        "author": "claude (P4-02)",
+        "comment": "Marketplace read model: one listing per public dictionary. dictionary_id is ms_dictionary's id and the primary key, so event consumers upsert rather than insert (rule 3); no DB FK because dictionaries live in another service's database. name/from_lang/to_lang are copies, stored because P4-06 filters, sorts and pages on them (rule 5); VARCHAR(255) matches ms_dictionary's columns. source_updated_at is ms_dictionary's updatedAt for the held values, the ordering key consumers compare against to drop stale events (rule 4). published_at comes from the event, not the insert, so a listing recreated by reconciliation keeps its date. rating and view_count from the original field list are left out until ratings and views are designed. Indexes: (from_lang, to_lang) for the language filter, import_count for the popular sort, published_at for the default newest-first browse order.",
+        "objectQuotingStrategy": "QUOTE_ONLY_RESERVED_WORDS",
+        "changes": [
+          {
+            "createTable": {
+              "tableName": "dictionary_stats",
+              "columns": [
+                {
+                  "column": {
+                    "name": "dictionary_id",
+                    "type": "VARCHAR(255)",
+                    "constraints": {
+                      "nullable": false,
+                      "primaryKey": true,
+                      "primaryKeyName": "pk_dictionary_stats"
+                    }
+                  }
+                },
+                {
+                  "column": {
+                    "name": "fk_user_id",
+                    "type": "VARCHAR(255)",
+                    "constraints": {
+                      "nullable": false
+                    }
+                  }
+                },
+                {
+                  "column": {
+                    "name": "name",
+                    "type": "VARCHAR(255)",
+                    "constraints": {
+                      "nullable": false
+                    }
+                  }
+                },
+                {
+                  "column": {
+                    "name": "from_lang",
+                    "type": "VARCHAR(255)",
+                    "constraints": {
+                      "nullable": false
+                    }
+                  }
+                },
+                {
+                  "column": {
+                    "name": "to_lang",
+                    "type": "VARCHAR(255)",
+                    "constraints": {
+                      "nullable": false
+                    }
+                  }
+                },
+                {
+                  "column": {
+                    "name": "import_count",
+                    "type": "INT",
+                    "defaultValueNumeric": 0,
+                    "constraints": {
+                      "nullable": false
+                    }
+                  }
+                },
+                {
+                  "column": {
+                    "name": "published_at",
+                    "type": "TIMESTAMP WITH TIME ZONE",
+                    "constraints": {
+                      "nullable": false
+                    }
+                  }
+                },
+                {
+                  "column": {
+                    "name": "source_updated_at",
+                    "type": "TIMESTAMP WITH TIME ZONE",
+                    "constraints": {
+                      "nullable": false
+                    }
+                  }
+                },
+                {
+                  "column": {
+                    "name": "creation_dt",
+                    "type": "TIMESTAMP WITH TIME ZONE",
+                    "constraints": {
+                      "nullable": false
+                    }
+                  }
+                },
+                {
+                  "column": {
+                    "name": "update_dt",
+                    "type": "TIMESTAMP WITH TIME ZONE"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "createIndex": {
+              "tableName": "dictionary_stats",
+              "indexName": "idx_dictionary_stats_language_pair",
+              "columns": [
+                {
+                  "column": {
+                    "name": "from_lang"
+                  }
+                },
+                {
+                  "column": {
+                    "name": "to_lang"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "createIndex": {
+              "tableName": "dictionary_stats",
+              "indexName": "idx_dictionary_stats_import_count",
+              "columns": [
+                {
+                  "column": {
+                    "name": "import_count"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "createIndex": {
+              "tableName": "dictionary_stats",
+              "indexName": "idx_dictionary_stats_published_at",
+              "columns": [
+                {
+                  "column": {
+                    "name": "published_at"
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        "rollback": [
+          {
+            "dropTable": {
+              "tableName": "dictionary_stats"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -872,9 +872,25 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
   - Add `spring-boot-starter-security` + `oauth2-resource-server` to `pom.xml`
   - Create `common/config/SecurityConfig.java` alongside the initial scaffold
   - Done when: app starts on port 8087 AND unauthenticated requests return 401
-- [ ] `P4-02` **Design DictionaryStats entity + migration**
+- [x] `P4-02` **Design DictionaryStats entity + migration**
   - Fields: `dictionaryId`, `userId`, `name`, `fromLang`, `toLang`, `importCount`, `viewCount`, `rating`, `publishedAt`
   - Done when: table `dictionary_stats` created on startup
+  - Done 2026-09-27: `DictionaryStats` entity + `DictionaryStatsRepository` in the `dictionarystats`
+    package; migration `2026/09/27-01-changelog.json`. **Verified:** Liquibase applied it on boot;
+    `\d dictionary_stats` shows the columns, PK and three indexes; module tests 6/6 green.
+  - **Decisions (signed off by the project owner 2026-09-27):**
+    1. **`rating` and `viewCount` left out.** Nothing records a view or accepts a rating, and the
+       rating scale and one-rating-per-user rule are undecided. They get their own migration when
+       designed — an always-zero column would hide the question rather than answer it.
+    2. **Added `source_updated_at`** — ms_dictionary's `updatedAt` for the held values, the rule-4
+       ordering key. Distinct from `update_dt` (when this row was written).
+    3. **`dictionary_id` is the PK** (ms_dictionary's id, no DB FK), so consumers upsert on it.
+    4. **`published_at` comes from the event**, not the insert, so a listing recreated by
+       reconciliation keeps its original date.
+    5. Indexes: `(from_lang, to_lang)` for the language filter, `import_count` for the popular sort,
+       `published_at` for newest-first browse.
+    6. **The reconciliation job moved to `P4-03`** — it needs RabbitMQ in ms_marketplace, which
+       arrives with the first consumer there. Design recorded under `P4-03`.
 - [ ] `P4-03` **Consume `dictionary.visibility.public` event**
   - On event: create a `DictionaryStats` record for the dictionary
   - Done when: making a dictionary public creates a marketplace entry
@@ -912,10 +928,27 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
     - Reversible in one direction cheaply: if a detail view ever needs guaranteed-current data, read
       that single dictionary live for that screen. Browse stays on the local copy. Nothing about this
       decision has to be undone to do that.
-  - **`P4-02` must ship with a reconciliation job** (rule 6): a periodic re-sync of public
-    dictionaries into the projection. It is the backstop both for a lost event (the window
-    AFTER_COMMIT deliberately accepts) and for drift if an update is ever missed. Write it with the
-    projection, not after the first drift is reported.
+  - **This task ships the reconciliation job** (rule 6; moved here from `P4-02` on 2026-09-27): a
+    periodic re-sync of public dictionaries into the projection. It is the backstop both for a lost
+    event (the window AFTER_COMMIT deliberately accepts) and for drift if an update is ever missed.
+    - **DECIDED 2026-09-27 (signed off by the project owner): a `dictionary.snapshot` event, pushed
+      by ms_dictionary.** On a schedule, ms_dictionary publishes ONE message carrying every public
+      dictionary's listing payload (incl. `updatedAt`); ms_marketplace diffs it against
+      `dictionary_stats` in one transaction — create missing, update where the snapshot's
+      `updatedAt` is newer, delete listings absent from the snapshot.
+    - **Rejected: an internal pull endpoint** (`GET /internal/dictionaries/public` + a service role +
+      client credentials in ms_marketplace). Simpler diff, but it is the first synchronous
+      service-to-service call (against `service-boundaries.md`), adds a role and a secret, and ties
+      the job to ms_dictionary's uptime.
+    - **Schedule: nightly**, configurable — e.g. `${DICTIONARY_SNAPSHOT_CRON:0 0 3 * * *}` in
+      ms_dictionary. The snapshot only repairs *lost* events; normal listings still appear within
+      seconds via `dictionary.visibility.public`. Nightly means a lost event can leave a listing
+      wrong until the next run. Set the cron to every minute locally when testing.
+    - Size: ~200 bytes per listing (~2 MB at 10k public dictionaries). Fine for RabbitMQ; chunk it
+      if it grows — which also means the diff can no longer be one transaction, so revisit then.
+    - ms_dictionary has **no index on `is_public`** — add one (new changeset) for the snapshot query.
+    - When ms_dictionary runs more than one instance (Phase 5+), the scheduled publish needs a lock
+      (e.g. ShedLock) so only one instance sends the snapshot.
   - Read the P1-03 notes first — this is the task where two known issues stop being theoretical:
     1. ms_dictionary publishes *before* its transaction commits, so a listener that calls back
        into ms_dictionary can beat the commit. Switch ms_dictionary to

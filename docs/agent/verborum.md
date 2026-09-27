@@ -178,6 +178,18 @@ measure, class, polite`.
 Column-level detail, constraints and quirks (the cross-service user key is `keycloak_id`, not
 `user_id`) are in `ms_user/CLAUDE.md`.
 
+### DictionaryStats (`dictionary_stats` table in ms_marketplace)
+```
+- dictionary_id      VARCHAR(255) PK   ← ms_dictionary's id; no DB FK (other service's database)
+- fk_user_id         VARCHAR(255)      ← owner's JWT subject (ms_user's keycloak_id)
+- name, from_lang, to_lang VARCHAR(255) ← copies, kept current by events + nightly snapshot
+- import_count       INT, default 0
+- published_at       timestamptz       ← from the event, not the insert
+- source_updated_at  timestamptz       ← ms_dictionary's updatedAt; rule-4 stale-event guard
+- creation_dt / update_dt timestamptz
+```
+A read model, not a source of truth. `rating` / `view_count` are not built yet (undesigned).
+
 ---
 
 ## API Contracts

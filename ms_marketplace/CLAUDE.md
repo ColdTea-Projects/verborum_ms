@@ -13,12 +13,20 @@ request time — decided 2026-07-23, see roadmap `P4-03`.
 - **DB:** `vdbmarket` (PostgreSQL) — docker-compose in this module (Postgres on 5434 + Adminer on
   8082), and `db_market` in the root compose on the same host port. Run one or the other.
 - **Base package:** `de.coldtea.verborum.msmarketplace`
-- **Status:** Scaffolded (P4-01) — an empty, running, secured shell. No entities, endpoints or
+- **Status:** Scaffolded (P4-01) and `dictionary_stats` table built (P4-02). No endpoints or
   RabbitMQ yet.
 
 ## Entities
-None yet. `DictionaryStats` (`dictionary_stats`) arrives at P4-02, **with** its reconciliation job
-(rule 6).
+- `DictionaryStats` (`dictionary_stats`) — `dictionaryId` (PK, ms_dictionary's id, no DB FK),
+  `userId` (`fk_user_id`, the JWT subject), `name`, `fromLang`, `toLang`, `importCount`,
+  `publishedAt`, `sourceUpdatedAt`, `createdAt`/`updatedAt`. Migration `2026/09/27-01-changelog.json`.
+  - `sourceUpdatedAt` is ms_dictionary's `updatedAt` — compare against it to drop stale events.
+    `updatedAt` is only when this row was written. Do not mix them up.
+  - `importCount` must be set to 0 explicitly on create; the column default does not apply through
+    Hibernate.
+  - `rating` / `viewCount` are deliberately absent until designed.
+- **Reconciliation** (P4-03): ms_dictionary publishes a nightly `dictionary.snapshot` of all public
+  dictionaries; this service diffs it against the table (create / update-if-newer / delete-absent).
 
 ## Events (planned)
 - **Consumes:** `dictionary.visibility.public` (P4-03), `dictionary.visibility.private` (P4-04),
