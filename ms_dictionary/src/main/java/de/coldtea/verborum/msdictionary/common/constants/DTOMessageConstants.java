@@ -2,6 +2,9 @@ package de.coldtea.verborum.msdictionary.common.constants;
 
 public final class DTOMessageConstants {
 
+    //@ValidUUID (P4-09) — the field name is prepended by the error handler
+    public static final String INVALID_UUID = "must be a valid UUID";
+
     // Field limits. These are contract limits, not storage limits - the columns are TEXT.
     //
     // Note what they are NOT: a cap on a typed word. The clients cap typing at 40 characters per
@@ -41,8 +44,6 @@ public final class DTOMessageConstants {
     public static final String WORD_LEVEL_OUT_OF_RANGE = "level must be between " + WORD_LEVEL_MIN + " and " + WORD_LEVEL_MAX;
 
     //Dictionary DTOs
-    public static final String DICTIONARY_ID = "dictionaryId";
-    public static final String USER_ID = "userId";
     public static final String DICTIONARY_DICTIONARY_ID = "dictionaryId is mandatory";
     public static final String DICTIONARY_USER_ID = "userId is mandatory";
     public static final String DICTIONARY_NAME = "name is mandatory";
@@ -50,8 +51,8 @@ public final class DTOMessageConstants {
     public static final String DICTIONARY_IS_PUBLIC = "isPublic is mandatory";
     public static final String DICTIONARY_FROM_LANG = "fromLang is mandatory";
     public static final String DICTIONARY_TO_LANG = "toLang is mandatory";
-    public static final String INVALID_LANGUAGE_CODE = "Invalid language code: ";
-    public static final String WORD_ID = "wordId";
+    // The field or parameter name is prepended by the error handler; the value is not echoed back
+    public static final String INVALID_LANGUAGE_CODE = "unsupported language code";
 
     //Dictionary tag DTOs
     public static final String TAG_TAG = "tag is mandatory";

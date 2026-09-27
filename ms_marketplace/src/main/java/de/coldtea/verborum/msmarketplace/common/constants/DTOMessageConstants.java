@@ -6,6 +6,9 @@ package de.coldtea.verborum.msmarketplace.common.constants;
  */
 public final class DTOMessageConstants {
 
+    //@ValidUUID (P4-09) — the field name is prepended by the error handler
+    public static final String INVALID_UUID = "must be a valid UUID";
+
     //Marketplace browse (P4-06) — paging. The maximum is a server-side cap: a client asking for
     //size=100000 must not turn one request into a full-table read
     // Strings: @RequestParam(defaultValue = ...) takes a String constant

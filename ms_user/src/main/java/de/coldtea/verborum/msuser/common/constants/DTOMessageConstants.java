@@ -6,9 +6,9 @@ package de.coldtea.verborum.msuser.common.constants;
  */
 public final class DTOMessageConstants {
 
-    //User DTOs — ValidUUID field names
-    public static final String USER_ID = "userId";
-    public static final String KEYCLOAK_ID = "keycloakId";
+    //@ValidUUID (P4-09) — the field name is prepended by the error handler
+    public static final String INVALID_UUID = "must be a valid UUID";
+
 
     //User DTOs — validation messages
     public static final String USER_USER_ID = "userId is mandatory";
@@ -16,8 +16,6 @@ public final class DTOMessageConstants {
     public static final String USER_EMAIL = "email is mandatory";
     public static final String USER_EMAIL_INVALID = "email must be a valid email address";
 
-    //Vault DTOs — ValidUUID field names
-    public static final String DICTIONARY_ID = "dictionaryId";
 
     //Vault DTOs — validation messages
     public static final String VAULT_ENTRY_DICTIONARY_ID = "dictionaryId is mandatory";

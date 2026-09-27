@@ -19,7 +19,7 @@ import static de.coldtea.verborum.msdictionary.common.constants.DTOMessageConsta
 public class WordBundleRequestDTO {
 
     @NotBlank(message = DICTIONARY_DICTIONARY_ID)
-    @ValidUUID(fieldName = DICTIONARY_ID)
+    @ValidUUID
     private String dictionaryId;
 
     @Valid

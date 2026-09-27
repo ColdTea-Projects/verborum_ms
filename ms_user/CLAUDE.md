@@ -119,6 +119,11 @@ unchanged (`creation_dt`/`update_dt`/`imported_at`).
 - `keycloak.admin.client-secret` is intentionally left blank in `application.properties` and
   sourced from the `KEYCLOAK_ADMIN_CLIENT_SECRET` environment variable — never hardcode it.
 
+## Validation
+- `@ValidUUID` on `userId`/`keycloakId` (UserRequestDTO) and `dictionaryId` (VaultEntryRequestDTO)
+  validates since P4-09 (2026-09-27) — before, it lacked `@Constraint` and accepted anything. A
+  non-UUID is a 400 `keycloakId: must be a valid UUID` before the service runs.
+
 ## Service-specific quirks
 - The cross-service user key is `keycloak_id`, not `user_id`. Dictionaries/words store the JWT
   subject in `fk_user_id`, which equals a User's `keycloak_id` — so joins from other services'

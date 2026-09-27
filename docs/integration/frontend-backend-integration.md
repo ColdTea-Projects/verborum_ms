@@ -86,6 +86,14 @@ REST + JSON. Two response shapes:
 against: `400` validation/malformed body · `401` missing/invalid token (post-Phase-3) ·
 `404` unknown record · empty list (not 404) for batch/list endpoints with no matches.
 
+**Ids and language codes are validated (backend P4-09, 2026-09-27).** Every client-supplied id
+(`dictionaryId`, `wordId`, `userId`, `keycloakId`) must be a canonical UUID (`8-4-4-4-12` hex), and
+every language code must be one of `supported.languages` (any case). Until this date both checks were
+silently skipped; anything else is now a `400` whose `errorDetail` names the field, e.g.
+`dictionaryId: must be a valid UUID` or, inside a word bundle, `bundles.words[0].wordId: must be a
+valid UUID`. A blank field inside a `POST /words` bundle, which used to come back as a `500`, is now a
+`400` too.
+
 **Reading other users' dictionaries (backend P4-10, 2026-09-27).** A dictionary that is **public**
 can be read by any logged-in user: `GET /dictionaries/dictionary/{id}`, `GET /dictionaries/batch`,
 `GET /words/dictionary/{id}`, `GET /words/batch` and `GET /dictionaries/{id}/tags`. This is how a

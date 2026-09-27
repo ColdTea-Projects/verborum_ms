@@ -16,11 +16,11 @@ import static de.coldtea.verborum.msdictionary.common.constants.DTOMessageConsta
 public class DictionaryRequestDTO {
 
     @NotBlank(message = DICTIONARY_DICTIONARY_ID)
-    @ValidUUID(fieldName = DICTIONARY_ID)
+    @ValidUUID
     private String dictionaryId;
 
     @NotBlank(message = DICTIONARY_USER_ID)
-    @ValidUUID(fieldName = USER_ID)
+    @ValidUUID
     private String userId;
 
     @NotBlank(message = DICTIONARY_NAME)

@@ -16,7 +16,7 @@ import static de.coldtea.verborum.msdictionary.common.constants.DTOMessageConsta
 public class WordRequestDTO {
 
     @NotBlank(message = WORD_WORD_ID)
-    @ValidUUID(fieldName = WORD_ID)
+    @ValidUUID
     private String wordId;
 
     @NotBlank(message = WORD_WORD)

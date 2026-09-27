@@ -24,7 +24,7 @@ conflate them.
 public class DictionaryRequestDTO {
 
     @NotBlank(message = DICTIONARY_DICTIONARY_ID)
-    @ValidUUID(fieldName = DICTIONARY_ID)
+    @ValidUUID
     private String dictionaryId;
 
     @NotBlank(message = DICTIONARY_NAME)
@@ -54,18 +54,35 @@ Two files each, in `common/utils/`: the annotation and its validator.
 
 | Annotation | Validator | Behaviour |
 |---|---|---|
-| `@ValidUUID(fieldName = …)` | `UUIDValidator` | throws `InvalidUUIDException` |
-| `@SupportedLanguage` | `SupportedLanguageValidator` | reads `supported.languages`, uppercases before matching, throws `InvalidLanguageCodeException` |
+| `@ValidUUID` | `UUIDValidator` | canonical 8-4-4-4-12 hex (regex — `UUID.fromString` accepts `1-1-1-1-1`); null passes |
+| `@SupportedLanguage` | `SupportedLanguageValidator` | reads `supported.languages` (trimmed), uppercases with `Locale.ROOT` before matching; null passes |
 
-**Validators throw a specific exception rather than returning `false`.** That is how the caller
-gets a precise message instead of a generic constraint failure.
+**Two rules, both learned the hard way (roadmap P4-09).** Until 2026-09-27 both annotations were
+inert in every service and invalid ids and language codes were stored:
+
+1. **The annotation needs `@Constraint(validatedBy = …)` plus `message`, `groups` and `payload`.**
+   Without `@Constraint`, Bean Validation treats it as plain metadata and never calls the validator —
+   no error, no warning, nothing validated.
+2. **The validator returns `false`; it never throws.** An exception thrown inside `isValid` is wrapped
+   by the framework in a `ValidationException` that no handler maps, so it surfaces as a 500. The
+   message comes from the annotation's `message()` constant, and the handler prefixes the field name.
 
 ```java
-if (!supportedLanguages.contains(language.toUpperCase(Locale.ROOT))) {
-    throw new InvalidLanguageCodeException(INVALID_LANGUAGE_CODE + language);
+@Constraint(validatedBy = SupportedLanguageValidator.class)
+@Retention(RetentionPolicy.RUNTIME)
+@Target({ElementType.FIELD, ElementType.PARAMETER})
+public @interface SupportedLanguage {
+    String message() default INVALID_LANGUAGE_CODE;
+    Class<?>[] groups() default {};
+    Class<? extends Payload>[] payload() default {};
 }
-return true;
+
+// validator
+return supportedLanguages.contains(language.toUpperCase(Locale.ROOT));
 ```
+
+A new constraint is not done until a web-slice test proves an invalid value is a 400 — the
+annotation compiling proves nothing.
 
 ## GlobalExceptionHandler
 
@@ -73,10 +90,11 @@ return true;
 
 | Exception | Status | Log level | Notes |
 |---|---|---|---|
-| `InvalidUUIDException` | 400 | ERROR | |
-| `InvalidLanguageCodeException` | 400 | ERROR | |
 | `HttpMessageNotReadableException` | 400 | ERROR | malformed JSON |
-| `MethodArgumentNotValidException` | 400 | ERROR | field errors joined as `field: message` |
+| `MethodArgumentNotValidException` | 400 | ERROR | a single-object `@Valid @RequestBody` — field errors joined as `field: message` |
+| `HandlerMethodValidationException` | 400 | **WARN** | a constraint on a controller **parameter** (`@ValidUUID` path variable, `@Min` paging param) **or inside a list body** (`@Valid @RequestBody List<…>`) — `param: message`, nested as `bundles.words[0].word`. Without it these are 500s. Do not add class-level `@Validated`: that switches to AOP validation and an unhandled `ConstraintViolationException` |
+| `MissingServletRequestParameterException` | 400 | **WARN** | required query parameter absent (ms_marketplace) |
+| `MethodArgumentTypeMismatchException` | 400 | **WARN** | e.g. `page=abc`; message names the parameter only, never echoes the value (ms_marketplace) |
 | `RecordNotFoundException` | 404 | ERROR | |
 | `NoResourceFoundException` | 404 | **WARN** | unmapped URL — a client mistake or a scanner |
 | `ForbiddenOperationException` | 403 | **WARN** | |

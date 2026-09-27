@@ -51,14 +51,14 @@ public class WordController {
     }
 
     @DeleteMapping("/{wordId}")
-    public ResponseEntity<Response> deleteWord(@PathVariable @ValidUUID(fieldName = "wordId") String wordId, WebRequest request) {
+    public ResponseEntity<Response> deleteWord(@PathVariable @ValidUUID String wordId, WebRequest request) {
         wordService.deleteWords(List.of(wordId), getCurrentUserId());
 
         return ResponseUtils.buildResponse(HttpStatus.OK, WORD_DELETED_SUCCESSFULLY, wordId, request);
     }
 
     @DeleteMapping("/dictionary/{dictionaryId}")
-    public ResponseEntity<Response> deleteWordsByDictionary(@PathVariable @ValidUUID(fieldName = "dictionaryId") String dictionaryId, WebRequest request) {
+    public ResponseEntity<Response> deleteWordsByDictionary(@PathVariable @ValidUUID String dictionaryId, WebRequest request) {
 
         wordService.deleteWordsByDictionaryId(dictionaryId, getCurrentUserId());
 

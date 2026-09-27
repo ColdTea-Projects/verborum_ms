@@ -104,6 +104,12 @@ Full CRUD for **Dictionaries** and **Words** — the core vocabulary store.
   `common/utils/DictionaryAccessUtils.isReadableBy` (owned or public), used by all three services;
   writes stay owner-only. Non-owners get a word's `level` as `null` (it is the owner's mastery).
   `getWordsByIds` now resolves the words' dictionaries in one batch query instead of one per word.
+- **`@ValidUUID` / `@SupportedLanguage` validate since P4-09** (2026-09-27). Before, both lacked
+  `@Constraint` and were silently ignored: `fromLang: "XX"`, non-UUID ids and `/words/language/from/XX`
+  were all accepted. Validators return false (never throw); failures on a DTO are
+  `MethodArgumentNotValidException`, on a path variable or inside the `POST /words` list body
+  `HandlerMethodValidationException` — both 400. Before P4-09 a blank word in a bundle was a 500.
+  Language codes are still stored as sent (lowercase allowed); the marketplace uppercases its copy.
 - Security: `common/config/SecurityConfig.java` (P3-03) — stateless JWT resource server, `/actuator/**`
   and Swagger permitted, everything else authenticated. Realm roles are mapped by the hand-written
   `extractRealmRoles` (see the P2-11 note in `security.md`); do not swap in

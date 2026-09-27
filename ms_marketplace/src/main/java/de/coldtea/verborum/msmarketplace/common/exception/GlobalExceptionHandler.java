@@ -53,12 +53,6 @@ public class GlobalExceptionHandler {
         return buildErrorResponse(HttpStatus.NOT_FOUND, RecordNotFoundException.class.getSimpleName(), ex.getMessage(), request);
     }
 
-    @ExceptionHandler(InvalidUUIDException.class)
-    @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public ResponseEntity<ErrorResponse> handleInvalidUUIDException(InvalidUUIDException ex, WebRequest request) {
-        log.error(InvalidUUIDException.class.getCanonicalName(), ex);
-        return buildErrorResponse(HttpStatus.BAD_REQUEST, InvalidUUIDException.class.getSimpleName(), ex.getMessage(), request);
-    }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)

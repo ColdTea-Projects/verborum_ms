@@ -18,6 +18,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -77,13 +78,27 @@ class UserControllerWebTest {
     }
 
     @Test
+    void nonUuidKeycloakId_Is400AndNeverReachesTheService() throws Exception {
+        // P4-09: @ValidUUID was inert until 2026-09-27 and stored whatever it was sent
+        mockMvc.perform(post("/users/")
+                        .with(jwt().jwt(j -> j.subject(KEYCLOAK_ID)))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body("not-a-uuid")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorDetail").value("keycloakId: must be a valid UUID"));
+
+        verifyNoInteractions(userService);
+    }
+
+    @Test
     void serviceForbidden_MapsTo403() throws Exception {
         when(userService.saveUser(any(), anyString())).thenThrow(new ForbiddenOperationException("nope"));
 
         mockMvc.perform(post("/users/")
                         .with(jwt().jwt(j -> j.subject(KEYCLOAK_ID)))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(body("kc-someone-else")))
+                        // a real UUID since P4-09 — a malformed id is now a 400 before the service runs
+                        .content(body("0f1e2d3c-4b5a-4968-8776-655443322110")))
                 .andExpect(status().isForbidden());
     }
 

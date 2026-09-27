@@ -84,8 +84,8 @@ request time — decided 2026-07-23, see roadmap `P4-03`.
 - Parameter constraints (`@Min`/`@Max`, `@SupportedLanguage`) run via Spring MVC's built-in method
   validation → `HandlerMethodValidationException` → 400. **Do not add class-level `@Validated`** —
   that switches to AOP validation and a `ConstraintViolationException` nobody handles.
-- `SupportedLanguage` here has `@Constraint` and its validator returns false. The copies in
-  ms_dictionary/ms_user are inert (P4-09) — do not copy from them.
+- `SupportedLanguage` and `ValidUUID` have `@Constraint` and validators that return false — the same
+  in all three services since P4-09.
 - Language codes are stored and returned **uppercase** (normalized on write, `Locale.ROOT`).
 - `publisherId` = the owner's JWT subject (`fk_user_id`). Safe to expose; no display name (BL-04).
 

@@ -1130,7 +1130,7 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
     rows**.
   - Not built (say the word if wanted): a "find dictionaries by tag" lookup. That is really a
     marketplace query and belongs with P4-06, not in ms_dictionary.
-- [ ] `P4-09` **Make `@SupportedLanguage` and `@ValidUUID` actually validate** (found 2026-09-27 at P4-06)
+- [x] `P4-09` **Make `@SupportedLanguage` and `@ValidUUID` actually validate** (found 2026-09-27 at P4-06)
   - **The bug:** in ms_dictionary and ms_user both annotations are plain annotations with no
     `@Constraint(validatedBy = …)`, so Bean Validation never runs their validators. Verified live on
     ms_dictionary: `POST /dictionaries/` with `fromLang: "XX"` → 201, with `dictionaryId: "not-a-uuid"`
@@ -1146,6 +1146,26 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
     rows already stored. ms_marketplace's `SupportedLanguage`/`SupportedLanguageValidator` is the
     working template.
   - Needs care with clients: requests they send today that succeed will start returning 400.
+  - Done 2026-09-27, in **all three** services (ms_marketplace had an unused inert `@ValidUUID` copy
+    too). `@Constraint` + `message`/`groups`/`payload` on both annotations; validators return false;
+    `UUIDValidator` checks the canonical form by regex (`UUID.fromString` accepts `1-1-1-1-1`); the
+    redundant `fieldName` attribute and its constants removed (errors name the field);
+    `InvalidUUIDException`, `InvalidLanguageCodeException` and their handlers deleted (dead).
+  - **Also found and fixed:** ms_dictionary had no `HandlerMethodValidationException` handler, so a
+    constraint failure inside the `POST /words` **list** body — e.g. a blank word — was a **500**. Now
+    a 400 naming the nested field (`bundles.words[0].word`).
+  - **Root cause was in the skill:** `web-api/references/validation-and-errors.md` prescribed
+    "validators throw a specific exception rather than returning false" and never mentioned
+    `@Constraint`. Rewritten with both rules and a "prove it with a 400 test" requirement.
+  - **Data:** checked the dev databases first — no invalid language codes and no non-UUID ids in 24
+    dictionaries, 114 words or ms_user, so no cleanup migration was needed.
+  - **Verified live** against the IntelliJ-run services: `fromLang: XX`, non-UUID `dictionaryId`,
+    `/words/language/from/XX`, `DELETE /words/not-a-uuid`, a blank word and a non-UUID `wordId` inside
+    a bundle, and a non-UUID `keycloakId` on ms_user — all 400 with the field named; lowercase `en`
+    still accepted. Suites: ms_dictionary 109/109 (12 new, incl. a new `WordControllerWebTest`),
+    ms_user 44/44, ms_marketplace 79/79. Two existing web tests used non-UUID fixtures (`"d1"`,
+    `"kc-someone-else"`) and were given real UUIDs.
+  - Client integration doc updated — clients must send canonical UUIDs and supported codes.
 - [x] `P4-10` **Public dictionaries readable by any authenticated user in ms_dictionary** (added 2026-09-27 at P4-07)
   - **Why:** an import is a reference (P4-07 decision). The importer's client must read the
     dictionary and its words from ms_dictionary, but every read there 404s a non-owner (P3-08) — so an
