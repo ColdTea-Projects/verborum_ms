@@ -45,8 +45,9 @@ request time — decided 2026-07-23, see roadmap `P4-03`.
   `reconcile` is recreated by it until the next snapshot, because a removed listing leaves nothing to
   compare against. Keeping a hidden row with its `sourceUpdatedAt` on private (instead of deleting)
   would close it.
-- **Not yet consumed:** `dictionary.visibility.private` (P4-04), `dictionary.deleted` (P4-05) and
-  `user.deleted` — until then those removals arrive with the next snapshot.
+- **Not yet consumed:** `dictionary.visibility.private` (P4-04), `dictionary.deleted` and
+  `user.deleted` (both P4-05) — until then those removals arrive with the next snapshot.
+  `user.deleted` must match on its `keycloakId`, never its `userId`.
 - **Publishes:** `dictionary.imported` (P4-07) — ms_user already has the queue bound. The payload is
   `{dictionaryId, keycloakId, eventTimestamp}`: the field is **`keycloakId`**, i.e. the caller's JWT
   subject.

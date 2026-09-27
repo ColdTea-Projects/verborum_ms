@@ -913,10 +913,9 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
     - **Left for P4-04:** a dictionary made private between the snapshot query and `reconcile` gets
       re-listed until the next snapshot (a deleted listing leaves nothing to compare). Recommended
       fix: on private, keep a hidden row with its `sourceUpdatedAt` rather than deleting.
-    - **Found, not in any task:** `docs/agent/verborum.md`'s routing table and ms_dictionary's
-      `deleteAllByUserId` both say ms_marketplace consumes `user.deleted` — which is why that cascade
-      publishes no `dictionary.deleted` — but no task builds it. Until one does, a deleted user's
-      listings stay visible until the next snapshot.
+    - **Found:** `docs/agent/verborum.md`'s routing table and ms_dictionary's `deleteAllByUserId`
+      both say ms_marketplace consumes `user.deleted`, but no task built it. **Added to `P4-05`**
+      on 2026-09-27.
   - **The AFTER_COMMIT work is DONE (2026-07-23), in both services** — it was pulled forward out of
     this task because ms_dictionary already acts on `user.deleted` by deleting data, so the phantom-
     event window was live, not theoretical. Publishers raise an `OutboundEvent` and
@@ -984,9 +983,27 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
 - [ ] `P4-04` **Consume `dictionary.visibility.private` event**
   - On event: remove or deactivate the `DictionaryStats` record
   - Done when: making a dictionary private removes it from marketplace
-- [ ] `P4-05` **Consume `dictionary.deleted` event**
-  - On event: remove the `DictionaryStats` record
-  - Done when: deleting a dictionary removes its marketplace entry
+- [ ] `P4-05` **Consume `dictionary.deleted` and `user.deleted` events**
+  - On `dictionary.deleted`: remove the `DictionaryStats` record
+  - On `user.deleted` (added 2026-09-27): remove every listing owned by that user
+    - **Why here:** ms_dictionary's `user.deleted` cascade deliberately publishes no
+      `dictionary.deleted` for the rows it removes, because the routing table has always said
+      ms_marketplace consumes `user.deleted` itself — but no task built it. Without it, a deleted
+      user's listings stay browsable until the next snapshot (up to a day), and importing one would
+      point at a dictionary that no longer exists.
+    - **Match on the event's `keycloakId`, not its `userId`.** `dictionary_stats.fk_user_id` is the
+      JWT subject, which is ms_user's `keycloak_id`; `userId` is ms_user's own primary key and matches
+      nothing here — the delete would affect zero rows and report success (messaging rule 3).
+    - New durable queue `marketplace.user.deleted` with `x-dead-letter-exchange`, bound to
+      `user.deleted`; copy `UserDeletedEvent` (`userId`, `keycloakId`, `eventTimestamp`) into
+      ms_marketplace. Listener in `common/listener/UserEventListener` (one class per source service),
+      delegating to one `DictionaryStatsService` method that bulk-deletes by `fk_user_id`. Add an
+      index on `fk_user_id` in a new changeset for that delete.
+    - Idempotent by construction: a redelivery finds no rows and does nothing.
+    - Interaction with P4-04: if private dictionaries keep a hidden row, `user.deleted` removes
+      those too — the user is gone, so nothing needs to be remembered.
+  - Done when: deleting a dictionary removes its marketplace entry, and `DELETE /users/{userId}` on
+    ms_user removes all of that user's listings without waiting for a snapshot
 - [ ] `P4-06` **Implement MarketplaceController**
   - `GET /marketplace/dictionaries` — list all public dictionaries (paginated)
   - `GET /marketplace/dictionaries/popular` — sorted by import count
