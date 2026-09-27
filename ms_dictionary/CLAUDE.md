@@ -92,12 +92,18 @@ Full CRUD for **Dictionaries** and **Words** — the core vocabulary store.
   for marketplace browse and the later AI aggregation, so `Food`/`food `/`FOOD` must be one tag. If a
   client ever needs the original casing for display, that is a new column, not a change here.
 - Adding a tag is idempotent (`UNIQUE (fk_dictionary_id, tag)`); re-adding returns the existing row.
-- Tags follow their dictionary's ownership rules: writes on someone else's dictionary 403, reads 404.
+- Tags follow their dictionary's ownership rules: writes on someone else's dictionary 403, reads 404
+  unless the dictionary is public (P4-10).
 - Authorization (P3-05/P3-08): services take an explicit `ownerId` — the token subject, passed in by
   the controller — and never trust an id from the body or path. Writes 403 on a mismatch; reads by id
   404 (so a caller cannot probe which ids exist); batch/list endpoints filter to the caller instead
   of refusing. `deleteAllByUserId` and the private delete helper are the exception: they are the
   `user.deleted` cascade, where the actor is ms_user rather than a logged-in caller.
+- **Public dictionaries are readable by anyone authenticated (P4-10)** — by id, in batch, their words
+  and tags — so a marketplace import (a vault reference) can be opened. One rule,
+  `common/utils/DictionaryAccessUtils.isReadableBy` (owned or public), used by all three services;
+  writes stay owner-only. Non-owners get a word's `level` as `null` (it is the owner's mastery).
+  `getWordsByIds` now resolves the words' dictionaries in one batch query instead of one per word.
 - Security: `common/config/SecurityConfig.java` (P3-03) — stateless JWT resource server, `/actuator/**`
   and Swagger permitted, everything else authenticated. Realm roles are mapped by the hand-written
   `extractRealmRoles` (see the P2-11 note in `security.md`); do not swap in

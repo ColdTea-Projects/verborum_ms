@@ -31,6 +31,7 @@ import static de.coldtea.verborum.msdictionary.common.config.RabbitMQConfig.ROUT
 import static de.coldtea.verborum.msdictionary.common.config.RabbitMQConfig.ROUTING_KEY_DICTIONARY_VISIBILITY_PUBLIC;
 import static de.coldtea.verborum.msdictionary.common.constants.ErrorMessageConstants.DICTIONARY_WAS_NOT_FOUND_ID;
 import static de.coldtea.verborum.msdictionary.common.constants.ErrorMessageConstants.NOT_THE_OWNER;
+import static de.coldtea.verborum.msdictionary.common.utils.DictionaryAccessUtils.isReadableBy;
 
 @Service
 @RequiredArgsConstructor
@@ -273,9 +274,9 @@ public class DictionaryServiceImpl implements DictionaryService {
         Dictionary dictionary = dictionaryRepository.findById(dictionaryId)
                 .orElseThrow(() -> new RecordNotFoundException(DICTIONARY_WAS_NOT_FOUND_ID + dictionaryId));
 
-        // 404, not 403: a caller who does not own it should not be able to tell an existing
-        // dictionary from a non-existent one (P3-08)
-        if (!ownerId.equals(dictionary.getUserId())) {
+        // Readable = owned or public (P4-10). Otherwise 404, not 403: a caller must not be able to
+        // tell someone's private dictionary from one that does not exist (P3-08)
+        if (!isReadableBy(dictionary, ownerId)) {
             throw new RecordNotFoundException(DICTIONARY_WAS_NOT_FOUND_ID + dictionaryId);
         }
 
@@ -285,7 +286,7 @@ public class DictionaryServiceImpl implements DictionaryService {
     @Override
     public List<DictionaryResponseDTO> getDictionariesByIds(List<String> dictionaryIds, String ownerId) {
         return dictionaryRepository.findAllById(dictionaryIds).stream()
-                .filter(dictionary -> ownerId.equals(dictionary.getUserId()))
+                .filter(dictionary -> isReadableBy(dictionary, ownerId))
                 .map(dictionaryMapper::toDictionaryResponseDTO)
                 .toList();
     }

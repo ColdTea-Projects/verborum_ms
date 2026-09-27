@@ -403,8 +403,9 @@ class WordServiceImplTest {
         // Arrange
         List<String> wordIds = List.of("1", "2");
         List<Word> words = List.of(word("1", "dict1"), word("2", "dict1"));
-        // a word carries no owner of its own, so ownership resolves through its dictionary (P3-08)
-        when(dictionaryRepository.findById("dict1")).thenReturn(Optional.of(dictionary("dict1")));
+        // a word carries no owner of its own, so readability resolves through its dictionary (P3-08,
+        // P4-10) — one batch lookup for all the words' dictionaries
+        when(dictionaryRepository.findAllById(List.of("dict1"))).thenReturn(List.of(dictionary("dict1")));
         when(wordRepository.findAllById(wordIds)).thenReturn(words);
         when(wordMapper.toWordResponseDTO(any())).thenReturn(new WordResponseDTO());
 
@@ -495,6 +496,98 @@ class WordServiceImplTest {
         // Assert
         assertEquals(1, result.size());
         verify(wordRepository).findByDictionaryIdIn(List.of("mine"));
+    }
+
+    // ---- P4-10: public dictionaries are readable by any authenticated user ----
+
+    @Test
+    void getWordsByDictionaryIds_AnotherUsersPublicDictionary_ReturnsWordsWithoutLevel() {
+        // Arrange — how an imported marketplace dictionary is opened
+        Dictionary theirs = dictionary("theirs", "someone-else", true);
+        Word word = word("w1", "theirs");
+        WordResponseDTO mapped = new WordResponseDTO();
+        mapped.setLevel(4);
+        when(dictionaryRepository.findAllById(List.of("theirs"))).thenReturn(List.of(theirs));
+        when(wordRepository.findByDictionaryIdIn(List.of("theirs"))).thenReturn(List.of(word));
+        when(wordMapper.toWordResponseDTO(word)).thenReturn(mapped);
+
+        // Act
+        List<WordResponseDTO> result = wordService.getWordsByDictionaryIds(List.of("theirs"), OWNER);
+
+        // Assert — level is the owner's mastery, not the reader's
+        assertEquals(1, result.size());
+        assertNull(result.get(0).getLevel());
+    }
+
+    @Test
+    void getWordsByDictionaryIds_OwnPublicDictionary_KeepsLevel() {
+        // Arrange
+        Dictionary mine = dictionary("mine", OWNER, true);
+        Word word = word("w1", "mine");
+        WordResponseDTO mapped = new WordResponseDTO();
+        mapped.setLevel(4);
+        when(dictionaryRepository.findAllById(List.of("mine"))).thenReturn(List.of(mine));
+        when(wordRepository.findByDictionaryIdIn(List.of("mine"))).thenReturn(List.of(word));
+        when(wordMapper.toWordResponseDTO(word)).thenReturn(mapped);
+
+        // Act
+        List<WordResponseDTO> result = wordService.getWordsByDictionaryIds(List.of("mine"), OWNER);
+
+        // Assert
+        assertEquals(4, result.get(0).getLevel());
+    }
+
+    @Test
+    void getWordsByDictionaryIds_AnotherUsersPrivateDictionary_ReturnsNothing() {
+        // Arrange
+        when(dictionaryRepository.findAllById(List.of("theirs")))
+                .thenReturn(List.of(dictionary("theirs", "someone-else", false)));
+
+        // Act
+        List<WordResponseDTO> result = wordService.getWordsByDictionaryIds(List.of("theirs"), OWNER);
+
+        // Assert — dropped, not refused, and no words are even queried
+        assertTrue(result.isEmpty());
+        verify(wordRepository, never()).findByDictionaryIdIn(any());
+    }
+
+    @Test
+    void getWordsByIds_MixedDictionaries_ReturnsOwnAndPublicOnly() {
+        // Arrange
+        List<String> wordIds = List.of("w-mine", "w-public", "w-private");
+        Word inMine = word("w-mine", "mine");
+        Word inPublic = word("w-public", "public");
+        Word inPrivate = word("w-private", "private");
+        when(wordRepository.findAllById(wordIds)).thenReturn(List.of(inMine, inPublic, inPrivate));
+        when(dictionaryRepository.findAllById(List.of("mine", "public", "private"))).thenReturn(List.of(
+                dictionary("mine", OWNER, false),
+                dictionary("public", "someone-else", true),
+                dictionary("private", "someone-else", false)));
+        WordResponseDTO mineDto = new WordResponseDTO();
+        mineDto.setLevel(2);
+        WordResponseDTO publicDto = new WordResponseDTO();
+        publicDto.setLevel(5);
+        when(wordMapper.toWordResponseDTO(inMine)).thenReturn(mineDto);
+        when(wordMapper.toWordResponseDTO(inPublic)).thenReturn(publicDto);
+
+        // Act
+        List<WordResponseDTO> result = wordService.getWordsByIds(wordIds, OWNER);
+
+        // Assert
+        assertEquals(2, result.size());
+        assertEquals(2, result.get(0).getLevel());
+        assertNull(result.get(1).getLevel());
+        verify(wordMapper, never()).toWordResponseDTO(inPrivate);
+    }
+
+    private static Dictionary dictionary(String dictionaryId, String userId, Boolean isPublic) {
+        return Dictionary.builder()
+                .dictionaryId(dictionaryId)
+                .userId(userId)
+                .isPublic(isPublic)
+                .fromLang("EN")
+                .toLang("DE")
+                .build();
     }
 
     private static Dictionary dictionary(String dictionaryId) {

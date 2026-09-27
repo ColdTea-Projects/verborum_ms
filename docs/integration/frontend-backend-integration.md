@@ -86,6 +86,14 @@ REST + JSON. Two response shapes:
 against: `400` validation/malformed body · `401` missing/invalid token (post-Phase-3) ·
 `404` unknown record · empty list (not 404) for batch/list endpoints with no matches.
 
+**Reading other users' dictionaries (backend P4-10, 2026-09-27).** A dictionary that is **public**
+can be read by any logged-in user: `GET /dictionaries/dictionary/{id}`, `GET /dictionaries/batch`,
+`GET /words/dictionary/{id}`, `GET /words/batch` and `GET /dictionaries/{id}/tags`. This is how a
+dictionary imported from the marketplace (a vault entry holds only its id) is opened. A **private**
+one still returns `404` to anyone but the owner, and every write to someone else's dictionary is
+`403` whether it is public or not. On words from someone else's dictionary, **`level` is always
+`null`** — it is the owner's personal progress; keep your own progress for imported words locally.
+
 ### 3.1 Identity of records
 
 All IDs are **client-generated UUID strings**. The backend never generates IDs. This is what

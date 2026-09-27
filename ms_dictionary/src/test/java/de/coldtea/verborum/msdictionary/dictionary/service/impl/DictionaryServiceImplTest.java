@@ -285,6 +285,74 @@ class DictionaryServiceImplTest {
     }
 
     @Test
+    void getDictionaryById_AnotherUsersPublicDictionary_IsReadable() {
+        // Arrange — P4-10: how an imported marketplace dictionary is opened
+        String dictionaryId = "dict1";
+        Dictionary theirs = Dictionary.builder().dictionaryId(dictionaryId).userId("someone-else").isPublic(true).build();
+        DictionaryResponseDTO responseDTO = new DictionaryResponseDTO();
+        when(dictionaryRepository.findById(dictionaryId)).thenReturn(Optional.of(theirs));
+        when(dictionaryMapper.toDictionaryResponseDTO(theirs)).thenReturn(responseDTO);
+
+        // Act
+        DictionaryResponseDTO result = dictionaryService.getDictionaryById(dictionaryId, OWNER);
+
+        // Assert
+        assertEquals(responseDTO, result);
+    }
+
+    @Test
+    void getDictionaryById_AnotherUsersPrivateDictionary_StillIs404() {
+        // Arrange — explicitly private (the older test above covers a null flag)
+        String dictionaryId = "dict1";
+        when(dictionaryRepository.findById(dictionaryId)).thenReturn(Optional.of(
+                Dictionary.builder().dictionaryId(dictionaryId).userId("someone-else").isPublic(false).build()));
+
+        // Act & Assert
+        assertThrows(RecordNotFoundException.class, () -> dictionaryService.getDictionaryById(dictionaryId, OWNER));
+        verifyNoInteractions(dictionaryMapper);
+    }
+
+    @Test
+    void getDictionariesByIds_IncludesOtherUsersPublicDictionaries() {
+        // Arrange
+        List<String> ids = List.of("mine", "their-public", "their-private");
+        when(dictionaryRepository.findAllById(ids)).thenReturn(List.of(
+                dictionary("mine", false),
+                Dictionary.builder().dictionaryId("their-public").userId("someone-else").isPublic(true).build(),
+                Dictionary.builder().dictionaryId("their-private").userId("someone-else").isPublic(false).build()));
+        when(dictionaryMapper.toDictionaryResponseDTO(any(Dictionary.class))).thenReturn(new DictionaryResponseDTO());
+
+        // Act
+        List<DictionaryResponseDTO> result = dictionaryService.getDictionariesByIds(ids, OWNER);
+
+        // Assert
+        assertEquals(2, result.size());
+    }
+
+    @Test
+    void saveDictionary_OverwritingAnotherUsersPublicDictionary_IsStillForbidden() {
+        // Arrange — P4-10 opens reads only; public never means writable
+        DictionaryRequestDTO requestDTO = requestDTO("dict1");
+        when(dictionaryRepository.findById("dict1")).thenReturn(Optional.of(
+                Dictionary.builder().dictionaryId("dict1").userId("someone-else").isPublic(true).build()));
+
+        // Act & Assert
+        assertThrows(ForbiddenOperationException.class, () -> dictionaryService.saveDictionary(requestDTO, OWNER));
+        verify(dictionaryRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void deleteDictionary_AnotherUsersPublicDictionary_IsStillForbidden() {
+        // Arrange
+        when(dictionaryRepository.findById("dict1")).thenReturn(Optional.of(
+                Dictionary.builder().dictionaryId("dict1").userId("someone-else").isPublic(true).build()));
+
+        // Act & Assert
+        assertThrows(ForbiddenOperationException.class, () -> dictionaryService.deleteDictionary("dict1", OWNER));
+        verify(dictionaryRepository, never()).deleteById(any());
+    }
+
+    @Test
     void getDictionariesByIds_FiltersOutOtherUsers() {
         // Arrange
         List<String> ids = List.of("mine", "theirs");

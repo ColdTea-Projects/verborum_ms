@@ -1146,7 +1146,7 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
     rows already stored. ms_marketplace's `SupportedLanguage`/`SupportedLanguageValidator` is the
     working template.
   - Needs care with clients: requests they send today that succeed will start returning 400.
-- [ ] `P4-10` **Public dictionaries readable by any authenticated user in ms_dictionary** (added 2026-09-27 at P4-07)
+- [x] `P4-10` **Public dictionaries readable by any authenticated user in ms_dictionary** (added 2026-09-27 at P4-07)
   - **Why:** an import is a reference (P4-07 decision). The importer's client must read the
     dictionary and its words from ms_dictionary, but every read there 404s a non-owner (P3-08) — so an
     imported dictionary cannot be opened today.
@@ -1158,6 +1158,19 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
     the `security-auditor` agent.
   - When the owner makes it private or deletes it, it disappears from importers too (reference
     semantics, accepted). A "make my own copy" action would be a separate, later task.
+  - Done 2026-09-27. One rule, `common/utils/DictionaryAccessUtils.isReadableBy` (owned **or**
+    public), applied in `DictionaryServiceImpl` (by id, batch), `WordServiceImpl` (by dictionary, by
+    word id) and `DictionaryTagServiceImpl` (tags). Writes untouched. **Also:** a word's `level` is
+    returned as `null` to non-owners — the owner's personal mastery, which an importer's client would
+    otherwise show as its own. `getWordsByIds` now resolves dictionaries in one query, not one per word.
+  - Docs: `security.md` (the normative contract), `ownership-rules.md` (skill), the client integration
+    doc, `ms_dictionary/CLAUDE.md`.
+  - **Verified live** with two real users (testadmin publishes, testuser reads) against the
+    IntelliJ-run ms_dictionary: public → dictionary 200, batch 1 item, words 1 with `level` null
+    (owner still sees 4), tags visible; testuser adding a tag or deleting → 403; made private →
+    dictionary 404, words `[]`, tags 404. Test data removed. Suite 97/97 (11 new).
+  - **Clients:** the integration doc now says `level` is `null` on others' words — keep your own
+    progress for imported words locally.
 
 ---
 

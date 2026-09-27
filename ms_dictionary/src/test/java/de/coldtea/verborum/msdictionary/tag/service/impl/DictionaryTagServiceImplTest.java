@@ -22,6 +22,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -171,6 +172,33 @@ class DictionaryTagServiceImplTest {
         // Act & Assert
         assertThrows(RecordNotFoundException.class,
                 () -> dictionaryTagService.getTagsByDictionary(DICTIONARY_ID, OWNER));
+        verifyNoInteractions(dictionaryTagRepository);
+    }
+
+    @Test
+    void getTagsByDictionary_AnotherUsersPublicDictionary_IsReadable() {
+        // Arrange — P4-10: a public dictionary's tags are part of what the marketplace shows
+        when(dictionaryRepository.findById(DICTIONARY_ID)).thenReturn(Optional.of(
+                Dictionary.builder().dictionaryId(DICTIONARY_ID).userId("someone-else").isPublic(true).build()));
+        when(dictionaryTagRepository.findByDictionaryId(DICTIONARY_ID)).thenReturn(List.of());
+
+        // Act
+        List<DictionaryTagResponseDTO> result = dictionaryTagService.getTagsByDictionary(DICTIONARY_ID, OWNER);
+
+        // Assert
+        assertTrue(result.isEmpty());
+        verify(dictionaryTagRepository).findByDictionaryId(DICTIONARY_ID);
+    }
+
+    @Test
+    void addTag_AnotherUsersPublicDictionary_IsStillForbidden() {
+        // Arrange — public never means writable
+        when(dictionaryRepository.findById(DICTIONARY_ID)).thenReturn(Optional.of(
+                Dictionary.builder().dictionaryId(DICTIONARY_ID).userId("someone-else").isPublic(true).build()));
+
+        // Act & Assert
+        assertThrows(ForbiddenOperationException.class,
+                () -> dictionaryTagService.addTag(DICTIONARY_ID, new DictionaryTagRequestDTO("travel"), OWNER));
         verifyNoInteractions(dictionaryTagRepository);
     }
 

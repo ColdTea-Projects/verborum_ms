@@ -31,6 +31,7 @@ import java.util.stream.Stream;
 import static de.coldtea.verborum.msdictionary.common.config.RabbitMQConfig.ROUTING_KEY_WORD_CREATED;
 import static de.coldtea.verborum.msdictionary.common.constants.ErrorMessageConstants.DICTIONARY_WAS_NOT_FOUND_ID;
 import static de.coldtea.verborum.msdictionary.common.constants.ErrorMessageConstants.NOT_THE_OWNER;
+import static de.coldtea.verborum.msdictionary.common.utils.DictionaryAccessUtils.isReadableBy;
 
 @Service
 @RequiredArgsConstructor
@@ -170,26 +171,67 @@ public class WordServiceImpl implements WordService {
         return words.stream().map(wordMapper::toWordResponseDTO).toList();
     }
 
+    /**
+     * Words of every dictionary the caller may read: their own and public ones (P4-10) — how an
+     * imported marketplace dictionary is opened. Unreadable ids are dropped, not refused (P3-08).
+     */
     @Override
     public List<WordResponseDTO> getWordsByDictionaryIds(List<String> dictionaryIds, String ownerId) {
-        List<String> ownedIds = dictionaryRepository.findAllById(dictionaryIds).stream()
-                .filter(dictionary -> ownerId.equals(dictionary.getUserId()))
-                .map(Dictionary::getDictionaryId)
+        List<Dictionary> readable = dictionaryRepository.findAllById(dictionaryIds).stream()
+                .filter(dictionary -> isReadableBy(dictionary, ownerId))
                 .toList();
 
-        if (ownedIds.isEmpty()) {
+        if (readable.isEmpty()) {
             return List.of();
         }
 
-        return wordRepository.findByDictionaryIdIn(ownedIds).stream().map(wordMapper::toWordResponseDTO).toList();
+        Set<String> ownedIds = ownedDictionaryIds(readable, ownerId);
+        List<String> readableIds = readable.stream().map(Dictionary::getDictionaryId).toList();
+
+        return wordRepository.findByDictionaryIdIn(readableIds).stream()
+                .map(word -> toResponseForCaller(word, ownedIds))
+                .toList();
     }
 
+    /** Batch by word id, filtered to words in dictionaries the caller may read (P4-10). */
     @Override
     public List<WordResponseDTO> getWordsByIds(List<String> wordIds, String ownerId) {
-        return wordRepository.findAllById(wordIds).stream()
-                .filter(word -> ownsDictionary(word.getDictionaryId(), ownerId))
-                .map(wordMapper::toWordResponseDTO)
+        List<Word> words = wordRepository.findAllById(wordIds);
+        if (words.isEmpty()) {
+            return List.of();
+        }
+
+        List<String> dictionaryIds = words.stream().map(Word::getDictionaryId).distinct().toList();
+        List<Dictionary> readable = dictionaryRepository.findAllById(dictionaryIds).stream()
+                .filter(dictionary -> isReadableBy(dictionary, ownerId))
                 .toList();
+        Set<String> readableIds = readable.stream().map(Dictionary::getDictionaryId).collect(Collectors.toSet());
+        Set<String> ownedIds = ownedDictionaryIds(readable, ownerId);
+
+        return words.stream()
+                .filter(word -> readableIds.contains(word.getDictionaryId()))
+                .map(word -> toResponseForCaller(word, ownedIds))
+                .toList();
+    }
+
+    private static Set<String> ownedDictionaryIds(List<Dictionary> dictionaries, String ownerId) {
+        return dictionaries.stream()
+                .filter(dictionary -> ownerId.equals(dictionary.getUserId()))
+                .map(Dictionary::getDictionaryId)
+                .collect(Collectors.toSet());
+    }
+
+    /**
+     * `level` is the owner's personal mastery of the word. Another reader of a public dictionary gets
+     * it as null: it is someone else's learning progress, and an importer's client would otherwise show
+     * it as their own. Null already means "not provided" in this contract.
+     */
+    private WordResponseDTO toResponseForCaller(Word word, Set<String> ownedDictionaryIds) {
+        WordResponseDTO response = wordMapper.toWordResponseDTO(word);
+        if (!ownedDictionaryIds.contains(word.getDictionaryId())) {
+            response.setLevel(null);
+        }
+        return response;
     }
 
     private Stream<Word> convertToWordStream(@NotNull WordBundleRequestDTO bundle, String ownerId){
