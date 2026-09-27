@@ -23,6 +23,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -123,11 +124,30 @@ class WordControllerWebTest {
     }
 
     @Test
-    void createWords_ValidBundle_Is201() throws Exception {
+    void createWords_ValidBundle_Is201AndNamesTheDictionary() throws Exception {
+        // The message says "into dictionary" — it used to be followed by the saved words instead
         mockMvc.perform(post("/words")
                         .with(jwt().jwt(j -> j.subject(SUB)))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(bundle(WORD_ID, "Haus")))
-                .andExpect(status().isCreated());
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.message").value("Saved successfully into dictionary " + DICTIONARY_ID));
+    }
+
+    @Test
+    void updateWords_TwoBundlesSameDictionary_NamesItOnce() throws Exception {
+        String twoBundles = """
+                [{"dictionaryId":"%1$s","words":[{"wordId":"%2$s","word":"Haus","wordMeta":"{}",
+                  "translation":"house","translationMeta":"{}"}]},
+                 {"dictionaryId":"%1$s","words":[{"wordId":"%3$s","word":"Baum","wordMeta":"{}",
+                  "translation":"tree","translationMeta":"{}"}]}]
+                """.formatted(DICTIONARY_ID, WORD_ID, "8d2e3f4a-5b6c-4d7e-9f8a-0b1c2d3e4f5a");
+
+        mockMvc.perform(put("/words")
+                        .with(jwt().jwt(j -> j.subject(SUB)))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(twoBundles))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.message").value("Updated successfully into dictionary " + DICTIONARY_ID));
     }
 }

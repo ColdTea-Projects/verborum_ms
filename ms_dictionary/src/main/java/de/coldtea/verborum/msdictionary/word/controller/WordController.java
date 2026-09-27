@@ -1,7 +1,6 @@
 package de.coldtea.verborum.msdictionary.word.controller;
 
 import de.coldtea.verborum.msdictionary.common.response.Response;
-import de.coldtea.verborum.msdictionary.common.utils.ListUtils;
 import de.coldtea.verborum.msdictionary.common.utils.ResponseUtils;
 import de.coldtea.verborum.msdictionary.common.utils.SupportedLanguage;
 import de.coldtea.verborum.msdictionary.common.utils.ValidUUID;
@@ -17,10 +16,9 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.context.request.WebRequest;
 
 import java.util.List;
-import java.util.stream.Stream;
 
 import static de.coldtea.verborum.msdictionary.common.constants.ResponseMessageConstants.*;
-import static de.coldtea.verborum.msdictionary.common.utils.ResponseUtils.getListOfWords;
+import static de.coldtea.verborum.msdictionary.common.utils.ResponseUtils.getDictionaryIds;
 import static de.coldtea.verborum.msdictionary.common.utils.SecurityUtils.getCurrentUserId;
 import static de.coldtea.verborum.msdictionary.common.utils.SecurityUtils.requireSelf;
 
@@ -30,24 +28,19 @@ import static de.coldtea.verborum.msdictionary.common.utils.SecurityUtils.requir
 public class WordController {
 
     private final WordService wordService;
-    private final ListUtils listUtils = new ListUtils();
 
     @PostMapping("")
     public ResponseEntity<Response> createWords(@Valid @RequestBody List<WordBundleRequestDTO> bundles, WebRequest request) {
         wordService.saveWords(bundles, getCurrentUserId());
 
-        String listOfWords = getListOfWords(listUtils.flatMap(bundles, WordBundleRequestDTO::getWordStream));
-
-        return ResponseUtils.buildResponse(HttpStatus.CREATED, WORD_SAVED_SUCCESSFULLY, listOfWords, request);
+        return ResponseUtils.buildResponse(HttpStatus.CREATED, WORD_SAVED_SUCCESSFULLY, getDictionaryIds(bundles), request);
     }
 
     @PutMapping("")
     public ResponseEntity<Response> updateWords(@Valid @RequestBody List<WordBundleRequestDTO> bundles, WebRequest request) {
         wordService.saveWords(bundles, getCurrentUserId());
 
-        String listOfWords = getListOfWords(listUtils.flatMap(bundles, WordBundleRequestDTO::getWordStream));
-
-        return ResponseUtils.buildResponse(HttpStatus.CREATED, WORD_UPDATED_SUCCESSFULLY, listOfWords, request);
+        return ResponseUtils.buildResponse(HttpStatus.CREATED, WORD_UPDATED_SUCCESSFULLY, getDictionaryIds(bundles), request);
     }
 
     @DeleteMapping("/{wordId}")
