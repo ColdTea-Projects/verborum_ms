@@ -1039,7 +1039,7 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
       `user.deleted` hand-published for a made-up subject (a real account was not deleted — that would
       wipe `testuser`'s dev data) → both of its rows (one listed, one hidden) deleted, a bystander's row
       kept, redelivery a no-op. DLQ empty.
-- [ ] `P4-06` **Implement MarketplaceController**
+- [x] `P4-06` **Implement MarketplaceController**
   - **Every browse query must filter `is_listed = true`** (P4-04) — hidden rows are private
     dictionaries. Consider leading the browse indexes with `is_listed`, or partial indexes
     `WHERE is_listed`, once the query shapes are known
@@ -1048,9 +1048,48 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
   - `GET /marketplace/dictionaries/language?from=EN&to=DE` — filter by language pair
   - `POST /marketplace/dictionaries/{dictionaryId}/import` — import dictionary to vault
   - Done when: all endpoints work and publish/consume events correctly
-- [ ] `P4-07` **Publish `dictionary.imported` event from ms_marketplace**
-  - On import: publish event so ms_user can add to vault
+  - Done 2026-09-27 — the three browse endpoints plus a fourth. **Decisions (project owner):**
+    1. **Own paging envelope** `PageResponse {items, page, size, totalElements, totalPages}`, not
+       Spring's serialized `Page` (~15 fields, a shape Spring Data itself flags as unstable across
+       versions). Zero-based `page` (default 0), `size` default 20, capped at 100. Stable sort with
+       `dictionaryId` as the last key so ties cannot swap between pages. The first paged contract in
+       Verborum — reuse it.
+    2. **Import endpoint moved to P4-07**, where the event it publishes lives.
+    3. **Listings carry `publisherId`** (the owner's subject) and a fourth endpoint,
+       `GET /marketplace/dictionaries/publisher/{publisherId}`, serves "more from this publisher".
+       Checked: the subject grants no access anywhere (ownership always comes from the token). Display
+       names are a separate task (BL-04).
+    4. **Language codes normalized to uppercase in ms_marketplace** — consumers uppercase on write
+       (`Locale.ROOT`), `2026/09/27-04-changelog.json` uppercased existing rows, and the filter is
+       validated with a working `@SupportedLanguage` and uppercased. ms_dictionary untouched.
+    - Also: 400 handlers for `HandlerMethodValidationException`, `MissingServletRequestParameterException`
+      and `MethodArgumentTypeMismatchException` (all three were falling through to the catch-all 500).
+    - **Verified live** against the IntelliJ-run service: list / popular (7, 3, 0) / lowercase language
+      filter / publisher with paging / unknown publisher → empty page; `XX`, `size=101`, `page=abc` →
+      400; no token → 401. Suite 67/67 (11 new web-slice tests).
+    - **Found, not fixed:** `@SupportedLanguage` and `@ValidUUID` are **inert in ms_dictionary and
+      ms_user** — see `P4-09`.
+- [ ] `P4-07` **Import endpoint + publish `dictionary.imported` from ms_marketplace**
+  - `POST /marketplace/dictionaries/{dictionaryId}/import` (moved here from P4-06 on 2026-09-27) —
+    only a **listed** dictionary is importable (a hidden row is private or deleted → 404)
+  - On import: publish event so ms_user can add to vault, and increment `import_count`
   - Done when: importing triggers a vault entry in ms_user
+- [ ] `P4-09` **Make `@SupportedLanguage` and `@ValidUUID` actually validate** (found 2026-09-27 at P4-06)
+  - **The bug:** in ms_dictionary and ms_user both annotations are plain annotations with no
+    `@Constraint(validatedBy = …)`, so Bean Validation never runs their validators. Verified live on
+    ms_dictionary: `POST /dictionaries/` with `fromLang: "XX"` → 201, with `dictionaryId: "not-a-uuid"`
+    → 201, `GET /words/language/from/XX` → 200. The P3-09 note claiming one of a symmetric pair 400'd
+    was not accurate. Affects `DictionaryRequestDTO`, `WordRequestDTO`, `WordBundleRequestDTO`,
+    `WordController` (ms_dictionary) and `UserRequestDTO`, `VaultEntryRequestDTO` (ms_user).
+  - **Why it matters now:** invalid codes flow into marketplace listings, where they can never match a
+    (validated) language filter; non-UUID ids are stored as primary keys.
+  - **The fix is more than adding `@Constraint`:** both validators *throw* from `isValid`. Once they
+    actually run, the framework wraps that in a `ValidationException`, which no handler catches → 500.
+    They must return false instead (as ms_marketplace's does), and the path-variable uses need the
+    `HandlerMethodValidationException` 400 handler ms_marketplace now has. Then clean up any invalid
+    rows already stored. ms_marketplace's `SupportedLanguage`/`SupportedLanguageValidator` is the
+    working template.
+  - Needs care with clients: requests they send today that succeed will start returning 400.
 - [x] `P4-08` **Dictionary tags** (requested 2026-07-23; built ahead of the phase)
   - Built now rather than with the rest of Phase 4 because the clients can start attaching tags
     immediately, and the data is only useful once it has accumulated — the marketplace and the AI
@@ -1171,6 +1210,11 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
   - Trigger: before a client developer pulls this backend and runs against it. Costs two minutes —
     do it sooner rather than later
   - Done when: the Android/iOS repos know they must attach a bearer token to ms_dictionary calls
+- [ ] `BL-04` **Publisher display names on marketplace listings** (added 2026-09-27 at P4-06)
+  - Listings carry `publisherId` only; users will want "by Anna". The name lives in ms_user, so per
+    rule 5 the marketplace stores it (`publisher_name`) and keeps it current from an ms_user event —
+    e.g. `user.profile.updated` carrying `keycloakId` + `displayName` — which does not exist yet
+  - Trigger: when the client teams build the marketplace screens
 - [ ] `BL-02` **Registration bot protection** (split out of `P3B-08` on 2026-09-27)
   - Enable Keycloak's reCAPTCHA on the hosted registration form, or bots will create accounts
   - Trigger: before public sign-up opens

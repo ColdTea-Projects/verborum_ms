@@ -1,19 +1,39 @@
 package de.coldtea.verborum.msmarketplace.dictionarystats.service;
 
+import de.coldtea.verborum.msmarketplace.common.response.PageResponse;
+import de.coldtea.verborum.msmarketplace.dictionarystats.dto.DictionaryListingResponseDTO;
 import de.coldtea.verborum.msmarketplace.common.event.DictionaryDeletedEvent;
 import de.coldtea.verborum.msmarketplace.common.event.DictionarySnapshotEvent;
 import de.coldtea.verborum.msmarketplace.common.event.DictionaryUpdatedEvent;
 import de.coldtea.verborum.msmarketplace.common.event.DictionaryVisibilityEvent;
 
 /**
- * Keeps the `dictionary_stats` read model in step with ms_dictionary (P4-03).
+ * The marketplace listings: browse reads (P4-06), and keeping the `dictionary_stats` read model in
+ * step with ms_dictionary (P4-03..P4-05).
  * <p>
- * Every method is event-driven and takes no caller: the actor is ms_dictionary, not a logged-in
+ * Browse reads take no caller either: every listed dictionary is public, so there is nothing to
+ * filter by owner. Every event-driven method takes no caller: the actor is ms_dictionary, not a logged-in
  * user, so there is no ownership check. Every method is idempotent and drops anything not newer
  * than what the listing already holds (rules 3 and 4), so redeliveries and out-of-order deliveries
  * are harmless.
  */
 public interface DictionaryStatsService {
+
+    // ---- Browse (P4-06). Listed rows only, paginated; any authenticated caller may read ----
+
+    /** Newest first. */
+    PageResponse<DictionaryListingResponseDTO> getListings(int page, int size);
+
+    /** Most imported first, newest first among equals. */
+    PageResponse<DictionaryListingResponseDTO> getPopularListings(int page, int size);
+
+    /** One language pair, newest first. Codes in any case; they are stored uppercase. */
+    PageResponse<DictionaryListingResponseDTO> getListingsByLanguage(String fromLang, String toLang, int page, int size);
+
+    /** One publisher's listings, newest first — "more from this publisher". */
+    PageResponse<DictionaryListingResponseDTO> getListingsByPublisher(String publisherId, int page, int size);
+
+    // ---- Event-driven projection (P4-03..P4-05) ----
 
     /**
      * `dictionary.visibility.public` — creates the listing, or updates it if the event is newer,

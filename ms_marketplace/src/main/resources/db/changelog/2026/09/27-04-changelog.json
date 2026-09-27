@@ -1,0 +1,19 @@
+{
+  "databaseChangeLog": [
+    {
+      "changeSet": {
+        "id": "20260927-04-dictionary-stats-uppercase-languages",
+        "author": "claude (P4-06)",
+        "comment": "Language codes are stored uppercase from P4-06 on, so the browse language filter is a plain indexed equality. ms_dictionary validates codes case-insensitively but stores them as the client sent them, and dev data is lowercase; the consumers now uppercase on write, and this brings rows written before that into line. Not reversible - the original casing is not recorded - so the rollback is empty on purpose: rolling back the code leaves uppercase data, which the old code reads fine.",
+        "changes": [
+          {
+            "sql": {
+              "sql": "UPDATE dictionary_stats SET from_lang = UPPER(from_lang), to_lang = UPPER(to_lang) WHERE from_lang <> UPPER(from_lang) OR to_lang <> UPPER(to_lang);"
+            }
+          }
+        ],
+        "rollback": []
+      }
+    }
+  ]
+}

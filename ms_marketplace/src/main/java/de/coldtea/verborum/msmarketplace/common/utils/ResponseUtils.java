@@ -1,7 +1,9 @@
 package de.coldtea.verborum.msmarketplace.common.utils;
 
+import de.coldtea.verborum.msmarketplace.common.response.PageResponse;
 import de.coldtea.verborum.msmarketplace.common.response.Response;
 import lombok.AllArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.context.request.WebRequest;
@@ -21,5 +23,16 @@ public class ResponseUtils {
 
     public static String extractPath(WebRequest request) {
         return request.getDescription(false).replaceFirst("^uri=", "");
+    }
+
+    /** Copies a Spring `Page` into the public paging envelope; see {@link PageResponse}. */
+    public static <T> PageResponse<T> toPageResponse(Page<T> page) {
+        return PageResponse.<T>builder()
+                .items(page.getContent())
+                .page(page.getNumber())
+                .size(page.getSize())
+                .totalElements(page.getTotalElements())
+                .totalPages(page.getTotalPages())
+                .build();
     }
 }

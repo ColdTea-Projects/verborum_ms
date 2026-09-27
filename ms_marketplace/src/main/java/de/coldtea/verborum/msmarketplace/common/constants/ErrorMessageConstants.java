@@ -11,6 +11,8 @@ public final class ErrorMessageConstants {
     // Returned instead of an unhandled exception's own message, which would leak internals
     public static final String INTERNAL_SERVER_ERROR = "Internal server error";
     public static final String NO_AUTHENTICATED_USER = "No authenticated user found";
+    // Request parameter that does not convert to its type; the parameter name is appended
+    public static final String INVALID_PARAMETER = "Invalid value for parameter: ";
 
     private ErrorMessageConstants() {
     }

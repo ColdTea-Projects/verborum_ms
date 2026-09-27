@@ -5,6 +5,9 @@ import de.coldtea.verborum.msmarketplace.common.event.DictionarySnapshotEntry;
 import de.coldtea.verborum.msmarketplace.common.event.DictionarySnapshotEvent;
 import de.coldtea.verborum.msmarketplace.common.event.DictionaryUpdatedEvent;
 import de.coldtea.verborum.msmarketplace.common.event.DictionaryVisibilityEvent;
+import de.coldtea.verborum.msmarketplace.common.mapper.DictionaryStatsMapper;
+import de.coldtea.verborum.msmarketplace.common.response.PageResponse;
+import de.coldtea.verborum.msmarketplace.dictionarystats.dto.DictionaryListingResponseDTO;
 import de.coldtea.verborum.msmarketplace.dictionarystats.entity.DictionaryStats;
 import de.coldtea.verborum.msmarketplace.dictionarystats.repository.DictionaryStatsRepository;
 
@@ -14,16 +17,23 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 class DictionaryStatsServiceImplTest {
@@ -38,6 +48,9 @@ class DictionaryStatsServiceImplTest {
     @Mock
     private DictionaryStatsRepository dictionaryStatsRepository;
 
+    @Mock
+    private DictionaryStatsMapper dictionaryStatsMapper;
+
     @InjectMocks
     private DictionaryStatsServiceImpl dictionaryStatsService;
 
@@ -46,7 +59,125 @@ class DictionaryStatsServiceImplTest {
         MockitoAnnotations.openMocks(this);
     }
 
+    // ---- browse (P4-06) ----
+
+    @Test
+    void getListings_NewestFirstWithStableTieBreak() {
+        // Arrange
+        DictionaryStats listing = listing("Travel", T1);
+        DictionaryListingResponseDTO dto = DictionaryListingResponseDTO.builder().dictionaryId(DICTIONARY_ID).build();
+        when(dictionaryStatsRepository.findByIsListedTrue(any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(listing), PageRequest.of(2, 5), 11));
+        when(dictionaryStatsMapper.toDictionaryListingResponseDTO(listing)).thenReturn(dto);
+
+        // Act
+        PageResponse<DictionaryListingResponseDTO> result = dictionaryStatsService.getListings(2, 5);
+
+        // Assert
+        ArgumentCaptor<Pageable> captor = ArgumentCaptor.forClass(Pageable.class);
+        verify(dictionaryStatsRepository).findByIsListedTrue(captor.capture());
+        assertEquals(2, captor.getValue().getPageNumber());
+        assertEquals(5, captor.getValue().getPageSize());
+        assertEquals(Sort.by(Sort.Order.desc("publishedAt"), Sort.Order.asc("dictionaryId")), captor.getValue().getSort());
+
+        assertEquals(List.of(dto), result.getItems());
+        assertEquals(2, result.getPage());
+        assertEquals(5, result.getSize());
+        assertEquals(11, result.getTotalElements());
+        assertEquals(3, result.getTotalPages());
+    }
+
+    @Test
+    void getPopularListings_MostImportedFirst() {
+        // Arrange
+        when(dictionaryStatsRepository.findByIsListedTrue(any(Pageable.class))).thenReturn(Page.empty());
+
+        // Act
+        dictionaryStatsService.getPopularListings(0, 20);
+
+        // Assert
+        ArgumentCaptor<Pageable> captor = ArgumentCaptor.forClass(Pageable.class);
+        verify(dictionaryStatsRepository).findByIsListedTrue(captor.capture());
+        assertEquals(Sort.by(Sort.Order.desc("importCount"), Sort.Order.desc("publishedAt"), Sort.Order.asc("dictionaryId")),
+                captor.getValue().getSort());
+    }
+
+    @Test
+    void getListingsByLanguage_QueriesUppercaseCodes() {
+        // Arrange — stored codes are uppercase; a client sending "en" must still match
+        when(dictionaryStatsRepository.findByIsListedTrueAndFromLangAndToLang(eq("EN"), eq("DE"), any(Pageable.class)))
+                .thenReturn(Page.empty());
+
+        // Act
+        PageResponse<DictionaryListingResponseDTO> result = dictionaryStatsService.getListingsByLanguage("en", "de", 0, 20);
+
+        // Assert
+        verify(dictionaryStatsRepository).findByIsListedTrueAndFromLangAndToLang(eq("EN"), eq("DE"), any(Pageable.class));
+        assertTrue(result.getItems().isEmpty());
+        assertEquals(0, result.getTotalElements());
+    }
+
+    @Test
+    void getListingsByLanguage_TurkishLowercaseI_UppercasedLocaleIndependently() {
+        // Arrange — "tr" must become "TR", never "TR" with a dotted İ under a Turkish default locale
+        when(dictionaryStatsRepository.findByIsListedTrueAndFromLangAndToLang(any(), any(), any(Pageable.class)))
+                .thenReturn(Page.empty());
+        Locale previous = Locale.getDefault();
+        Locale.setDefault(Locale.forLanguageTag("tr"));
+
+        try {
+            // Act
+            dictionaryStatsService.getListingsByLanguage("it", "tr", 0, 20);
+        } finally {
+            Locale.setDefault(previous);
+        }
+
+        // Assert
+        verify(dictionaryStatsRepository).findByIsListedTrueAndFromLangAndToLang(eq("IT"), eq("TR"), any(Pageable.class));
+    }
+
+    @Test
+    void getListingsByPublisher_FiltersOnThePublisherId() {
+        // Arrange
+        when(dictionaryStatsRepository.findByIsListedTrueAndUserId(eq(OWNER), any(Pageable.class))).thenReturn(Page.empty());
+
+        // Act
+        dictionaryStatsService.getListingsByPublisher(OWNER, 0, 20);
+
+        // Assert
+        verify(dictionaryStatsRepository).findByIsListedTrueAndUserId(eq(OWNER), any(Pageable.class));
+    }
+
     // ---- publishListing (dictionary.visibility.public) ----
+
+    @Test
+    void publishListing_LowercaseLanguageCodes_AreStoredUppercase() {
+        // Arrange — ms_dictionary stores codes as the client sent them
+        when(dictionaryStatsRepository.findById(DICTIONARY_ID)).thenReturn(Optional.empty());
+        DictionaryVisibilityEvent event = publicEvent("Travel", T2);
+        event.setFromLang("en");
+        event.setToLang("de");
+
+        // Act
+        dictionaryStatsService.publishListing(event);
+
+        // Assert
+        DictionaryStats saved = capturedSave();
+        assertEquals("EN", saved.getFromLang());
+        assertEquals("DE", saved.getToLang());
+    }
+
+    @Test
+    void updateListing_LowercaseLanguageCodes_AreStoredUppercase() {
+        // Arrange
+        when(dictionaryStatsRepository.findById(DICTIONARY_ID)).thenReturn(Optional.of(listing("Old", T1)));
+
+        // Act
+        dictionaryStatsService.updateListing(updatedEvent("Renamed", "fr", T2));
+
+        // Assert
+        assertEquals("FR", capturedSave().getToLang());
+    }
 
     @Test
     void publishListing_NewDictionary_CreatesListing() {

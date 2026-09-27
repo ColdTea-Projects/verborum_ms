@@ -7,13 +7,17 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import static de.coldtea.verborum.msmarketplace.common.constants.ErrorMessageConstants.INTERNAL_SERVER_ERROR;
+import static de.coldtea.verborum.msmarketplace.common.constants.ErrorMessageConstants.INVALID_PARAMETER;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -97,6 +101,54 @@ public class GlobalExceptionHandler {
         String errorMessage = String.join(", ", errorMessages);
 
         return buildErrorResponse(HttpStatus.BAD_REQUEST, MethodArgumentNotValidException.class.getSimpleName(), errorMessage, request);
+    }
+
+    /**
+     * A failed constraint on a controller parameter (@Min/@Max on paging, @SupportedLanguage on the
+     * language filter) — Spring MVC's built-in method validation (P4-06). Without this handler it
+     * fell through to the catch-all and a bad `size` was a 500.
+     */
+    @ExceptionHandler(HandlerMethodValidationException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ResponseEntity<ErrorResponse> handleHandlerMethodValidationException(HandlerMethodValidationException ex,
+                                                                                WebRequest request) {
+        log.warn("{}: {}", HandlerMethodValidationException.class.getCanonicalName(), ex.getMessage());
+
+        List<String> errorMessages = ex.getAllValidationResults().stream()
+                .flatMap(result -> result.getResolvableErrors().stream()
+                        .map(error -> result.getMethodParameter().getParameterName() + ": " + error.getDefaultMessage()))
+                .toList();
+
+        return buildErrorResponse(HttpStatus.BAD_REQUEST, HandlerMethodValidationException.class.getSimpleName(),
+                String.join(", ", errorMessages), request);
+    }
+
+    /**
+     * A required query parameter is absent (e.g. `from` on the language filter) — 400, not 500.
+     * <p>
+     * `ex.getMessage()` is safe here, unlike in the type-mismatch handler below: a parameter that is
+     * absent has no value to echo, so Spring's message names only the parameter and its type.
+     */
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ResponseEntity<ErrorResponse> handleMissingServletRequestParameterException(MissingServletRequestParameterException ex,
+                                                                                       WebRequest request) {
+        log.warn("{}: {}", MissingServletRequestParameterException.class.getCanonicalName(), ex.getMessage());
+        return buildErrorResponse(HttpStatus.BAD_REQUEST, MissingServletRequestParameterException.class.getSimpleName(),
+                ex.getMessage(), request);
+    }
+
+    /**
+     * A parameter that does not convert (e.g. `page=abc`) — 400, not 500. The message is built from
+     * the parameter name only: the exception's own message quotes the raw input back.
+     */
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ResponseEntity<ErrorResponse> handleMethodArgumentTypeMismatchException(MethodArgumentTypeMismatchException ex,
+                                                                                   WebRequest request) {
+        log.warn("{}: {}", MethodArgumentTypeMismatchException.class.getCanonicalName(), ex.getMessage());
+        return buildErrorResponse(HttpStatus.BAD_REQUEST, MethodArgumentTypeMismatchException.class.getSimpleName(),
+                INVALID_PARAMETER + ex.getName(), request);
     }
 
     private static ResponseEntity<ErrorResponse> buildErrorResponse(HttpStatus status, String simpleName, String ex, WebRequest request) {

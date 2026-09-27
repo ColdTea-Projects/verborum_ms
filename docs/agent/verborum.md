@@ -233,6 +233,26 @@ the whole dictionary payload. The tag in the path is normalised the same way as 
 | GET | `/words/user/{userId}` | — | `List<WordResponseDTO>` |
 | GET | `/words/batch?ids=id1,id2` | — | `List<WordResponseDTO>` (empty list for no matches) |
 
+### ms_marketplace — MarketplaceController (`/marketplace/dictionaries`, P4-06)
+Read-only browse, any authenticated caller. Every endpoint returns only **listed** dictionaries and
+takes `page` (zero-based, default 0, ≥ 0) and `size` (default 20, 1–100); anything else is a 400.
+
+| Method | Path | Returns |
+|---|---|---|
+| GET | `/marketplace/dictionaries` | `PageResponse<DictionaryListingResponseDTO>` — newest first |
+| GET | `/marketplace/dictionaries/popular` | same — most imported first, newest first among equals |
+| GET | `/marketplace/dictionaries/language?from=EN&to=DE` | same — one language pair, newest first; codes case-insensitive, validated (400 on unsupported or missing) |
+| GET | `/marketplace/dictionaries/publisher/{publisherId}` | same — one publisher's listings, newest first; unknown id → empty page |
+
+```
+PageResponse                { items, page, size, totalElements, totalPages }
+DictionaryListingResponseDTO { dictionaryId, publisherId, name, fromLang, toLang, importCount, publishedAt }
+```
+`PageResponse` is Verborum's own paging envelope, not Spring's serialized `Page` (unstable shape).
+`publisherId` is the owner's JWT subject — the value for the publisher endpoint; it grants no access
+(ownership always comes from the caller's token). No display name yet (BL-04). Language codes come
+back uppercase. `POST /marketplace/dictionaries/{dictionaryId}/import` ships with its event at P4-07.
+
 ---
 
 ## Supported Languages

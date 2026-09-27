@@ -5,23 +5,31 @@ import de.coldtea.verborum.msmarketplace.common.event.DictionarySnapshotEntry;
 import de.coldtea.verborum.msmarketplace.common.event.DictionarySnapshotEvent;
 import de.coldtea.verborum.msmarketplace.common.event.DictionaryUpdatedEvent;
 import de.coldtea.verborum.msmarketplace.common.event.DictionaryVisibilityEvent;
+import de.coldtea.verborum.msmarketplace.common.mapper.DictionaryStatsMapper;
+import de.coldtea.verborum.msmarketplace.common.response.PageResponse;
+import de.coldtea.verborum.msmarketplace.dictionarystats.dto.DictionaryListingResponseDTO;
 import de.coldtea.verborum.msmarketplace.dictionarystats.entity.DictionaryStats;
 import de.coldtea.verborum.msmarketplace.dictionarystats.repository.DictionaryStatsRepository;
 import de.coldtea.verborum.msmarketplace.dictionarystats.service.DictionaryStatsService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import static de.coldtea.verborum.msmarketplace.common.utils.ResponseUtils.toPageResponse;
 
 /**
  * Every write here is "apply this state if it is newer than what I hold" (rule 4), with the
@@ -36,7 +44,42 @@ import java.util.stream.Collectors;
 @Slf4j
 public class DictionaryStatsServiceImpl implements DictionaryStatsService {
 
+    // Stable order for paging: without a unique last key, rows that tie on the sort column can swap
+    // between two page requests and appear on both pages or on neither
+    private static final Sort NEWEST_FIRST =
+            Sort.by(Sort.Order.desc("publishedAt"), Sort.Order.asc("dictionaryId"));
+    private static final Sort MOST_IMPORTED_FIRST =
+            Sort.by(Sort.Order.desc("importCount"), Sort.Order.desc("publishedAt"), Sort.Order.asc("dictionaryId"));
+
     private final DictionaryStatsRepository dictionaryStatsRepository;
+
+    private final DictionaryStatsMapper dictionaryStatsMapper;
+
+    @Override
+    public PageResponse<DictionaryListingResponseDTO> getListings(int page, int size) {
+        return toPageResponse(dictionaryStatsRepository.findByIsListedTrue(PageRequest.of(page, size, NEWEST_FIRST))
+                .map(dictionaryStatsMapper::toDictionaryListingResponseDTO));
+    }
+
+    @Override
+    public PageResponse<DictionaryListingResponseDTO> getPopularListings(int page, int size) {
+        return toPageResponse(dictionaryStatsRepository.findByIsListedTrue(PageRequest.of(page, size, MOST_IMPORTED_FIRST))
+                .map(dictionaryStatsMapper::toDictionaryListingResponseDTO));
+    }
+
+    @Override
+    public PageResponse<DictionaryListingResponseDTO> getListingsByLanguage(String fromLang, String toLang, int page, int size) {
+        return toPageResponse(dictionaryStatsRepository.findByIsListedTrueAndFromLangAndToLang(
+                        normalizeLanguage(fromLang), normalizeLanguage(toLang), PageRequest.of(page, size, NEWEST_FIRST))
+                .map(dictionaryStatsMapper::toDictionaryListingResponseDTO));
+    }
+
+    @Override
+    public PageResponse<DictionaryListingResponseDTO> getListingsByPublisher(String publisherId, int page, int size) {
+        return toPageResponse(dictionaryStatsRepository.findByIsListedTrueAndUserId(
+                        publisherId, PageRequest.of(page, size, NEWEST_FIRST))
+                .map(dictionaryStatsMapper::toDictionaryListingResponseDTO));
+    }
 
     @Transactional
     @Override
@@ -217,8 +260,8 @@ public class DictionaryStatsServiceImpl implements DictionaryStatsService {
                 .dictionaryId(dictionaryId)
                 .userId(userId)
                 .name(name)
-                .fromLang(fromLang)
-                .toLang(toLang)
+                .fromLang(normalizeLanguage(fromLang))
+                .toLang(normalizeLanguage(toLang))
                 // Both explicit — the column defaults do not apply through Hibernate (see the entity)
                 .isListed(listed)
                 .importCount(0)
@@ -247,9 +290,19 @@ public class DictionaryStatsServiceImpl implements DictionaryStatsService {
                                            String toLang, OffsetDateTime sourceUpdatedAt) {
         listing.setUserId(userId);
         listing.setName(name);
-        listing.setFromLang(fromLang);
-        listing.setToLang(toLang);
+        listing.setFromLang(normalizeLanguage(fromLang));
+        listing.setToLang(normalizeLanguage(toLang));
         listing.setSourceUpdatedAt(sourceUpdatedAt);
+    }
+
+    /**
+     * Language codes are stored uppercase so the language filter is a plain indexed equality
+     * (decided at P4-06). ms_dictionary validates case-insensitively but stores codes exactly as the
+     * client sent them, so events arrive as `en` as often as `EN`. Locale.ROOT, not the default
+     * locale: TR is a supported language, and Turkish uppercasing turns `i` into `İ`.
+     */
+    private static String normalizeLanguage(String language) {
+        return language == null ? null : language.toUpperCase(Locale.ROOT);
     }
 
     /**

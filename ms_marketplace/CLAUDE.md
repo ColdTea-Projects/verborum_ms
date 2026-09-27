@@ -15,7 +15,8 @@ request time — decided 2026-07-23, see roadmap `P4-03`.
 - **Base package:** `de.coldtea.verborum.msmarketplace`
 - **Status:** Scaffolded (P4-01), `dictionary_stats` table (P4-02), listing projection +
   snapshot reconciliation fed by ms_dictionary events (P4-03), private → hidden (P4-04),
-  deletion and `user.deleted` (P4-05). Consumes every event it needs; no endpoints yet (P4-06).
+  deletion and `user.deleted` (P4-05), browse API (P4-06). Import endpoint + `dictionary.imported`
+  next (P4-07).
 
 ## Entities
 - `DictionaryStats` (`dictionary_stats`) — `dictionaryId` (PK, ms_dictionary's id, no DB FK),
@@ -64,6 +65,22 @@ request time — decided 2026-07-23, see roadmap `P4-03`.
   subject.
 - `RabbitMQConfig` mirrors the other services: same exchange, fanout DLX + DLQ, ISO-8601 converter
   with `INFERRED` type precedence (ms_dictionary's `__TypeId__` names classes that do not exist here).
+
+## API — MarketplaceController (`/marketplace/dictionaries`, P4-06)
+- `GET` (newest first) · `GET /popular` (most imported) · `GET /language?from=&to=` ·
+  `GET /publisher/{publisherId}` — all paginated (`page` 0-based default 0, `size` default 20, max 100),
+  all **listed rows only**. Contract table in `docs/agent/verborum.md`.
+- Returns `common/response/PageResponse` — Verborum's own paging envelope. Reuse it for any future
+  paged read rather than returning Spring's `Page`.
+- Every sort ends in `dictionaryId` so ties are stable across pages; the sorts live as constants in
+  `DictionaryStatsServiceImpl`.
+- Parameter constraints (`@Min`/`@Max`, `@SupportedLanguage`) run via Spring MVC's built-in method
+  validation → `HandlerMethodValidationException` → 400. **Do not add class-level `@Validated`** —
+  that switches to AOP validation and a `ConstraintViolationException` nobody handles.
+- `SupportedLanguage` here has `@Constraint` and its validator returns false. The copies in
+  ms_dictionary/ms_user are inert (P4-09) — do not copy from them.
+- Language codes are stored and returned **uppercase** (normalized on write, `Locale.ROOT`).
+- `publisherId` = the owner's JWT subject (`fk_user_id`). Safe to expose; no display name (BL-04).
 
 ## Security
 - `common/config/SecurityConfig.java` is in place from the first commit: stateless JWT resource
