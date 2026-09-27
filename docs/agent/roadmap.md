@@ -910,9 +910,8 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
       listing updated in place, `published_at` kept; unchanged re-save → no `dictionary.updated`;
       snapshot recreated a deleted listing, removed a fake orphan, corrected a stale name; deleting the
       dictionary removed its listing at the next snapshot. DLQ empty before and after.
-    - **Left for P4-04:** a dictionary made private between the snapshot query and `reconcile` gets
-      re-listed until the next snapshot (a deleted listing leaves nothing to compare). Recommended
-      fix: on private, keep a hidden row with its `sourceUpdatedAt` rather than deleting.
+    - **Left for P4-04:** a dictionary made private between the snapshot query and `reconcile` got
+      re-listed until the next snapshot. **Closed by P4-04** (hidden rows instead of deletes).
     - **Found:** `docs/agent/verborum.md`'s routing table and ms_dictionary's `deleteAllByUserId`
       both say ms_marketplace consumes `user.deleted`, but no task built it. **Added to `P4-05`**
       on 2026-09-27.
@@ -980,9 +979,26 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
        listing's `name`/`fromLang`/`toLang` will go stale. Decide here: either add a
        `dictionary.updated` event or have the listing re-read on access.
   - Make the listener idempotent regardless: a redelivery must not create a second listing.
-- [ ] `P4-04` **Consume `dictionary.visibility.private` event**
+- [x] `P4-04` **Consume `dictionary.visibility.private` event**
   - On event: remove or deactivate the `DictionaryStats` record
   - Done when: making a dictionary private removes it from marketplace
+  - Done 2026-09-27. **Decided (project owner): hide, don't delete.** New `is_listed` column
+    (`2026/09/27-02-changelog.json`, NOT NULL DEFAULT true). Going private sets `is_listed = false`
+    and keeps the row with its `source_updated_at`, so older "public" state arriving late — a delayed
+    `visibility.public`, or a snapshot read just before the flip — compares as stale and cannot
+    re-list it. This closes the gap P4-03 left open.
+    - `hideListing`: newer event hides (keeps `import_count` and `published_at`); no row yet → creates
+      a hidden row (the private event overtook the public one); stale/redelivered → no-op.
+    - Every "public" path (`publishListing`, `updateListing`, snapshot entries) re-lists a hidden row
+      when newer, resetting `published_at` — re-published counts as newly published. `updateListing`
+      may re-list because `dictionary.updated` is only sent for public dictionaries.
+    - The snapshot removes hidden rows older than `takenAt` (cleanup — otherwise one row per
+      dictionary ever made private). Residual risk: a manual DLQ replay of an old public event after
+      that cleanup re-lists until the next snapshot. Accepted.
+    - **Verified live** against the IntelliJ-run services (devtools reloaded ms_marketplace):
+      public → listed; private → row kept, `is_listed = f`; public again → listed, `published_at`
+      reset, `import_count` kept (5); private, then a hand-published **older** `visibility.public`
+      via the management API → stayed hidden, name unchanged. DLQ empty. Suite 39/39.
 - [ ] `P4-05` **Consume `dictionary.deleted` and `user.deleted` events**
   - On `dictionary.deleted`: remove the `DictionaryStats` record
   - On `user.deleted` (added 2026-09-27): remove every listing owned by that user
@@ -1005,6 +1021,9 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
   - Done when: deleting a dictionary removes its marketplace entry, and `DELETE /users/{userId}` on
     ms_user removes all of that user's listings without waiting for a snapshot
 - [ ] `P4-06` **Implement MarketplaceController**
+  - **Every browse query must filter `is_listed = true`** (P4-04) — hidden rows are private
+    dictionaries. Consider leading the browse indexes with `is_listed`, or partial indexes
+    `WHERE is_listed`, once the query shapes are known
   - `GET /marketplace/dictionaries` — list all public dictionaries (paginated)
   - `GET /marketplace/dictionaries/popular` — sorted by import count
   - `GET /marketplace/dictionaries/language?from=EN&to=DE` — filter by language pair

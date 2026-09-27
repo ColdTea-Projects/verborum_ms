@@ -38,7 +38,7 @@ One durable **topic** exchange for everything: `verborum.events`. Keys are `{dom
 | Routing key | Published by | Consumer queue | Trigger |
 |---|---|---|---|
 | `dictionary.visibility.public` | ms_dictionary | `marketplace.dictionary.visibility.public` (live) | `is_public` set true |
-| `dictionary.visibility.private` | ms_dictionary | ms_marketplace (P4-04) | `is_public` set false |
+| `dictionary.visibility.private` | ms_dictionary | `marketplace.dictionary.visibility.private` (live) | `is_public` set false |
 | `dictionary.deleted` | ms_dictionary | ms_marketplace (P4-05) | dictionary deleted |
 | `dictionary.updated` | ms_dictionary | `marketplace.dictionary.updated` (live) | listed field of a public dictionary changed |
 | `dictionary.snapshot` | ms_dictionary | `marketplace.dictionary.snapshot` (live) | nightly schedule — reconciliation (rule 6) |

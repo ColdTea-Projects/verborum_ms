@@ -23,8 +23,9 @@ import org.springframework.context.annotation.Configuration;
  * routing key table.
  * <p>
  * ms_marketplace keeps its `dictionary_stats` read model current from ms_dictionary's events
- * (P4-03): going public, listed-field updates, and the scheduled `dictionary.snapshot`. The private
- * and deleted consumers arrive at P4-04/P4-05, publishing `dictionary.imported` at P4-07.
+ * (P4-03/P4-04): going public, going private, listed-field updates, and the scheduled
+ * `dictionary.snapshot`. The deleted consumers arrive at P4-05, publishing `dictionary.imported` at
+ * P4-07.
  * <p>
  * All services declare the same exchange; declarations are idempotent, so whichever service
  * starts first creates it.
@@ -37,10 +38,12 @@ public class RabbitMQConfig {
     public static final String DEAD_LETTER_QUEUE = "verborum.dead-letter";
 
     public static final String ROUTING_KEY_DICTIONARY_VISIBILITY_PUBLIC = "dictionary.visibility.public";
+    public static final String ROUTING_KEY_DICTIONARY_VISIBILITY_PRIVATE = "dictionary.visibility.private";
     public static final String ROUTING_KEY_DICTIONARY_UPDATED = "dictionary.updated";
     public static final String ROUTING_KEY_DICTIONARY_SNAPSHOT = "dictionary.snapshot";
 
     public static final String QUEUE_DICTIONARY_VISIBILITY_PUBLIC = "marketplace.dictionary.visibility.public";
+    public static final String QUEUE_DICTIONARY_VISIBILITY_PRIVATE = "marketplace.dictionary.visibility.private";
     public static final String QUEUE_DICTIONARY_UPDATED = "marketplace.dictionary.updated";
     public static final String QUEUE_DICTIONARY_SNAPSHOT = "marketplace.dictionary.snapshot";
 
@@ -51,7 +54,7 @@ public class RabbitMQConfig {
 
     // One queue per event, each with `x-dead-letter-exchange` — the DLX is a fanout, so a message
     // that keeps failing reaches the DLQ whatever its routing key. Separate queues mean no ordering
-    // between the three event kinds; the consumers do not rely on any — each compares the
+    // between the event kinds; the consumers do not rely on any — each compares the
     // dictionary's updatedAt against what it holds (rule 4)
 
     @Bean
@@ -67,6 +70,21 @@ public class RabbitMQConfig {
                 .bind(dictionaryVisibilityPublicQueue)
                 .to(verborumExchange)
                 .with(ROUTING_KEY_DICTIONARY_VISIBILITY_PUBLIC);
+    }
+
+    @Bean
+    public Queue dictionaryVisibilityPrivateQueue() {
+        return QueueBuilder.durable(QUEUE_DICTIONARY_VISIBILITY_PRIVATE)
+                .withArgument("x-dead-letter-exchange", DEAD_LETTER_EXCHANGE)
+                .build();
+    }
+
+    @Bean
+    public Binding dictionaryVisibilityPrivateBinding(Queue dictionaryVisibilityPrivateQueue, TopicExchange verborumExchange) {
+        return BindingBuilder
+                .bind(dictionaryVisibilityPrivateQueue)
+                .to(verborumExchange)
+                .with(ROUTING_KEY_DICTIONARY_VISIBILITY_PRIVATE);
     }
 
     @Bean

@@ -53,6 +53,28 @@ class DictionaryEventListenerTest {
     }
 
     @Test
+    void handleDictionaryPrivate_DelegatesToHideListing() {
+        // Arrange
+        DictionaryVisibilityEvent event = DictionaryVisibilityEvent.builder().dictionaryId("dict1").isPublic(false).build();
+
+        // Act
+        dictionaryEventListener.handleDictionaryPrivate(event);
+
+        // Assert
+        verify(dictionaryStatsService).hideListing(event);
+    }
+
+    @Test
+    void handleDictionaryPrivate_RethrowsSoTheMessageIsDeadLettered() {
+        // Arrange — swallowing would leave a private dictionary listed
+        DictionaryVisibilityEvent event = DictionaryVisibilityEvent.builder().dictionaryId("dict1").isPublic(false).build();
+        doThrow(new RuntimeException("db down")).when(dictionaryStatsService).hideListing(event);
+
+        // Act & Assert
+        assertThrows(RuntimeException.class, () -> dictionaryEventListener.handleDictionaryPrivate(event));
+    }
+
+    @Test
     void handleDictionaryUpdated_DelegatesToUpdateListing() {
         // Arrange
         DictionaryUpdatedEvent event = DictionaryUpdatedEvent.builder().dictionaryId("dict1").build();

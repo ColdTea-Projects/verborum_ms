@@ -14,7 +14,8 @@ request time — decided 2026-07-23, see roadmap `P4-03`.
   8082), and `db_market` in the root compose on the same host port. Run one or the other.
 - **Base package:** `de.coldtea.verborum.msmarketplace`
 - **Status:** Scaffolded (P4-01), `dictionary_stats` table (P4-02), listing projection +
-  snapshot reconciliation fed by ms_dictionary events (P4-03). No endpoints yet.
+  snapshot reconciliation fed by ms_dictionary events (P4-03), private → hidden (P4-04). No
+  endpoints yet.
 
 ## Entities
 - `DictionaryStats` (`dictionary_stats`) — `dictionaryId` (PK, ms_dictionary's id, no DB FK),
@@ -24,6 +25,9 @@ request time — decided 2026-07-23, see roadmap `P4-03`.
     `updatedAt` is only when this row was written. Do not mix them up.
   - `importCount` must be set to 0 explicitly on create; the column default does not apply through
     Hibernate.
+  - `isListed` (`is_listed`, P4-04) — false means the dictionary went private. The row is kept on
+    purpose as a stale-event guard; **browse must filter `is_listed = true`**. Set explicitly on
+    create (Hibernate ignores column defaults). Migration `2026/09/27-02-changelog.json`.
   - `rating` / `viewCount` are deliberately absent until designed.
 
 ## Events (see `docs/agent/rabbitmq.md`)
@@ -31,6 +35,10 @@ request time — decided 2026-07-23, see roadmap `P4-03`.
   durable dead-lettered queue per event:
   - `dictionary.visibility.public` on `marketplace.dictionary.visibility.public` → `publishListing`
     — upsert on `dictionaryId`.
+  - `dictionary.visibility.private` on `marketplace.dictionary.visibility.private` → `hideListing`
+    (P4-04) — sets `isListed = false`, keeps the row, `importCount` and `publishedAt`. With no row
+    yet it creates a hidden one, so a public event that was overtaken still compares as stale.
+  - Every public path re-lists a hidden row when newer and resets `publishedAt`.
   - `dictionary.updated` on `marketplace.dictionary.updated` → `updateListing` — **update-only,
     never creates**: an update for a missing listing may belong to a dictionary already made private
     or deleted, and creating it would re-list it. The snapshot restores a genuinely missed listing.
@@ -41,12 +49,10 @@ request time — decided 2026-07-23, see roadmap `P4-03`.
   - All three drop anything not strictly newer than the held `sourceUpdatedAt` (rule 4), so
     redeliveries and DLQ replays are no-ops. A missing `updatedAt` falls back to the event
     timestamp (snapshot: `takenAt`).
-- **Known gap for P4-04:** a dictionary made private in the seconds between the snapshot query and
-  `reconcile` is recreated by it until the next snapshot, because a removed listing leaves nothing to
-  compare against. Keeping a hidden row with its `sourceUpdatedAt` on private (instead of deleting)
-  would close it.
-- **Not yet consumed:** `dictionary.visibility.private` (P4-04), `dictionary.deleted` and
-  `user.deleted` (both P4-05) — until then those removals arrive with the next snapshot.
+- The snapshot also removes hidden rows older than its `takenAt` — routine cleanup, so hidden rows
+  do not accumulate. Only a manual DLQ replay of an old public event could then re-list one, until
+  the next snapshot.
+- **Not yet consumed:** `dictionary.deleted` and `user.deleted` (both P4-05) — until then those removals arrive with the next snapshot.
   `user.deleted` must match on its `keycloakId`, never its `userId`.
 - **Publishes:** `dictionary.imported` (P4-07) — ms_user already has the queue bound. The payload is
   `{dictionaryId, keycloakId, eventTimestamp}`: the field is **`keycloakId`**, i.e. the caller's JWT

@@ -13,6 +13,9 @@ import java.time.OffsetDateTime;
  * by events and by the nightly `dictionary.snapshot` reconciliation; browse, filtering and sorting
  * are served from this table alone and never call ms_dictionary.
  * <p>
+ * A row is not necessarily a visible listing: a dictionary made private keeps a hidden row
+ * (`isListed = false`) — see the field.
+ * <p>
  * `rating` and `viewCount` from the original P4-02 field list are deliberately absent: nothing
  * records a view or accepts a rating yet, and the rating scale and one-per-user rule are undecided.
  * They get their own migration once designed.
@@ -48,13 +51,20 @@ public class DictionaryStats {
     @Column(name = "to_lang", nullable = false)
     private String toLang;
 
+    // false = the dictionary went private: hidden from browse, but the row stays so its
+    // sourceUpdatedAt can reject older "public" state arriving late (P4-04). Browse filters on it.
+    // Set explicitly on create, for the same Hibernate reason as importCount below
+    @Column(name = "is_listed", nullable = false)
+    private Boolean isListed;
+
     // Set explicitly to 0 when a listing is created. The column's DEFAULT 0 does not help: Hibernate
     // inserts every mapped column, so an unset field is written as NULL and violates NOT NULL
     @Column(name = "import_count", nullable = false)
     private Integer importCount;
 
-    // When the dictionary went public, taken from the event, not from this row's insert time — a
-    // listing recreated by the reconciliation job must keep its original publish date
+    // When the dictionary (most recently) went public, taken from the event, not from this row's
+    // insert time. Kept across updates; reset only when a hidden row is listed again, so a dictionary
+    // re-published after a private spell counts as newly published
     @Column(name = "published_at", nullable = false)
     private OffsetDateTime publishedAt;
 

@@ -1,0 +1,38 @@
+{
+  "databaseChangeLog": [
+    {
+      "changeSet": {
+        "id": "20260927-02-dictionary-stats-is-listed",
+        "author": "claude (P4-04)",
+        "comment": "Going private hides a listing instead of deleting it (decided 2026-09-27). The hidden row keeps its source_updated_at, so an older dictionary.visibility.public or a snapshot read before the flip compares as stale and cannot re-list a dictionary its owner just made private. Existing rows are all currently public listings, hence DEFAULT true. Browse queries (P4-06) must filter on is_listed = true.",
+        "changes": [
+          {
+            "addColumn": {
+              "tableName": "dictionary_stats",
+              "columns": [
+                {
+                  "column": {
+                    "name": "is_listed",
+                    "type": "BOOLEAN",
+                    "defaultValueBoolean": true,
+                    "constraints": {
+                      "nullable": false
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        "rollback": [
+          {
+            "dropColumn": {
+              "tableName": "dictionary_stats",
+              "columnName": "is_listed"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

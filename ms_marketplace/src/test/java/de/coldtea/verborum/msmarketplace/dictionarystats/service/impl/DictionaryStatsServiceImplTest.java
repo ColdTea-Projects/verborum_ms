@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
@@ -62,6 +63,7 @@ class DictionaryStatsServiceImplTest {
         assertEquals("EN", saved.getFromLang());
         assertEquals("DE", saved.getToLang());
         assertEquals(0, saved.getImportCount());
+        assertTrue(saved.getIsListed());
         assertEquals(T2, saved.getPublishedAt());
         assertEquals(T2, saved.getSourceUpdatedAt());
     }
@@ -122,7 +124,113 @@ class DictionaryStatsServiceImplTest {
         assertEquals(T3, capturedSave().getSourceUpdatedAt());
     }
 
+    @Test
+    void publishListing_HiddenRowNewerEvent_RelistsWithNewPublishDate() {
+        // Arrange — made private at T1, public again at T2
+        DictionaryStats hidden = hiddenListing("Travel", T1);
+        hidden.setImportCount(4);
+        when(dictionaryStatsRepository.findById(DICTIONARY_ID)).thenReturn(Optional.of(hidden));
+
+        // Act
+        dictionaryStatsService.publishListing(publicEvent("Travel", T2));
+
+        // Assert — counts as newly published; import history survives
+        DictionaryStats saved = capturedSave();
+        assertTrue(saved.getIsListed());
+        assertEquals(T2, saved.getPublishedAt());
+        assertEquals(4, saved.getImportCount());
+    }
+
+    @Test
+    void publishListing_HiddenRowOlderEvent_StaysHidden() {
+        // Arrange — the public event from T1 arrives after the private event from T2 (rule 4). This is
+        // the case deleting on private could not handle: there would be no row to compare against
+        when(dictionaryStatsRepository.findById(DICTIONARY_ID)).thenReturn(Optional.of(hiddenListing("Travel", T2)));
+
+        // Act
+        dictionaryStatsService.publishListing(publicEvent("Travel", T1));
+
+        // Assert
+        verify(dictionaryStatsRepository, never()).saveAndFlush(any());
+    }
+
+    // ---- hideListing (dictionary.visibility.private) ----
+
+    @Test
+    void hideListing_ListedRowNewerEvent_HidesAndKeepsHistory() {
+        // Arrange
+        DictionaryStats listing = listing("Travel", T1);
+        listing.setImportCount(9);
+        when(dictionaryStatsRepository.findById(DICTIONARY_ID)).thenReturn(Optional.of(listing));
+
+        // Act
+        dictionaryStatsService.hideListing(privateEvent(T2));
+
+        // Assert — hidden, not deleted: the row keeps rejecting older public state
+        DictionaryStats saved = capturedSave();
+        assertFalse(saved.getIsListed());
+        assertEquals(T2, saved.getSourceUpdatedAt());
+        assertEquals(9, saved.getImportCount());
+        assertEquals(T1, saved.getPublishedAt());
+        verify(dictionaryStatsRepository, never()).delete(any());
+    }
+
+    @Test
+    void hideListing_NoRow_CreatesHiddenRow() {
+        // Arrange — the private event overtook the public one
+        when(dictionaryStatsRepository.findById(DICTIONARY_ID)).thenReturn(Optional.empty());
+
+        // Act
+        dictionaryStatsService.hideListing(privateEvent(T2));
+
+        // Assert
+        DictionaryStats saved = capturedSave();
+        assertFalse(saved.getIsListed());
+        assertEquals(T2, saved.getSourceUpdatedAt());
+        assertEquals(0, saved.getImportCount());
+    }
+
+    @Test
+    void hideListing_OlderEvent_IsDropped() {
+        // Arrange — private at T1 delivered after public again at T2
+        when(dictionaryStatsRepository.findById(DICTIONARY_ID)).thenReturn(Optional.of(listing("Travel", T2)));
+
+        // Act
+        dictionaryStatsService.hideListing(privateEvent(T1));
+
+        // Assert
+        verify(dictionaryStatsRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void hideListing_RedeliveredEvent_ChangesNothing() {
+        // Arrange
+        when(dictionaryStatsRepository.findById(DICTIONARY_ID)).thenReturn(Optional.of(hiddenListing("Travel", T2)));
+
+        // Act
+        dictionaryStatsService.hideListing(privateEvent(T2));
+
+        // Assert
+        verify(dictionaryStatsRepository, never()).saveAndFlush(any());
+    }
+
     // ---- updateListing (dictionary.updated) ----
+
+    @Test
+    void updateListing_HiddenRowNewerEvent_Relists() {
+        // Arrange — dictionary.updated is only sent for a public dictionary, so a newer one proves it
+        // went public again even if that public event has not arrived
+        when(dictionaryStatsRepository.findById(DICTIONARY_ID)).thenReturn(Optional.of(hiddenListing("Old", T1)));
+
+        // Act
+        dictionaryStatsService.updateListing(updatedEvent("Renamed", "DE", T2));
+
+        // Assert
+        DictionaryStats saved = capturedSave();
+        assertTrue(saved.getIsListed());
+        assertEquals("Renamed", saved.getName());
+        assertEquals(T2, saved.getPublishedAt());
+    }
 
     @Test
     void updateListing_NewerEvent_UpdatesListedFields() {
@@ -179,6 +287,7 @@ class DictionaryStatsServiceImplTest {
         assertEquals(1, saved.size());
         assertEquals("Travel", saved.get(0).getName());
         assertEquals(0, saved.get(0).getImportCount());
+        assertTrue(saved.get(0).getIsListed());
         verify(dictionaryStatsRepository, never()).deleteAllInBatch(any());
     }
 
@@ -220,6 +329,50 @@ class DictionaryStatsServiceImplTest {
 
         // Assert
         assertTrue(capturedSaveAll().isEmpty());
+    }
+
+    @Test
+    void reconcile_MadePrivateAfterSnapshotQuery_StaysHidden() {
+        // Arrange — the snapshot was read at T2 (entry updatedAt T1), then the owner made it private at
+        // T3, before the snapshot was processed. The gap P4-03 left open: with the listing deleted on
+        // private, the snapshot recreated it. The hidden row's T3 now wins over the entry's T1
+        when(dictionaryStatsRepository.findAll()).thenReturn(List.of(hiddenListing("Travel", T3)));
+
+        // Act
+        dictionaryStatsService.reconcile(snapshot(T2, entry(DICTIONARY_ID, "Travel", T1)));
+
+        // Assert
+        assertTrue(capturedSaveAll().isEmpty());
+        verify(dictionaryStatsRepository, never()).deleteAllInBatch(any());
+    }
+
+    @Test
+    void reconcile_HiddenRowPublicAgainInSnapshot_IsRelisted() {
+        // Arrange — the public event that followed the private one was lost
+        when(dictionaryStatsRepository.findAll()).thenReturn(List.of(hiddenListing("Travel", T1)));
+
+        // Act
+        dictionaryStatsService.reconcile(snapshot(T3, entry(DICTIONARY_ID, "Travel", T2)));
+
+        // Assert
+        List<DictionaryStats> saved = capturedSaveAll();
+        assertEquals(1, saved.size());
+        assertTrue(saved.get(0).getIsListed());
+        assertEquals(T2, saved.get(0).getPublishedAt());
+    }
+
+    @Test
+    void reconcile_HiddenRowOlderThanSnapshot_IsCleanedUp() {
+        // Arrange — hidden before the snapshot and confirmed not public by it; keeping it would leave
+        // one row forever per dictionary ever made private
+        DictionaryStats hidden = hiddenListing("Travel", T1);
+        when(dictionaryStatsRepository.findAll()).thenReturn(List.of(hidden));
+
+        // Act
+        dictionaryStatsService.reconcile(snapshot(T3));
+
+        // Assert
+        verify(dictionaryStatsRepository).deleteAllInBatch(List.of(hidden));
     }
 
     @Test
@@ -285,10 +438,23 @@ class DictionaryStatsServiceImplTest {
                 .name(name)
                 .fromLang("EN")
                 .toLang("DE")
+                .isListed(true)
                 .importCount(0)
                 .publishedAt(T1)
                 .sourceUpdatedAt(sourceUpdatedAt)
                 .build();
+    }
+
+    private static DictionaryStats hiddenListing(String name, OffsetDateTime sourceUpdatedAt) {
+        DictionaryStats listing = listing(name, sourceUpdatedAt);
+        listing.setIsListed(false);
+        return listing;
+    }
+
+    private static DictionaryVisibilityEvent privateEvent(OffsetDateTime updatedAt) {
+        DictionaryVisibilityEvent event = publicEvent("Travel", updatedAt);
+        event.setIsPublic(false);
+        return event;
     }
 
     private static DictionaryVisibilityEvent publicEvent(String name, OffsetDateTime updatedAt) {

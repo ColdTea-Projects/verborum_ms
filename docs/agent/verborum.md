@@ -183,12 +183,14 @@ Column-level detail, constraints and quirks (the cross-service user key is `keyc
 - dictionary_id      VARCHAR(255) PK   ← ms_dictionary's id; no DB FK (other service's database)
 - fk_user_id         VARCHAR(255)      ← owner's JWT subject (ms_user's keycloak_id)
 - name, from_lang, to_lang VARCHAR(255) ← copies, kept current by events + nightly snapshot
+- is_listed          BOOLEAN, default true ← false = went private; row kept as a stale-event guard
 - import_count       INT, default 0
 - published_at       timestamptz       ← from the event, not the insert
 - source_updated_at  timestamptz       ← ms_dictionary's updatedAt; rule-4 stale-event guard
 - creation_dt / update_dt timestamptz
 ```
-A read model, not a source of truth. `rating` / `view_count` are not built yet (undesigned).
+A read model, not a source of truth. Browse must filter `is_listed = true`. `rating` /
+`view_count` are not built yet (undesigned).
 
 ---
 
@@ -250,7 +252,7 @@ This is the single source of truth — every client's language enum must be a su
 | Routing Key | Published by | Consumed by | Trigger |
 |---|---|---|---|
 | `dictionary.visibility.public` | ms_dictionary | ms_marketplace (`marketplace.dictionary.visibility.public`) | `is_public` set to true |
-| `dictionary.visibility.private` | ms_dictionary | ms_marketplace | `is_public` set to false |
+| `dictionary.visibility.private` | ms_dictionary | ms_marketplace (`marketplace.dictionary.visibility.private`) | `is_public` set to false |
 | `dictionary.deleted` | ms_dictionary | ms_marketplace | Dictionary deleted |
 | `dictionary.updated` | ms_dictionary | ms_marketplace (`marketplace.dictionary.updated`) | A public dictionary's `name`/`fromLang`/`toLang` changed and it stayed public |
 | `dictionary.snapshot` | ms_dictionary | ms_marketplace (`marketplace.dictionary.snapshot`) | Schedule, nightly by default (`DICTIONARY_SNAPSHOT_CRON`) — every public dictionary in one message |
@@ -301,8 +303,12 @@ each, all dead-lettered. Publish-to-listing updates, idempotent and stale-safe b
 `visibility.public` upserts; `updated` only updates an existing listing (never creates, so it cannot
 re-list a dictionary already made private or deleted); `snapshot` reconciles the whole table —
 creates missing, corrects stale, and removes listings absent from it **whose own state predates the
-snapshot's `takenAt`**. `visibility.private` and `dictionary.deleted` consumers are P4-04/P4-05; until
-then those removals reach the marketplace via the next snapshot. Verified live end-to-end.
+snapshot's `takenAt`**. Verified live end-to-end.
+As of P4-04 `dictionary.visibility.private` is consumed too: it **hides** the listing
+(`is_listed = false`) instead of deleting it, so the row's `source_updated_at` keeps rejecting older
+public state; every public path re-lists a hidden row when newer. `dictionary.deleted` and
+`user.deleted` consumers are P4-05; until then those removals reach the marketplace via the next
+snapshot.
 
 **Consuming services must set `INFERRED` type precedence on the message converter.**
 `Jackson2JsonMessageConverter` writes the publisher's fully-qualified class name into a `__TypeId__`

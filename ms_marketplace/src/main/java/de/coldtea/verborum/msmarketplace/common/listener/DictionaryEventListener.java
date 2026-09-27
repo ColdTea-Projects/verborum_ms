@@ -11,10 +11,11 @@ import org.springframework.stereotype.Component;
 
 import static de.coldtea.verborum.msmarketplace.common.config.RabbitMQConfig.QUEUE_DICTIONARY_SNAPSHOT;
 import static de.coldtea.verborum.msmarketplace.common.config.RabbitMQConfig.QUEUE_DICTIONARY_UPDATED;
+import static de.coldtea.verborum.msmarketplace.common.config.RabbitMQConfig.QUEUE_DICTIONARY_VISIBILITY_PRIVATE;
 import static de.coldtea.verborum.msmarketplace.common.config.RabbitMQConfig.QUEUE_DICTIONARY_VISIBILITY_PUBLIC;
 
 /**
- * Consumes events published by ms_dictionary (P4-03). Each handler logs, delegates to one service
+ * Consumes events published by ms_dictionary (P4-03, P4-04). Each handler logs, delegates to one service
  * method, and re-throws on failure so the message is retried and finally dead-lettered rather than
  * acknowledged with the listing left wrong.
  * <p>
@@ -35,6 +36,18 @@ public class DictionaryEventListener {
             dictionaryStatsService.publishListing(event);
         } catch (Exception e) {
             log.error("Failed to process dictionary.visibility.public for dictionaryId: {}",
+                    event.getDictionaryId(), e);
+            throw e;
+        }
+    }
+
+    @RabbitListener(queues = QUEUE_DICTIONARY_VISIBILITY_PRIVATE)
+    public void handleDictionaryPrivate(DictionaryVisibilityEvent event) {
+        log.info("Received dictionary.visibility.private for dictionaryId: {}", event.getDictionaryId());
+        try {
+            dictionaryStatsService.hideListing(event);
+        } catch (Exception e) {
+            log.error("Failed to process dictionary.visibility.private for dictionaryId: {}",
                     event.getDictionaryId(), e);
             throw e;
         }

@@ -15,12 +15,21 @@ import de.coldtea.verborum.msmarketplace.common.event.DictionaryVisibilityEvent;
 public interface DictionaryStatsService {
 
     /**
-     * `dictionary.visibility.public` — creates the listing, or updates it if the event is newer.
+     * `dictionary.visibility.public` — creates the listing, or updates it if the event is newer,
+     * re-listing a hidden row.
      */
     void publishListing(DictionaryVisibilityEvent event);
 
     /**
-     * `dictionary.updated` — updates an existing listing if the event is newer. Never creates one:
+     * `dictionary.visibility.private` — hides the listing if the event is newer (P4-04). The row is
+     * kept, not deleted, so its `sourceUpdatedAt` rejects older public state arriving late. With no
+     * row yet (the private event overtook the public one), a hidden row is created for the same reason.
+     */
+    void hideListing(DictionaryVisibilityEvent event);
+
+    /**
+     * `dictionary.updated` — updates an existing listing if the event is newer, re-listing it if it
+     * was hidden (the event is only sent for public dictionaries). Never creates one:
      * an update for a listing that is not here may belong to a dictionary already made private or
      * deleted, and recreating it would re-list it. A genuinely missed listing is restored by the
      * snapshot.
