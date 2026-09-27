@@ -14,8 +14,8 @@ request time — decided 2026-07-23, see roadmap `P4-03`.
   8082), and `db_market` in the root compose on the same host port. Run one or the other.
 - **Base package:** `de.coldtea.verborum.msmarketplace`
 - **Status:** Scaffolded (P4-01), `dictionary_stats` table (P4-02), listing projection +
-  snapshot reconciliation fed by ms_dictionary events (P4-03), private → hidden (P4-04). No
-  endpoints yet.
+  snapshot reconciliation fed by ms_dictionary events (P4-03), private → hidden (P4-04),
+  deletion and `user.deleted` (P4-05). Consumes every event it needs; no endpoints yet (P4-06).
 
 ## Entities
 - `DictionaryStats` (`dictionary_stats`) — `dictionaryId` (PK, ms_dictionary's id, no DB FK),
@@ -52,8 +52,13 @@ request time — decided 2026-07-23, see roadmap `P4-03`.
 - The snapshot also removes hidden rows older than its `takenAt` — routine cleanup, so hidden rows
   do not accumulate. Only a manual DLQ replay of an old public event could then re-list one, until
   the next snapshot.
-- **Not yet consumed:** `dictionary.deleted` and `user.deleted` (both P4-05) — until then those removals arrive with the next snapshot.
-  `user.deleted` must match on its `keycloakId`, never its `userId`.
+- `dictionary.deleted` on `marketplace.dictionary.deleted` → `hideDeletedListing` (P4-05) — hides,
+  with the event's `eventTimestamp` as `sourceUpdatedAt` (a deleted dictionary has no `updatedAt`).
+  No row → no-op: the event lacks the name/languages a hidden row needs.
+- `user.deleted` (from ms_user) on `marketplace.user.deleted` → `UserEventListener` →
+  `deleteListingsByUser` (P4-05) — **deletes** every row of the user, listed or hidden. Matches on the
+  event's **`keycloakId`**, never its `userId` (ms_user's own key; matches nothing here). Deleted, not
+  hidden, because ms_user's clock cannot be compared with ms_dictionary's `updatedAt`.
 - **Publishes:** `dictionary.imported` (P4-07) — ms_user already has the queue bound. The payload is
   `{dictionaryId, keycloakId, eventTimestamp}`: the field is **`keycloakId`**, i.e. the caller's JWT
   subject.

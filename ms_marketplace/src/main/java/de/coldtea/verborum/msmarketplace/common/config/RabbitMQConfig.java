@@ -23,8 +23,8 @@ import org.springframework.context.annotation.Configuration;
  * routing key table.
  * <p>
  * ms_marketplace keeps its `dictionary_stats` read model current from ms_dictionary's events
- * (P4-03/P4-04): going public, going private, listed-field updates, and the scheduled
- * `dictionary.snapshot`. The deleted consumers arrive at P4-05, publishing `dictionary.imported` at
+ * (P4-03..P4-05): going public, going private, listed-field updates, deletion, and the scheduled
+ * `dictionary.snapshot` — plus ms_user's `user.deleted`. Publishing `dictionary.imported` arrives at
  * P4-07.
  * <p>
  * All services declare the same exchange; declarations are idempotent, so whichever service
@@ -41,11 +41,15 @@ public class RabbitMQConfig {
     public static final String ROUTING_KEY_DICTIONARY_VISIBILITY_PRIVATE = "dictionary.visibility.private";
     public static final String ROUTING_KEY_DICTIONARY_UPDATED = "dictionary.updated";
     public static final String ROUTING_KEY_DICTIONARY_SNAPSHOT = "dictionary.snapshot";
+    public static final String ROUTING_KEY_DICTIONARY_DELETED = "dictionary.deleted";
+    public static final String ROUTING_KEY_USER_DELETED = "user.deleted";
 
     public static final String QUEUE_DICTIONARY_VISIBILITY_PUBLIC = "marketplace.dictionary.visibility.public";
     public static final String QUEUE_DICTIONARY_VISIBILITY_PRIVATE = "marketplace.dictionary.visibility.private";
     public static final String QUEUE_DICTIONARY_UPDATED = "marketplace.dictionary.updated";
     public static final String QUEUE_DICTIONARY_SNAPSHOT = "marketplace.dictionary.snapshot";
+    public static final String QUEUE_DICTIONARY_DELETED = "marketplace.dictionary.deleted";
+    public static final String QUEUE_USER_DELETED = "marketplace.user.deleted";
 
     @Bean
     public TopicExchange verborumExchange() {
@@ -115,6 +119,39 @@ public class RabbitMQConfig {
                 .bind(dictionarySnapshotQueue)
                 .to(verborumExchange)
                 .with(ROUTING_KEY_DICTIONARY_SNAPSHOT);
+    }
+
+    @Bean
+    public Queue dictionaryDeletedQueue() {
+        return QueueBuilder.durable(QUEUE_DICTIONARY_DELETED)
+                .withArgument("x-dead-letter-exchange", DEAD_LETTER_EXCHANGE)
+                .build();
+    }
+
+    @Bean
+    public Binding dictionaryDeletedBinding(Queue dictionaryDeletedQueue, TopicExchange verborumExchange) {
+        return BindingBuilder
+                .bind(dictionaryDeletedQueue)
+                .to(verborumExchange)
+                .with(ROUTING_KEY_DICTIONARY_DELETED);
+    }
+
+    // user.deleted comes from ms_user. ms_dictionary's own user.deleted cascade publishes no
+    // dictionary.deleted for the rows it removes, precisely because this service consumes
+    // user.deleted itself — without this queue a deleted user's listings would stay browsable
+    @Bean
+    public Queue userDeletedQueue() {
+        return QueueBuilder.durable(QUEUE_USER_DELETED)
+                .withArgument("x-dead-letter-exchange", DEAD_LETTER_EXCHANGE)
+                .build();
+    }
+
+    @Bean
+    public Binding userDeletedBinding(Queue userDeletedQueue, TopicExchange verborumExchange) {
+        return BindingBuilder
+                .bind(userDeletedQueue)
+                .to(verborumExchange)
+                .with(ROUTING_KEY_USER_DELETED);
     }
 
     /**

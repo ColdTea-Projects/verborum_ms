@@ -1,5 +1,6 @@
 package de.coldtea.verborum.msmarketplace.dictionarystats.service;
 
+import de.coldtea.verborum.msmarketplace.common.event.DictionaryDeletedEvent;
 import de.coldtea.verborum.msmarketplace.common.event.DictionarySnapshotEvent;
 import de.coldtea.verborum.msmarketplace.common.event.DictionaryUpdatedEvent;
 import de.coldtea.verborum.msmarketplace.common.event.DictionaryVisibilityEvent;
@@ -35,6 +36,21 @@ public interface DictionaryStatsService {
      * snapshot.
      */
     void updateListing(DictionaryUpdatedEvent event);
+
+    /**
+     * `dictionary.deleted` — hides the listing if the event is newer (P4-05). Hidden rather than
+     * deleted for the same reason as `hideListing`: the row's timestamp keeps a late, older public
+     * event from re-listing a dictionary that no longer exists. The snapshot removes it afterwards.
+     */
+    void hideDeletedListing(DictionaryDeletedEvent event);
+
+    /**
+     * `user.deleted` — deletes every row owned by that user, listed or hidden (P4-05).
+     *
+     * @param keycloakId the event's `keycloakId` — the JWT subject stored in `fk_user_id`. Never the
+     *                   event's `userId`, which is ms_user's own key and matches nothing here
+     */
+    void deleteListingsByUser(String keycloakId);
 
     /**
      * `dictionary.snapshot` — reconciles every listing against ms_dictionary's full set of public

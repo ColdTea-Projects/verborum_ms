@@ -1,5 +1,6 @@
 package de.coldtea.verborum.msmarketplace.dictionarystats.service.impl;
 
+import de.coldtea.verborum.msmarketplace.common.event.DictionaryDeletedEvent;
 import de.coldtea.verborum.msmarketplace.common.event.DictionarySnapshotEntry;
 import de.coldtea.verborum.msmarketplace.common.event.DictionarySnapshotEvent;
 import de.coldtea.verborum.msmarketplace.common.event.DictionaryUpdatedEvent;
@@ -272,6 +273,88 @@ class DictionaryStatsServiceImplTest {
         verify(dictionaryStatsRepository, never()).saveAndFlush(any());
     }
 
+    // ---- hideDeletedListing (dictionary.deleted) ----
+
+    @Test
+    void hideDeletedListing_ListedRow_HidesWithDeletionTimeAsOrderingKey() {
+        // Arrange
+        when(dictionaryStatsRepository.findById(DICTIONARY_ID)).thenReturn(Optional.of(listing("Travel", T1)));
+
+        // Act
+        dictionaryStatsService.hideDeletedListing(deletedEvent(T2));
+
+        // Assert — hidden, not deleted: T2 now rejects any older public state still in flight
+        DictionaryStats saved = capturedSave();
+        assertFalse(saved.getIsListed());
+        assertEquals(T2, saved.getSourceUpdatedAt());
+        verify(dictionaryStatsRepository, never()).delete(any());
+    }
+
+    @Test
+    void hideDeletedListing_LatePublicEventAfterwards_IsRejected() {
+        // Arrange — the row as hideDeletedListing left it, then a public event from before the deletion
+        when(dictionaryStatsRepository.findById(DICTIONARY_ID)).thenReturn(Optional.of(hiddenListing("Travel", T2)));
+
+        // Act
+        dictionaryStatsService.publishListing(publicEvent("Travel", T1));
+
+        // Assert — a deleted dictionary must not come back to the marketplace
+        verify(dictionaryStatsRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void hideDeletedListing_NoRow_DoesNothing() {
+        // Arrange — the event lacks name and languages, so no hidden row can be built
+        when(dictionaryStatsRepository.findById(DICTIONARY_ID)).thenReturn(Optional.empty());
+
+        // Act
+        dictionaryStatsService.hideDeletedListing(deletedEvent(T2));
+
+        // Assert
+        verify(dictionaryStatsRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void hideDeletedListing_RedeliveredEvent_ChangesNothing() {
+        // Arrange
+        when(dictionaryStatsRepository.findById(DICTIONARY_ID)).thenReturn(Optional.of(hiddenListing("Travel", T2)));
+
+        // Act
+        dictionaryStatsService.hideDeletedListing(deletedEvent(T2));
+
+        // Assert
+        verify(dictionaryStatsRepository, never()).saveAndFlush(any());
+    }
+
+    // ---- deleteListingsByUser (user.deleted) ----
+
+    @Test
+    void deleteListingsByUser_DeletesEveryRowOfThatUser() {
+        // Arrange — listed and hidden rows alike
+        DictionaryStats listed = listing("One", T1);
+        DictionaryStats hidden = hiddenListing("Two", T1);
+        hidden.setDictionaryId("dict2");
+        when(dictionaryStatsRepository.findByUserId(OWNER)).thenReturn(List.of(listed, hidden));
+
+        // Act
+        dictionaryStatsService.deleteListingsByUser(OWNER);
+
+        // Assert
+        verify(dictionaryStatsRepository).deleteAllInBatch(List.of(listed, hidden));
+    }
+
+    @Test
+    void deleteListingsByUser_NoRows_IsANoOp() {
+        // Arrange — also what a redelivery sees
+        when(dictionaryStatsRepository.findByUserId(OWNER)).thenReturn(List.of());
+
+        // Act
+        dictionaryStatsService.deleteListingsByUser(OWNER);
+
+        // Assert
+        verify(dictionaryStatsRepository, never()).deleteAllInBatch(any());
+    }
+
     // ---- reconcile (dictionary.snapshot) ----
 
     @Test
@@ -449,6 +532,14 @@ class DictionaryStatsServiceImplTest {
         DictionaryStats listing = listing(name, sourceUpdatedAt);
         listing.setIsListed(false);
         return listing;
+    }
+
+    private static DictionaryDeletedEvent deletedEvent(OffsetDateTime eventTimestamp) {
+        return DictionaryDeletedEvent.builder()
+                .dictionaryId(DICTIONARY_ID)
+                .userId(OWNER)
+                .eventTimestamp(eventTimestamp)
+                .build();
     }
 
     private static DictionaryVisibilityEvent privateEvent(OffsetDateTime updatedAt) {

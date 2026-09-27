@@ -1,5 +1,6 @@
 package de.coldtea.verborum.msmarketplace.dictionarystats.service.impl;
 
+import de.coldtea.verborum.msmarketplace.common.event.DictionaryDeletedEvent;
 import de.coldtea.verborum.msmarketplace.common.event.DictionarySnapshotEntry;
 import de.coldtea.verborum.msmarketplace.common.event.DictionarySnapshotEvent;
 import de.coldtea.verborum.msmarketplace.common.event.DictionaryUpdatedEvent;
@@ -102,6 +103,49 @@ public class DictionaryStatsServiceImpl implements DictionaryStatsService {
                             event.getToLang(), sourceUpdatedAt);
                     dictionaryStatsRepository.saveAndFlush(listing);
                 });
+    }
+
+    /**
+     * A deletion carries no `updatedAt` — the dictionary is gone. Its `eventTimestamp` stands in: it
+     * is taken on ms_dictionary's clock inside the deleting transaction, so it is later than every
+     * `updatedAt` that dictionary ever had, and older public state compares as stale against it.
+     * <p>
+     * With no row there is nothing to hide, and the event lacks the name and languages a hidden row
+     * needs. A late, older public event could then list the deleted dictionary until the next
+     * snapshot, which removes it (absent, and older than `takenAt`).
+     */
+    @Transactional
+    @Override
+    public void hideDeletedListing(DictionaryDeletedEvent event) {
+        OffsetDateTime deletedAt = event.getEventTimestamp();
+
+        dictionaryStatsRepository.findById(event.getDictionaryId())
+                .filter(listing -> isNewer(deletedAt, listing))
+                .ifPresent(listing -> {
+                    listing.setIsListed(false);
+                    listing.setSourceUpdatedAt(deletedAt);
+                    dictionaryStatsRepository.saveAndFlush(listing);
+                });
+    }
+
+    /**
+     * Deleted outright, not hidden: `user.deleted` is timed on ms_user's clock, which cannot be
+     * compared with ms_dictionary's `updatedAt`, so a hidden row would guard nothing reliably. And
+     * nothing needs guarding — ms_dictionary deletes the same user's dictionaries on the same event,
+     * so no newer public state for them can follow.
+     * <p>
+     * Idempotent: a redelivery finds no rows and deletes nothing.
+     */
+    @Transactional
+    @Override
+    public void deleteListingsByUser(String keycloakId) {
+        List<DictionaryStats> owned = dictionaryStatsRepository.findByUserId(keycloakId);
+        if (owned.isEmpty()) {
+            return;
+        }
+
+        // One DELETE ... WHERE dictionary_id IN (...), as in reconcile
+        dictionaryStatsRepository.deleteAllInBatch(owned);
     }
 
     /**

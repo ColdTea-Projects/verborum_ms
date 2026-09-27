@@ -253,10 +253,10 @@ This is the single source of truth — every client's language enum must be a su
 |---|---|---|---|
 | `dictionary.visibility.public` | ms_dictionary | ms_marketplace (`marketplace.dictionary.visibility.public`) | `is_public` set to true |
 | `dictionary.visibility.private` | ms_dictionary | ms_marketplace (`marketplace.dictionary.visibility.private`) | `is_public` set to false |
-| `dictionary.deleted` | ms_dictionary | ms_marketplace | Dictionary deleted |
+| `dictionary.deleted` | ms_dictionary | ms_marketplace (`marketplace.dictionary.deleted`) | Dictionary deleted |
 | `dictionary.updated` | ms_dictionary | ms_marketplace (`marketplace.dictionary.updated`) | A public dictionary's `name`/`fromLang`/`toLang` changed and it stayed public |
 | `dictionary.snapshot` | ms_dictionary | ms_marketplace (`marketplace.dictionary.snapshot`) | Schedule, nightly by default (`DICTIONARY_SNAPSHOT_CRON`) — every public dictionary in one message |
-| `user.deleted` | ms_user | ms_dictionary, ms_marketplace | User account deleted |
+| `user.deleted` | ms_user | ms_dictionary (`dictionary.user.deleted`), ms_marketplace (`marketplace.user.deleted`) | User account deleted |
 | `dictionary.imported` | ms_marketplace | ms_user | User imports a public dictionary |
 | `word.created` | ms_dictionary | ms_autofil (V2) | New word added |
 
@@ -306,9 +306,11 @@ creates missing, corrects stale, and removes listings absent from it **whose own
 snapshot's `takenAt`**. Verified live end-to-end.
 As of P4-04 `dictionary.visibility.private` is consumed too: it **hides** the listing
 (`is_listed = false`) instead of deleting it, so the row's `source_updated_at` keeps rejecting older
-public state; every public path re-lists a hidden row when newer. `dictionary.deleted` and
-`user.deleted` consumers are P4-05; until then those removals reach the marketplace via the next
-snapshot.
+public state; every public path re-lists a hidden row when newer.
+As of P4-05 `dictionary.deleted` hides the listing too, using the event's `eventTimestamp` as the
+ordering key (there is no `updatedAt` for a deleted dictionary), and `user.deleted` deletes every row
+of that user — matched on **`keycloakId`**. The snapshot removes hidden rows once it confirms them
+gone.
 
 **Consuming services must set `INFERRED` type precedence on the message converter.**
 `Jackson2JsonMessageConverter` writes the publisher's fully-qualified class name into a `__TypeId__`

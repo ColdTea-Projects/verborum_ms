@@ -1,5 +1,6 @@
 package de.coldtea.verborum.msmarketplace.common.listener;
 
+import de.coldtea.verborum.msmarketplace.common.event.DictionaryDeletedEvent;
 import de.coldtea.verborum.msmarketplace.common.event.DictionarySnapshotEvent;
 import de.coldtea.verborum.msmarketplace.common.event.DictionaryUpdatedEvent;
 import de.coldtea.verborum.msmarketplace.common.event.DictionaryVisibilityEvent;
@@ -94,6 +95,28 @@ class DictionaryEventListenerTest {
 
         // Act & Assert
         assertThrows(RuntimeException.class, () -> dictionaryEventListener.handleDictionaryUpdated(event));
+    }
+
+    @Test
+    void handleDictionaryDeleted_DelegatesToHideDeletedListing() {
+        // Arrange
+        DictionaryDeletedEvent event = DictionaryDeletedEvent.builder().dictionaryId("dict1").build();
+
+        // Act
+        dictionaryEventListener.handleDictionaryDeleted(event);
+
+        // Assert
+        verify(dictionaryStatsService).hideDeletedListing(event);
+    }
+
+    @Test
+    void handleDictionaryDeleted_RethrowsSoTheMessageIsDeadLettered() {
+        // Arrange
+        DictionaryDeletedEvent event = DictionaryDeletedEvent.builder().dictionaryId("dict1").build();
+        doThrow(new RuntimeException("db down")).when(dictionaryStatsService).hideDeletedListing(event);
+
+        // Act & Assert — swallowing would leave a deleted dictionary listed
+        assertThrows(RuntimeException.class, () -> dictionaryEventListener.handleDictionaryDeleted(event));
     }
 
     @Test

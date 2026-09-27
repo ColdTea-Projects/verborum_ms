@@ -999,7 +999,7 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
       public → listed; private → row kept, `is_listed = f`; public again → listed, `published_at`
       reset, `import_count` kept (5); private, then a hand-published **older** `visibility.public`
       via the management API → stayed hidden, name unchanged. DLQ empty. Suite 39/39.
-- [ ] `P4-05` **Consume `dictionary.deleted` and `user.deleted` events**
+- [x] `P4-05` **Consume `dictionary.deleted` and `user.deleted` events**
   - On `dictionary.deleted`: remove the `DictionaryStats` record
   - On `user.deleted` (added 2026-09-27): remove every listing owned by that user
     - **Why here:** ms_dictionary's `user.deleted` cascade deliberately publishes no
@@ -1020,6 +1020,25 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
       those too — the user is gone, so nothing needs to be remembered.
   - Done when: deleting a dictionary removes its marketplace entry, and `DELETE /users/{userId}` on
     ms_user removes all of that user's listings without waiting for a snapshot
+  - Done 2026-09-27:
+    - **`dictionary.deleted` hides rather than deletes** — the same guard as P4-04, going slightly
+      beyond "remove the record" (proposed before building; the snapshot deletes the hidden row
+      later). The event has no `updatedAt`, so its `eventTimestamp` — ms_dictionary's clock, taken in
+      the deleting transaction, later than any `updatedAt` the dictionary had — becomes the row's
+      `source_updated_at`, and a late older public event cannot re-list a dictionary that no longer
+      exists. With no row, nothing happens: the event lacks name/languages for a hidden row, so a late
+      public event could list it until the next snapshot removes it.
+    - **`user.deleted` deletes** every row of the user, listed or hidden, matched on **`keycloakId`**.
+      Not hidden: the event is timed on ms_user's clock, which cannot be compared with ms_dictionary's
+      `updatedAt`, and ms_dictionary deletes the same user's dictionaries on the same event, so no
+      newer public state can follow. `idx_dictionary_stats_user` (`2026/09/27-03-changelog.json`).
+    - Queues `marketplace.dictionary.deleted`, `marketplace.user.deleted` (both dead-lettered);
+      `DictionaryEventListener.handleDictionaryDeleted`, new `UserEventListener`. Suite 49/49.
+    - **Verified live** against the IntelliJ-run services: public → deleted through ms_dictionary →
+      row hidden with the deletion time; a hand-published older `visibility.public` → stayed hidden.
+      `user.deleted` hand-published for a made-up subject (a real account was not deleted — that would
+      wipe `testuser`'s dev data) → both of its rows (one listed, one hidden) deleted, a bystander's row
+      kept, redelivery a no-op. DLQ empty.
 - [ ] `P4-06` **Implement MarketplaceController**
   - **Every browse query must filter `is_listed = true`** (P4-04) — hidden rows are private
     dictionaries. Consider leading the browse indexes with `is_listed`, or partial indexes

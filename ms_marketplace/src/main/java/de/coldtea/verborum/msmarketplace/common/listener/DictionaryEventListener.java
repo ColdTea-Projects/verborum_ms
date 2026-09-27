@@ -1,5 +1,6 @@
 package de.coldtea.verborum.msmarketplace.common.listener;
 
+import de.coldtea.verborum.msmarketplace.common.event.DictionaryDeletedEvent;
 import de.coldtea.verborum.msmarketplace.common.event.DictionarySnapshotEvent;
 import de.coldtea.verborum.msmarketplace.common.event.DictionaryUpdatedEvent;
 import de.coldtea.verborum.msmarketplace.common.event.DictionaryVisibilityEvent;
@@ -9,13 +10,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
 
+import static de.coldtea.verborum.msmarketplace.common.config.RabbitMQConfig.QUEUE_DICTIONARY_DELETED;
 import static de.coldtea.verborum.msmarketplace.common.config.RabbitMQConfig.QUEUE_DICTIONARY_SNAPSHOT;
 import static de.coldtea.verborum.msmarketplace.common.config.RabbitMQConfig.QUEUE_DICTIONARY_UPDATED;
 import static de.coldtea.verborum.msmarketplace.common.config.RabbitMQConfig.QUEUE_DICTIONARY_VISIBILITY_PRIVATE;
 import static de.coldtea.verborum.msmarketplace.common.config.RabbitMQConfig.QUEUE_DICTIONARY_VISIBILITY_PUBLIC;
 
 /**
- * Consumes events published by ms_dictionary (P4-03, P4-04). Each handler logs, delegates to one service
+ * Consumes events published by ms_dictionary (P4-03..P4-05). Each handler logs, delegates to one service
  * method, and re-throws on failure so the message is retried and finally dead-lettered rather than
  * acknowledged with the listing left wrong.
  * <p>
@@ -60,6 +62,17 @@ public class DictionaryEventListener {
             dictionaryStatsService.updateListing(event);
         } catch (Exception e) {
             log.error("Failed to process dictionary.updated for dictionaryId: {}", event.getDictionaryId(), e);
+            throw e;
+        }
+    }
+
+    @RabbitListener(queues = QUEUE_DICTIONARY_DELETED)
+    public void handleDictionaryDeleted(DictionaryDeletedEvent event) {
+        log.info("Received dictionary.deleted for dictionaryId: {}", event.getDictionaryId());
+        try {
+            dictionaryStatsService.hideDeletedListing(event);
+        } catch (Exception e) {
+            log.error("Failed to process dictionary.deleted for dictionaryId: {}", event.getDictionaryId(), e);
             throw e;
         }
     }
