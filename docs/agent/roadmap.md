@@ -590,11 +590,8 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
   - **Authentication is enforced, ownership is not.** Endpoints still trust the `userId` in the
     request body, so any valid token can read or write another user's dictionaries. That is P3-05,
     and it is now the most security-relevant open item.
-- [ ] `P3-03a` **Tell the client teams ms_dictionary is closed** (added 2026-07-23)
-  - Android currently talks to `:8085` with no token and will start getting 401s the moment this is
-    deployed to their dev machine. `docs/integration/client-login-guide.md` is updated, but a heads-up
-    matters more than a doc edit here
-  - Done when: the Android/iOS repos know they must attach a bearer token to ms_dictionary calls
+- `P3-03a` **Tell the client teams ms_dictionary is closed** — moved to Deferred / Backlog on
+  2026-09-27 (a communication task that no backend work depends on; development is local-only).
 - [x] `P3-09` **Post-review hardening** (added 2026-07-23 after an independent architecture review)
   - An independent review of the whole repo (a second model, working only from the committed docs and
     code) produced these. Each was verified against the source before being acted on.
@@ -833,7 +830,8 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
       escaping, crimson submit button on the password screen (input-scoping fix), styled password
       reveal button. **Enabled by default** now (`EMAIL_CODE_ENABLED=true`);
       `configure-email-code-flow.sh` builds + binds the flow on boot.
-- [ ] `P3B-08` **Auth hardening** (added 2026-07-28 — first batch done, rest tracked below)
+- [x] `P3B-08` **Auth hardening** (added 2026-07-28; closed 2026-09-27 — the three open items were
+  split out, see below)
   - [x] **Brute-force detection** (done 2026-07-28): realm now has `bruteForceProtected: true`,
     `failureFactor: 5`, temporary lockout (`permanentLockout: false`), `waitIncrementSeconds: 60`,
     `maxFailureWaitSeconds: 900`. **Verified live:** 5 wrong passwords for `testuser` locked the account
@@ -846,15 +844,12 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
     out because the throwaway dev users (`testuser`/`testadmin`) have password == username and would
     fail validation on import — **add `notUsername` (and stronger complexity) in the prod realm**,
     which has no such users.
-  - [ ] **Registration bot protection:** enable Keycloak's reCAPTCHA on the hosted registration form
-    before opening public sign-up, or bots will create accounts.
-  - [ ] **Secret rotation before any shared/prod realm:** `admin`/`admin`, the `verborum-backend`
-    client secret, and the Google/Facebook client secrets (shared in chat + `.env`) must be rotated;
-    delete `verborum-dev-cli` (password-grant) from non-local realms.
-  - [ ] **Edge rate-limiting + TLS** land with the gateway/reverse proxy (Phase 5 +
-    `docs/ops/dockerization-and-environments.md`): rate-limit the token/auth endpoints, enforce HTTPS,
-    secure cookies.
-  - Done when: the four remaining boxes above are checked.
+  - **Split out 2026-09-27** (decided by the project owner). Development is local-only, where none of
+    these three protect anything, and edge rate-limiting could not be done before Phase 5 anyway —
+    left here, it would have blocked Phase 4 forever under the "never skip phases" rule:
+    - Registration bot protection (reCAPTCHA) → `BL-02`, trigger: before public sign-up opens
+    - Secret rotation before any shared/prod realm → `BL-03`, trigger: before any non-local realm
+    - Edge rate-limiting + TLS → `P5-04`, lands with the gateway
 
 ---
 
@@ -862,7 +857,15 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
 > Goal: Public dictionary listings, stats, ratings.
 > Depends on: Phase 3 complete (needs secured ms_dictionary events flowing via RabbitMQ)
 
-- [ ] `P4-01` **Scaffold ms_marketplace module**
+- [x] `P4-01` **Scaffold ms_marketplace module**
+  - Done 2026-09-27: module registered in the aggregator pom; `SecurityConfig` + `SecurityUtils` +
+    `GlobalExceptionHandler` + response envelope copied from the existing services; empty Liquibase
+    master changelog; `db_market` (5434, `vdbmarket`) added to the root compose and a per-module
+    compose (Postgres 5434 + Adminer 8082). **Verified live:** `/actuator/health` 200 `UP`; no token
+    and a garbage token both 401; a real Keycloak token passes security and gets a 404 (no endpoints
+    yet); `/actuator/env` 404. `./mvnw -pl ms_marketplace test` — 6/6 green.
+  - Deliberately **not** included: `spring-boot-starter-amqp` / `RabbitMQConfig` (arrive with the
+    first consumer at P4-03) and `@SupportedLanguage` (arrives with the language filter at P4-06)
   - Port: 8087, base package: `de.coldtea.verborum.msmarketplace`
   - DB: `vdbmarket` on port 5434, Adminer on 8082
   - **Include Spring Security + Keycloak JWT from the start** — see `docs/agent/security.md`
@@ -993,6 +996,10 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
 - [ ] `P5-03` **Add JWT validation at gateway level**
   - Validate token once at the gateway, forward user info in headers
   - Done when: invalid tokens are rejected at the gateway before reaching services
+- [ ] `P5-04` **Edge rate-limiting + TLS** (split out of `P3B-08` on 2026-09-27)
+  - Lands with the gateway / reverse proxy — see `docs/ops/dockerization-and-environments.md`
+  - Rate-limit the Keycloak token/auth endpoints, enforce HTTPS, secure cookies
+  - Done when: auth endpoints are rate-limited at the edge and all external traffic is HTTPS
 
 ---
 
@@ -1045,3 +1052,20 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
     purely additive, backward-compatible change — existing full-fetch callers are unaffected
   - Trigger: sync payload sizes or read traffic become a measured problem, or marketplace import
     (Phase 4) starts adding large dictionaries to vaults
+- [ ] `P3-03a` **Tell the client teams ms_dictionary is closed** (added 2026-07-23; moved here from
+  Phase 3 on 2026-09-27)
+  - Android currently talks to `:8085` with no token and will start getting 401s the moment this is
+    deployed to their dev machine. `docs/integration/client-login-guide.md` is updated, but a heads-up
+    matters more than a doc edit here
+  - Trigger: before a client developer pulls this backend and runs against it. Costs two minutes —
+    do it sooner rather than later
+  - Done when: the Android/iOS repos know they must attach a bearer token to ms_dictionary calls
+- [ ] `BL-02` **Registration bot protection** (split out of `P3B-08` on 2026-09-27)
+  - Enable Keycloak's reCAPTCHA on the hosted registration form, or bots will create accounts
+  - Trigger: before public sign-up opens
+- [ ] `BL-03` **Secret rotation before any shared/prod realm** (split out of `P3B-08` on 2026-09-27)
+  - Rotate `admin`/`admin`, the `verborum-backend` client secret, and the Google/Facebook client
+    secrets (shared in chat + `.env`); delete `verborum-dev-cli` (password-grant) from non-local
+    realms; add `notUsername` and stronger complexity to the prod password policy (see `P3B-08`)
+  - Trigger: before any non-local realm exists. The Google/Facebook secrets were pasted into chat, so
+    rotate those two earlier if that chat left this machine

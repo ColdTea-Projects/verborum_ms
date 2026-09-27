@@ -51,7 +51,7 @@ API Gateway ──► Autofil Service  (word suggestions from community data, No
   subject, and acting on another user's data is refused (P3-05, P3-08). `/actuator/**` (health+info
   only) and Swagger are open.
 
-### 🚧 ms_user — PHASE 2 COMPLETE, NOT YET EXERCISED OVER HTTP
+### ✅ ms_user — PHASE 2 COMPLETE, SECURED, VERIFIED OVER HTTP
 - **Port:** 8086
 - **DB:** `vdbprofile` (PostgreSQL) — docker-compose in `ms_user/` (Postgres 5433 + Adminer 8081)
 - **Base package:** `de.coldtea.verborum.msuser`
@@ -65,9 +65,10 @@ API Gateway ──► Autofil Service  (word suggestions from community data, No
   401 without a token, 404s, validation 400s, idempotent vault POST, and `DELETE /users/{id}`
   publishing `user.deleted` on the wire.
 
-### ❌ ms_marketplace — TO BE BUILT
-- **Port:** TBD (suggest 8087)
-- **DB:** `DB_Market` (PostgreSQL)
+### 🚧 ms_marketplace — SCAFFOLDED (P4-01), ENTITIES/ENDPOINTS TO BE BUILT
+- **Port:** 8087
+- **DB:** `vdbmarket` (PostgreSQL) — host port 5434; docker-compose in `ms_marketplace/` (Postgres
+  5434 + Adminer 8082), and `db_market` in the root compose
 - **Base package:** `de.coldtea.verborum.msmarketplace`
 - **What it does:** Public dictionary listings, stats, ratings, user market imports
 - **Security requirement:** Must be built with Spring Security + Keycloak JWT validation
@@ -168,13 +169,14 @@ measure, class, polite`.
 > The earlier `partOfSpeech` / `example` / `notes` shape documented here was a placeholder written
 > before the client schema existed. No client ever used it. The contract above is the real one.
 
-### User Profile (ms_user — to be designed)
+### User Profile (ms_user — built)
 ```
-Entities needed:
-- User           (user_id, keycloak_id, email, display_name, created_at, updated_at)
-- UserStats      (user_id, total_words, total_dictionaries, ...)
-- VaultEntry     (user_id, dictionary_id, imported_at)  ← imported public dictionaries
+- User           (user_id, keycloak_id, email, display_name, creation_dt, update_dt)
+- UserStats      (user_id, total_words, total_dictionaries, update_dt)
+- VaultEntry     (vault_entry_id, fk_user_id, fk_dictionary_id, imported_at)  ← imported public dictionaries
 ```
+Column-level detail, constraints and quirks (the cross-service user key is `keycloak_id`, not
+`user_id`) are in `ms_user/CLAUDE.md`.
 
 ---
 
