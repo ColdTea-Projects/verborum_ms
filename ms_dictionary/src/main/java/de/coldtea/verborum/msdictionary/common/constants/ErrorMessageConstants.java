@@ -15,4 +15,8 @@ public final class ErrorMessageConstants {
                     + "consumers will not see it without a re-publish or a reconciliation run.";
     public static final String NO_AUTHENTICATED_USER = "No authenticated user found";
 
+    //DictionarySnapshotScheduler — log message
+    public static final String SNAPSHOT_PUBLISH_FAILED =
+            "Failed to build dictionary.snapshot. Marketplace listings are not reconciled until the next run.";
+
 }

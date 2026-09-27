@@ -18,4 +18,7 @@ public interface DictionaryRepository extends JpaRepository<Dictionary, String> 
     List<Dictionary> findByFromLang(String fromLang);
 
     List<Dictionary> findByToLang(String toLang);
+
+    // The dictionary.snapshot query (P4-03), backed by idx_dictionaries_is_public
+    List<Dictionary> findByIsPublicTrue();
 }

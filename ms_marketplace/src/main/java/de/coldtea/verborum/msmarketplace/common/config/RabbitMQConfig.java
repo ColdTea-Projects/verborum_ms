@@ -1,4 +1,4 @@
-package de.coldtea.verborum.msdictionary.common.config;
+package de.coldtea.verborum.msmarketplace.common.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -19,11 +19,12 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * RabbitMQ wiring for ms_dictionary. See docs/agent/rabbitmq.md for the exchange design
- * and the routing key table.
+ * RabbitMQ wiring for ms_marketplace. See docs/agent/rabbitmq.md for the exchange design and the
+ * routing key table.
  * <p>
- * ms_dictionary publishes the dictionary and word events, and consumes `user.deleted` on the
- * `dictionary.user.deleted` queue (roadmap P2-10) to cascade-delete a removed user's data.
+ * ms_marketplace keeps its `dictionary_stats` read model current from ms_dictionary's events
+ * (P4-03): going public, listed-field updates, and the scheduled `dictionary.snapshot`. The private
+ * and deleted consumers arrive at P4-04/P4-05, publishing `dictionary.imported` at P4-07.
  * <p>
  * All services declare the same exchange; declarations are idempotent, so whichever service
  * starts first creates it.
@@ -36,46 +37,73 @@ public class RabbitMQConfig {
     public static final String DEAD_LETTER_QUEUE = "verborum.dead-letter";
 
     public static final String ROUTING_KEY_DICTIONARY_VISIBILITY_PUBLIC = "dictionary.visibility.public";
-    public static final String ROUTING_KEY_DICTIONARY_VISIBILITY_PRIVATE = "dictionary.visibility.private";
-    public static final String ROUTING_KEY_DICTIONARY_DELETED = "dictionary.deleted";
     public static final String ROUTING_KEY_DICTIONARY_UPDATED = "dictionary.updated";
     public static final String ROUTING_KEY_DICTIONARY_SNAPSHOT = "dictionary.snapshot";
-    public static final String ROUTING_KEY_WORD_CREATED = "word.created";
-    public static final String ROUTING_KEY_USER_DELETED = "user.deleted";
 
-    public static final String QUEUE_USER_DELETED = "dictionary.user.deleted";
+    public static final String QUEUE_DICTIONARY_VISIBILITY_PUBLIC = "marketplace.dictionary.visibility.public";
+    public static final String QUEUE_DICTIONARY_UPDATED = "marketplace.dictionary.updated";
+    public static final String QUEUE_DICTIONARY_SNAPSHOT = "marketplace.dictionary.snapshot";
 
     @Bean
     public TopicExchange verborumExchange() {
         return new TopicExchange(EXCHANGE, true, false);
     }
 
-    /**
-     * ms_dictionary's only consumer queue: cascade-delete a removed user's dictionaries and words.
-     * <p>
-     * `x-dead-letter-exchange` is all it needs — the DLX is a fanout, so a message that keeps
-     * failing reaches the DLQ whatever its routing key.
-     */
+    // One queue per event, each with `x-dead-letter-exchange` — the DLX is a fanout, so a message
+    // that keeps failing reaches the DLQ whatever its routing key. Separate queues mean no ordering
+    // between the three event kinds; the consumers do not rely on any — each compares the
+    // dictionary's updatedAt against what it holds (rule 4)
+
     @Bean
-    public Queue userDeletedQueue() {
-        return QueueBuilder.durable(QUEUE_USER_DELETED)
+    public Queue dictionaryVisibilityPublicQueue() {
+        return QueueBuilder.durable(QUEUE_DICTIONARY_VISIBILITY_PUBLIC)
                 .withArgument("x-dead-letter-exchange", DEAD_LETTER_EXCHANGE)
                 .build();
     }
 
     @Bean
-    public Binding userDeletedBinding(Queue userDeletedQueue, TopicExchange verborumExchange) {
+    public Binding dictionaryVisibilityPublicBinding(Queue dictionaryVisibilityPublicQueue, TopicExchange verborumExchange) {
         return BindingBuilder
-                .bind(userDeletedQueue)
+                .bind(dictionaryVisibilityPublicQueue)
                 .to(verborumExchange)
-                .with(ROUTING_KEY_USER_DELETED);
+                .with(ROUTING_KEY_DICTIONARY_VISIBILITY_PUBLIC);
+    }
+
+    @Bean
+    public Queue dictionaryUpdatedQueue() {
+        return QueueBuilder.durable(QUEUE_DICTIONARY_UPDATED)
+                .withArgument("x-dead-letter-exchange", DEAD_LETTER_EXCHANGE)
+                .build();
+    }
+
+    @Bean
+    public Binding dictionaryUpdatedBinding(Queue dictionaryUpdatedQueue, TopicExchange verborumExchange) {
+        return BindingBuilder
+                .bind(dictionaryUpdatedQueue)
+                .to(verborumExchange)
+                .with(ROUTING_KEY_DICTIONARY_UPDATED);
+    }
+
+    @Bean
+    public Queue dictionarySnapshotQueue() {
+        return QueueBuilder.durable(QUEUE_DICTIONARY_SNAPSHOT)
+                .withArgument("x-dead-letter-exchange", DEAD_LETTER_EXCHANGE)
+                .build();
+    }
+
+    @Bean
+    public Binding dictionarySnapshotBinding(Queue dictionarySnapshotQueue, TopicExchange verborumExchange) {
+        return BindingBuilder
+                .bind(dictionarySnapshotQueue)
+                .to(verborumExchange)
+                .with(ROUTING_KEY_DICTIONARY_SNAPSHOT);
     }
 
     /**
-     * Fanout, not direct: RabbitMQ keeps a message's original routing key when it dead-letters it
-     * (e.g. `user.deleted`). A direct DLX would only match a binding under that same key, so the
-     * message would be dropped as unroutable instead of landing in the DLQ. Fanout ignores the
-     * routing key, so a consumer queue only has to name the DLX to be safe.
+     * Fanout, not direct: RabbitMQ keeps a message's original routing key when it dead-letters it.
+     * A direct DLX would only match a binding under that same key, so the message would be dropped
+     * as unroutable instead of landing in the DLQ. Fanout ignores the routing key, so a consumer
+     * queue only has to name the DLX to be safe.
      */
     @Bean
     public FanoutExchange deadLetterExchange() {
@@ -95,14 +123,9 @@ public class RabbitMQConfig {
     }
 
     /**
-     * Spring AMQP's enhanced mapper already registers `JavaTimeModule`, but it leaves
-     * `WRITE_DATES_AS_TIMESTAMPS` on, which renders an event's `LocalDateTime` as a numeric array
-     * (`[2026,7,16,15,17,53,415040500]`). Pinned to ISO-8601 instead: the wire format is readable
-     * in the Management UI and portable to any consumer that is not a Java service using this
-     * same converter.
-     * <p>
-     * Deliberately not Boot's auto-configured `ObjectMapper` — that one is shared with the web
-     * layer, and event serialization should not shift because someone tunes the REST JSON.
+     * ISO-8601 timestamps on the wire, matching the other services: the enhanced mapper registers
+     * `JavaTimeModule` but leaves `WRITE_DATES_AS_TIMESTAMPS` on. Deliberately not Boot's
+     * auto-configured `ObjectMapper`, which is shared with the web layer.
      */
     @Bean
     public MessageConverter jsonMessageConverter() {
@@ -115,16 +138,10 @@ public class RabbitMQConfig {
     }
 
     /**
-     * Cross-service deserialization, mirroring ms_user's config (added there at P2-09).
-     * <p>
-     * Jackson2JsonMessageConverter stamps every outgoing message with a `__TypeId__` header holding
-     * the publisher's fully-qualified class name, and by default the consumer trusts it. ms_user
-     * publishes `de.coldtea.verborum.msuser.common.event.UserDeletedEvent` — a class that does not
-     * exist here — so without this, every `user.deleted` message would fail with ClassNotFound,
-     * permanently, straight to the DLQ, with an error that reads like a broker fault.
-     * <p>
-     * `INFERRED` precedence makes the @RabbitListener method's own parameter type win, so each
-     * service deserializes into its own copy of the event and only the JSON field names have to
+     * Cross-service deserialization. ms_dictionary stamps every message with a `__TypeId__` header
+     * naming its own class (`…msdictionary.common.event.DictionaryVisibilityEvent`), which does not
+     * exist here — trusting it would fail every message as ClassNotFound, straight to the DLQ.
+     * `INFERRED` makes the @RabbitListener parameter type win, so only the JSON field names have to
      * agree. Trusted packages stay restricted, since the header is still used when nothing can be
      * inferred.
      */

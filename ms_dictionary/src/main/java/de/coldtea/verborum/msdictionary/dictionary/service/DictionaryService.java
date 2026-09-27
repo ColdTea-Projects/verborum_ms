@@ -20,4 +20,10 @@ public interface DictionaryService {
      */
     List<DictionaryResponseDTO> getDictionariesByIds(List<String> dictionaryIds, String ownerId);
     void deleteAllByUserId(String userId);
+
+    /**
+     * Publishes every public dictionary as one `dictionary.snapshot` event — the marketplace's
+     * reconciliation backstop (rule 6, P4-03). Scheduled, not exposed over HTTP.
+     */
+    void publishPublicSnapshot();
 }

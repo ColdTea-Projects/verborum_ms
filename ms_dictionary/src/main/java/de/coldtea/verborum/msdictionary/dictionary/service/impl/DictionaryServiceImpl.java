@@ -1,6 +1,9 @@
 package de.coldtea.verborum.msdictionary.dictionary.service.impl;
 
 import de.coldtea.verborum.msdictionary.common.event.DictionaryDeletedEvent;
+import de.coldtea.verborum.msdictionary.common.event.DictionarySnapshotEntry;
+import de.coldtea.verborum.msdictionary.common.event.DictionarySnapshotEvent;
+import de.coldtea.verborum.msdictionary.common.event.DictionaryUpdatedEvent;
 import de.coldtea.verborum.msdictionary.common.event.DictionaryVisibilityEvent;
 import de.coldtea.verborum.msdictionary.common.event.OutboundEvent;
 import de.coldtea.verborum.msdictionary.common.exception.ForbiddenOperationException;
@@ -22,6 +25,8 @@ import java.util.List;
 import java.util.Optional;
 
 import static de.coldtea.verborum.msdictionary.common.config.RabbitMQConfig.ROUTING_KEY_DICTIONARY_DELETED;
+import static de.coldtea.verborum.msdictionary.common.config.RabbitMQConfig.ROUTING_KEY_DICTIONARY_SNAPSHOT;
+import static de.coldtea.verborum.msdictionary.common.config.RabbitMQConfig.ROUTING_KEY_DICTIONARY_UPDATED;
 import static de.coldtea.verborum.msdictionary.common.config.RabbitMQConfig.ROUTING_KEY_DICTIONARY_VISIBILITY_PRIVATE;
 import static de.coldtea.verborum.msdictionary.common.config.RabbitMQConfig.ROUTING_KEY_DICTIONARY_VISIBILITY_PUBLIC;
 import static de.coldtea.verborum.msdictionary.common.constants.ErrorMessageConstants.DICTIONARY_WAS_NOT_FOUND_ID;
@@ -66,6 +71,10 @@ public class DictionaryServiceImpl implements DictionaryService {
                 .map(dictionary -> Boolean.TRUE.equals(dictionary.getIsPublic()))
                 .orElse(false);
 
+        // Copied out now, not read from `existing` after the save: saveAndFlush merges the new values
+        // onto that same managed instance, so afterwards it would always compare equal to the save
+        ListingFields previousListing = existing.map(ListingFields::of).orElse(null);
+
         Dictionary dictionary = dictionaryMapper.toDictionary(dictionaryRequestDTO);
         dictionary.setUserId(ownerId);
 
@@ -75,8 +84,81 @@ public class DictionaryServiceImpl implements DictionaryService {
         // commits (rule 1). Ordering inside the method no longer matters for correctness — the old
         // "keep the send last" comment was mitigation for publishing inside the transaction.
         publishVisibilityChange(savedDictionary, wasPublic);
+        publishListingUpdate(savedDictionary, wasPublic, previousListing);
 
         return dictionaryMapper.toDictionaryResponseDTO(savedDictionary);
+    }
+
+    /**
+     * The fields ms_marketplace lists. A change to any other field (or a plain re-save) is invisible
+     * to the marketplace and must not produce an event.
+     */
+    private record ListingFields(String name, String fromLang, String toLang) {
+        static ListingFields of(Dictionary dictionary) {
+            return new ListingFields(dictionary.getName(), dictionary.getFromLang(), dictionary.getToLang());
+        }
+    }
+
+    /**
+     * Publishes `dictionary.updated` when a dictionary that was public and still is changes a listed
+     * field (P4-03). Before this, a rename of a public dictionary emitted nothing and the marketplace
+     * listing kept the old name indefinitely.
+     * <p>
+     * A visibility flip is not an update: going public or private already carries the full payload on
+     * its own event, so publishing both would make the consumer process the same change twice.
+     */
+    private void publishListingUpdate(Dictionary dictionary, boolean wasPublic, ListingFields previousListing) {
+        boolean isPublic = Boolean.TRUE.equals(dictionary.getIsPublic());
+        if (!wasPublic || !isPublic || ListingFields.of(dictionary).equals(previousListing)) {
+            return;
+        }
+
+        eventPublisher.publishEvent(new OutboundEvent(
+                ROUTING_KEY_DICTIONARY_UPDATED,
+                DictionaryUpdatedEvent.builder()
+                        .dictionaryId(dictionary.getDictionaryId())
+                        .userId(dictionary.getUserId())
+                        .fromLang(dictionary.getFromLang())
+                        .toLang(dictionary.getToLang())
+                        .dictionaryName(dictionary.getName())
+                        // Ordering key (rule 4) — see publishVisibilityChange
+                        .updatedAt(dictionary.getUpdatedAt())
+                        .eventTimestamp(OffsetDateTime.now())
+                        .build()));
+    }
+
+    /**
+     * Publishes every public dictionary as one `dictionary.snapshot` — the reconciliation backstop
+     * for lost events (rule 6, P4-03). Triggered by {@code DictionarySnapshotScheduler}.
+     * <p>
+     * `takenAt` is read before the query, so anything the consumer holds that changed after it is
+     * known to be newer than the snapshot and is left alone.
+     */
+    @Transactional
+    @Override
+    public void publishPublicSnapshot() {
+        OffsetDateTime takenAt = OffsetDateTime.now();
+
+        List<DictionarySnapshotEntry> entries = dictionaryRepository.findByIsPublicTrue().stream()
+                .map(dictionary -> DictionarySnapshotEntry.builder()
+                        .dictionaryId(dictionary.getDictionaryId())
+                        .userId(dictionary.getUserId())
+                        .fromLang(dictionary.getFromLang())
+                        .toLang(dictionary.getToLang())
+                        .dictionaryName(dictionary.getName())
+                        .updatedAt(dictionary.getUpdatedAt())
+                        .build())
+                .toList();
+
+        // Published even when empty: an empty snapshot is the true statement "nothing is public",
+        // and it is what lets the marketplace clear listings whose removal events were lost
+        eventPublisher.publishEvent(new OutboundEvent(
+                ROUTING_KEY_DICTIONARY_SNAPSHOT,
+                DictionarySnapshotEvent.builder()
+                        .takenAt(takenAt)
+                        .dictionaries(entries)
+                        .eventTimestamp(OffsetDateTime.now())
+                        .build()));
     }
 
     /**

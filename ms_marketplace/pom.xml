@@ -88,8 +88,11 @@
             <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
 
-        <!-- RabbitMQ (spring-boot-starter-amqp) is added at P4-03, together with RabbitMQConfig and the
-             first consumer — a broker dependency with nothing using it would only add a health check -->
+        <!-- RabbitMQ - consumes the dictionary listing events from ms_dictionary (P4-03) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-amqp</artifactId>
+        </dependency>
         <!-- https://mvnrepository.com/artifact/org.mapstruct/mapstruct -->
         <dependency>
             <groupId>org.mapstruct</groupId>

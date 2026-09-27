@@ -13,8 +13,8 @@ request time — decided 2026-07-23, see roadmap `P4-03`.
 - **DB:** `vdbmarket` (PostgreSQL) — docker-compose in this module (Postgres on 5434 + Adminer on
   8082), and `db_market` in the root compose on the same host port. Run one or the other.
 - **Base package:** `de.coldtea.verborum.msmarketplace`
-- **Status:** Scaffolded (P4-01) and `dictionary_stats` table built (P4-02). No endpoints or
-  RabbitMQ yet.
+- **Status:** Scaffolded (P4-01), `dictionary_stats` table (P4-02), listing projection +
+  snapshot reconciliation fed by ms_dictionary events (P4-03). No endpoints yet.
 
 ## Entities
 - `DictionaryStats` (`dictionary_stats`) — `dictionaryId` (PK, ms_dictionary's id, no DB FK),
@@ -25,19 +25,33 @@ request time — decided 2026-07-23, see roadmap `P4-03`.
   - `importCount` must be set to 0 explicitly on create; the column default does not apply through
     Hibernate.
   - `rating` / `viewCount` are deliberately absent until designed.
-- **Reconciliation** (P4-03): ms_dictionary publishes a nightly `dictionary.snapshot` of all public
-  dictionaries; this service diffs it against the table (create / update-if-newer / delete-absent).
 
-## Events (planned)
-- **Consumes:** `dictionary.visibility.public` (P4-03), `dictionary.visibility.private` (P4-04),
-  `dictionary.deleted` (P4-05), and a new `dictionary.updated` that ms_dictionary must start
-  publishing (P4-03). Every consumer upserts on `dictionaryId` and drops anything whose `updatedAt`
-  is not newer than what it holds.
+## Events (see `docs/agent/rabbitmq.md`)
+- **Consumes (P4-03):** `common/listener/DictionaryEventListener` → `DictionaryStatsService`, one
+  durable dead-lettered queue per event:
+  - `dictionary.visibility.public` on `marketplace.dictionary.visibility.public` → `publishListing`
+    — upsert on `dictionaryId`.
+  - `dictionary.updated` on `marketplace.dictionary.updated` → `updateListing` — **update-only,
+    never creates**: an update for a missing listing may belong to a dictionary already made private
+    or deleted, and creating it would re-list it. The snapshot restores a genuinely missed listing.
+  - `dictionary.snapshot` on `marketplace.dictionary.snapshot` → `reconcile` — one transaction:
+    create missing, correct stale, remove listings absent from the snapshot **only if their
+    `sourceUpdatedAt` is before the snapshot's `takenAt`**. Logs a summary line; non-zero
+    "created or corrected / removed" counts mean the event path lost something.
+  - All three drop anything not strictly newer than the held `sourceUpdatedAt` (rule 4), so
+    redeliveries and DLQ replays are no-ops. A missing `updatedAt` falls back to the event
+    timestamp (snapshot: `takenAt`).
+- **Known gap for P4-04:** a dictionary made private in the seconds between the snapshot query and
+  `reconcile` is recreated by it until the next snapshot, because a removed listing leaves nothing to
+  compare against. Keeping a hidden row with its `sourceUpdatedAt` on private (instead of deleting)
+  would close it.
+- **Not yet consumed:** `dictionary.visibility.private` (P4-04), `dictionary.deleted` (P4-05) and
+  `user.deleted` — until then those removals arrive with the next snapshot.
 - **Publishes:** `dictionary.imported` (P4-07) — ms_user already has the queue bound. The payload is
   `{dictionaryId, keycloakId, eventTimestamp}`: the field is **`keycloakId`**, i.e. the caller's JWT
   subject.
-- `spring-boot-starter-amqp`, `RabbitMQConfig` (with the `INFERRED` type-precedence converter every
-  consuming service needs) and the RabbitMQ properties are added at P4-03, not before.
+- `RabbitMQConfig` mirrors the other services: same exchange, fanout DLX + DLQ, ISO-8601 converter
+  with `INFERRED` type precedence (ms_dictionary's `__TypeId__` names classes that do not exist here).
 
 ## Security
 - `common/config/SecurityConfig.java` is in place from the first commit: stateless JWT resource

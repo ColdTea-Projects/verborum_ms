@@ -32,7 +32,20 @@ Full CRUD for **Dictionaries** and **Words** — the core vocabulary store.
   here that touches `RabbitTemplate`. Unit tests verify `ApplicationEventPublisher`. The rollback
   guarantee is proven once, in ms_user's `UserDeletedAfterCommitTest` — both services share the
   listener.
-- **Publishes:** `dictionary.visibility.public/private`, `dictionary.deleted`, `word.created`
+- **Publishes:** `dictionary.visibility.public/private`, `dictionary.deleted`, `dictionary.updated`,
+  `dictionary.snapshot`, `word.created`
+- `dictionary.updated` (P4-03) fires only when a dictionary that was public **and stays public**
+  changes `name`, `fromLang` or `toLang`. A visibility flip never also fires it. The old values are
+  copied out *before* `saveAndFlush`, which merges the new values onto the managed instance
+  `findById` returned — comparing after the save would always see "no change". A test simulates
+  exactly that; keep it.
+- `dictionary.snapshot` (P4-03) — every public dictionary in one message, sent by
+  `common/scheduler/DictionarySnapshotScheduler` on `dictionary.snapshot.cron`
+  (`DICTIONARY_SNAPSHOT_CRON`, nightly 03:00 by default; `@EnableScheduling` in `SchedulingConfig`).
+  `takenAt` is read **before** the query — ms_marketplace relies on that to avoid removing a listing
+  made public mid-snapshot. Sent even when empty. Backed by `idx_dictionaries_is_public`
+  (`2026/09/27-01-changelog.json`). Every instance runs the schedule: add a lock (ShedLock) before
+  scaling out.
 - `DictionaryVisibilityEvent` carries the dictionary's `updatedAt` as an ordering key (rule 4): the
   marketplace projection must drop an event older than the state it holds, or two quick edits
   delivered out of order leave the listing permanently stale.

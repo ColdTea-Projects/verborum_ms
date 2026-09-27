@@ -891,9 +891,32 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
        `published_at` for newest-first browse.
     6. **The reconciliation job moved to `P4-03`** — it needs RabbitMQ in ms_marketplace, which
        arrives with the first consumer there. Design recorded under `P4-03`.
-- [ ] `P4-03` **Consume `dictionary.visibility.public` event**
+- [x] `P4-03` **Consume `dictionary.visibility.public` event**
   - On event: create a `DictionaryStats` record for the dictionary
   - Done when: making a dictionary public creates a marketplace entry
+  - Done 2026-09-27, with both obligations the 2026-07-23 decision attached — `dictionary.updated` and
+    the reconciliation job:
+    - **ms_dictionary:** publishes `dictionary.updated` when a public dictionary that stays public
+      changes `name`/`fromLang`/`toLang` (old values captured *before* `saveAndFlush` merges onto the
+      managed instance); publishes `dictionary.snapshot` via `DictionarySnapshotScheduler`
+      (`DICTIONARY_SNAPSHOT_CRON`, nightly 03:00); `idx_dictionaries_is_public`
+      (`2026/09/27-01-changelog.json`). Suite 86/86.
+    - **ms_marketplace:** AMQP + `RabbitMQConfig` (three dead-lettered queues, `INFERRED` converter);
+      `DictionaryEventListener` → `DictionaryStatsService`: `publishListing` (upsert),
+      `updateListing` (update-only — never re-lists), `reconcile` (create / correct / remove-if-older-
+      than-`takenAt`). All drop stale deliveries (rule 4). Suite 27/27.
+    - **Verified live** (new ms_dictionary on :18085, snapshot cron every 30 s): public create → listing
+      created (`import_count` 0, `published_at` = `source_updated_at`); rename + `toLang` change →
+      listing updated in place, `published_at` kept; unchanged re-save → no `dictionary.updated`;
+      snapshot recreated a deleted listing, removed a fake orphan, corrected a stale name; deleting the
+      dictionary removed its listing at the next snapshot. DLQ empty before and after.
+    - **Left for P4-04:** a dictionary made private between the snapshot query and `reconcile` gets
+      re-listed until the next snapshot (a deleted listing leaves nothing to compare). Recommended
+      fix: on private, keep a hidden row with its `sourceUpdatedAt` rather than deleting.
+    - **Found, not in any task:** `docs/agent/verborum.md`'s routing table and ms_dictionary's
+      `deleteAllByUserId` both say ms_marketplace consumes `user.deleted` — which is why that cascade
+      publishes no `dictionary.deleted` — but no task builds it. Until one does, a deleted user's
+      listings stay visible until the next snapshot.
   - **The AFTER_COMMIT work is DONE (2026-07-23), in both services** — it was pulled forward out of
     this task because ms_dictionary already acts on `user.deleted` by deleting data, so the phantom-
     event window was live, not theoretical. Publishers raise an `OutboundEvent` and

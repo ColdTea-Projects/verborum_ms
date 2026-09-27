@@ -249,9 +249,11 @@ This is the single source of truth — every client's language enum must be a su
 
 | Routing Key | Published by | Consumed by | Trigger |
 |---|---|---|---|
-| `dictionary.visibility.public` | ms_dictionary | ms_marketplace | `is_public` set to true |
+| `dictionary.visibility.public` | ms_dictionary | ms_marketplace (`marketplace.dictionary.visibility.public`) | `is_public` set to true |
 | `dictionary.visibility.private` | ms_dictionary | ms_marketplace | `is_public` set to false |
 | `dictionary.deleted` | ms_dictionary | ms_marketplace | Dictionary deleted |
+| `dictionary.updated` | ms_dictionary | ms_marketplace (`marketplace.dictionary.updated`) | A public dictionary's `name`/`fromLang`/`toLang` changed and it stayed public |
+| `dictionary.snapshot` | ms_dictionary | ms_marketplace (`marketplace.dictionary.snapshot`) | Schedule, nightly by default (`DICTIONARY_SNAPSHOT_CRON`) — every public dictionary in one message |
 | `user.deleted` | ms_user | ms_dictionary, ms_marketplace | User account deleted |
 | `dictionary.imported` | ms_marketplace | ms_user | User imports a public dictionary |
 | `word.created` | ms_dictionary | ms_autofil (V2) | New word added |
@@ -292,6 +294,15 @@ cascade-deletes that user's dictionaries and words — **matching on the event's
 `fk_user_id` is the JWT subject. It publishes no `dictionary.deleted` for the cascaded rows, because
 ms_marketplace consumes `user.deleted` itself. Verified live end-to-end: `DELETE /users/{userId}` on
 ms_user removes the user's dictionaries and words from ms_dictionary, and a redelivery is a no-op.
+
+As of P4-03 (2026-09-27) ms_marketplace consumes `dictionary.visibility.public`,
+`dictionary.updated` and `dictionary.snapshot` into its `dictionary_stats` read model — one queue
+each, all dead-lettered. Publish-to-listing updates, idempotent and stale-safe by `updatedAt`:
+`visibility.public` upserts; `updated` only updates an existing listing (never creates, so it cannot
+re-list a dictionary already made private or deleted); `snapshot` reconciles the whole table —
+creates missing, corrects stale, and removes listings absent from it **whose own state predates the
+snapshot's `takenAt`**. `visibility.private` and `dictionary.deleted` consumers are P4-04/P4-05; until
+then those removals reach the marketplace via the next snapshot. Verified live end-to-end.
 
 **Consuming services must set `INFERRED` type precedence on the message converter.**
 `Jackson2JsonMessageConverter` writes the publisher's fully-qualified class name into a `__TypeId__`
