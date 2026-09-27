@@ -1275,6 +1275,9 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
   - Trigger: before a client developer pulls this backend and runs against it. Costs two minutes —
     do it sooner rather than later
   - Done when: the Android/iOS repos know they must attach a bearer token to ms_dictionary calls
+  - **Message drafted 2026-09-27** in `docs/integration/marketplace-client-guide.md` §0 — it now also
+    covers the P4-09 validation 400s, P4-10 public read, the marketplace and the web CORS gap. Still
+    open until it has actually been sent to the client teams.
 - [ ] `BL-04` **Publisher display names on marketplace listings** (added 2026-09-27 at P4-06)
   - Listings carry `publisherId` only; users will want "by Anna". The name lives in ms_user, so per
     rule 5 the marketplace stores it (`publisher_name`) and keeps it current from an ms_user event —
