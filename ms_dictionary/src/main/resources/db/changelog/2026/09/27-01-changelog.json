@@ -1,0 +1,34 @@
+{
+  "databaseChangeLog": [
+    {
+      "changeSet": {
+        "id": "20260927-01-dictionaries-is-public-index",
+        "author": "claude (P4-03)",
+        "comment": "Index for the dictionary.snapshot query (findByIsPublicTrue), which reads every public dictionary on a schedule to reconcile ms_marketplace's listings. Without it that query is a full scan of dictionaries on every run.",
+        "changes": [
+          {
+            "createIndex": {
+              "tableName": "dictionaries",
+              "indexName": "idx_dictionaries_is_public",
+              "columns": [
+                {
+                  "column": {
+                    "name": "is_public"
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        "rollback": [
+          {
+            "dropIndex": {
+              "tableName": "dictionaries",
+              "indexName": "idx_dictionaries_is_public"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -15,9 +15,16 @@ public interface DictionaryService {
     DictionaryResponseDTO getDictionaryById(String dictionaryId, String ownerId);
 
     /**
-     * Batch fetch, filtered to the caller's own dictionaries. Ids belonging to someone else are
-     * dropped rather than refused — a 403 here would confirm that an id exists (P3-08).
+     * Batch fetch, filtered to what the caller may read: their own dictionaries and public ones
+     * (P4-10). Other ids are dropped rather than refused — a 403 here would confirm that an id exists
+     * (P3-08).
      */
     List<DictionaryResponseDTO> getDictionariesByIds(List<String> dictionaryIds, String ownerId);
     void deleteAllByUserId(String userId);
+
+    /**
+     * Publishes every public dictionary as one `dictionary.snapshot` event — the marketplace's
+     * reconciliation backstop (rule 6, P4-03). Scheduled, not exposed over HTTP.
+     */
+    void publishPublicSnapshot();
 }

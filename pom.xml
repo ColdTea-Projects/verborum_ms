@@ -12,5 +12,6 @@
     <modules>
         <module>ms_dictionary</module>
         <module>ms_user</module>
+        <module>ms_marketplace</module>
     </modules>
 </project>

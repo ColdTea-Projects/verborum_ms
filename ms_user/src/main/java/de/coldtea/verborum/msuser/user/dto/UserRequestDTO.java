@@ -14,11 +14,11 @@ import static de.coldtea.verborum.msuser.common.constants.DTOMessageConstants.*;
 public class UserRequestDTO {
 
     @NotBlank(message = USER_USER_ID)
-    @ValidUUID(fieldName = USER_ID)
+    @ValidUUID
     private String userId;
 
     @NotBlank(message = USER_KEYCLOAK_ID)
-    @ValidUUID(fieldName = KEYCLOAK_ID)
+    @ValidUUID
     private String keycloakId;
 
     @NotBlank(message = USER_EMAIL)

@@ -10,6 +10,8 @@ import de.coldtea.verborum.msdictionary.dictionary.repository.DictionaryReposito
 import de.coldtea.verborum.msdictionary.word.repository.WordRepository;
 
 import de.coldtea.verborum.msdictionary.common.event.DictionaryDeletedEvent;
+import de.coldtea.verborum.msdictionary.common.event.DictionarySnapshotEvent;
+import de.coldtea.verborum.msdictionary.common.event.DictionaryUpdatedEvent;
 import de.coldtea.verborum.msdictionary.common.event.DictionaryVisibilityEvent;
 import de.coldtea.verborum.msdictionary.common.event.OutboundEvent;
 
@@ -23,14 +25,19 @@ import org.mockito.MockitoAnnotations;
 import org.springframework.context.ApplicationEventPublisher;
 
 
+import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
 import static de.coldtea.verborum.msdictionary.common.config.RabbitMQConfig.ROUTING_KEY_DICTIONARY_DELETED;
+import static de.coldtea.verborum.msdictionary.common.config.RabbitMQConfig.ROUTING_KEY_DICTIONARY_SNAPSHOT;
+import static de.coldtea.verborum.msdictionary.common.config.RabbitMQConfig.ROUTING_KEY_DICTIONARY_UPDATED;
 import static de.coldtea.verborum.msdictionary.common.config.RabbitMQConfig.ROUTING_KEY_DICTIONARY_VISIBILITY_PRIVATE;
 import static de.coldtea.verborum.msdictionary.common.config.RabbitMQConfig.ROUTING_KEY_DICTIONARY_VISIBILITY_PUBLIC;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.*;
@@ -275,6 +282,74 @@ class DictionaryServiceImplTest {
         assertThrows(RecordNotFoundException.class,
                 () -> dictionaryService.getDictionaryById(dictionaryId, OWNER));
         verifyNoInteractions(dictionaryMapper);
+    }
+
+    @Test
+    void getDictionaryById_AnotherUsersPublicDictionary_IsReadable() {
+        // Arrange — P4-10: how an imported marketplace dictionary is opened
+        String dictionaryId = "dict1";
+        Dictionary theirs = Dictionary.builder().dictionaryId(dictionaryId).userId("someone-else").isPublic(true).build();
+        DictionaryResponseDTO responseDTO = new DictionaryResponseDTO();
+        when(dictionaryRepository.findById(dictionaryId)).thenReturn(Optional.of(theirs));
+        when(dictionaryMapper.toDictionaryResponseDTO(theirs)).thenReturn(responseDTO);
+
+        // Act
+        DictionaryResponseDTO result = dictionaryService.getDictionaryById(dictionaryId, OWNER);
+
+        // Assert
+        assertEquals(responseDTO, result);
+    }
+
+    @Test
+    void getDictionaryById_AnotherUsersPrivateDictionary_StillIs404() {
+        // Arrange — explicitly private (the older test above covers a null flag)
+        String dictionaryId = "dict1";
+        when(dictionaryRepository.findById(dictionaryId)).thenReturn(Optional.of(
+                Dictionary.builder().dictionaryId(dictionaryId).userId("someone-else").isPublic(false).build()));
+
+        // Act & Assert
+        assertThrows(RecordNotFoundException.class, () -> dictionaryService.getDictionaryById(dictionaryId, OWNER));
+        verifyNoInteractions(dictionaryMapper);
+    }
+
+    @Test
+    void getDictionariesByIds_IncludesOtherUsersPublicDictionaries() {
+        // Arrange
+        List<String> ids = List.of("mine", "their-public", "their-private");
+        when(dictionaryRepository.findAllById(ids)).thenReturn(List.of(
+                dictionary("mine", false),
+                Dictionary.builder().dictionaryId("their-public").userId("someone-else").isPublic(true).build(),
+                Dictionary.builder().dictionaryId("their-private").userId("someone-else").isPublic(false).build()));
+        when(dictionaryMapper.toDictionaryResponseDTO(any(Dictionary.class))).thenReturn(new DictionaryResponseDTO());
+
+        // Act
+        List<DictionaryResponseDTO> result = dictionaryService.getDictionariesByIds(ids, OWNER);
+
+        // Assert
+        assertEquals(2, result.size());
+    }
+
+    @Test
+    void saveDictionary_OverwritingAnotherUsersPublicDictionary_IsStillForbidden() {
+        // Arrange — P4-10 opens reads only; public never means writable
+        DictionaryRequestDTO requestDTO = requestDTO("dict1");
+        when(dictionaryRepository.findById("dict1")).thenReturn(Optional.of(
+                Dictionary.builder().dictionaryId("dict1").userId("someone-else").isPublic(true).build()));
+
+        // Act & Assert
+        assertThrows(ForbiddenOperationException.class, () -> dictionaryService.saveDictionary(requestDTO, OWNER));
+        verify(dictionaryRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void deleteDictionary_AnotherUsersPublicDictionary_IsStillForbidden() {
+        // Arrange
+        when(dictionaryRepository.findById("dict1")).thenReturn(Optional.of(
+                Dictionary.builder().dictionaryId("dict1").userId("someone-else").isPublic(true).build()));
+
+        // Act & Assert
+        assertThrows(ForbiddenOperationException.class, () -> dictionaryService.deleteDictionary("dict1", OWNER));
+        verify(dictionaryRepository, never()).deleteById(any());
     }
 
     @Test
@@ -547,4 +622,197 @@ class DictionaryServiceImplTest {
         // Assert
         verifyNoInteractions(eventPublisher);
     }
+
+    @Test
+    void saveDictionary_PublicDictionaryRenamed_PublishesUpdatedEvent() {
+        // Arrange
+        DictionaryRequestDTO requestDTO = requestDTO("dict1");
+        Dictionary saved = dictionary("dict1", true);
+        saved.setName("Renamed");
+
+        when(dictionaryRepository.findById("dict1")).thenReturn(Optional.of(dictionary("dict1", true)));
+        when(dictionaryMapper.toDictionary(requestDTO)).thenReturn(saved);
+        when(dictionaryRepository.saveAndFlush(saved)).thenReturn(saved);
+        when(dictionaryMapper.toDictionaryResponseDTO(saved)).thenReturn(new DictionaryResponseDTO());
+
+        // Act
+        dictionaryService.saveDictionary(requestDTO, OWNER);
+
+        // Assert
+        OutboundEvent outbound = capturedEvent();
+        assertEquals(ROUTING_KEY_DICTIONARY_UPDATED, outbound.routingKey());
+        DictionaryUpdatedEvent event = (DictionaryUpdatedEvent) outbound.payload();
+        assertEquals("dict1", event.getDictionaryId());
+        assertEquals("user1", event.getUserId());
+        assertEquals("Renamed", event.getDictionaryName());
+        assertEquals("EN", event.getFromLang());
+        assertEquals("DE", event.getToLang());
+    }
+
+    @Test
+    void saveDictionary_PublicLanguageChanged_PublishesUpdatedEvent() {
+        // Arrange
+        DictionaryRequestDTO requestDTO = requestDTO("dict1");
+        Dictionary saved = dictionary("dict1", true);
+        saved.setToLang("FR");
+
+        when(dictionaryRepository.findById("dict1")).thenReturn(Optional.of(dictionary("dict1", true)));
+        when(dictionaryMapper.toDictionary(requestDTO)).thenReturn(saved);
+        when(dictionaryRepository.saveAndFlush(saved)).thenReturn(saved);
+        when(dictionaryMapper.toDictionaryResponseDTO(saved)).thenReturn(new DictionaryResponseDTO());
+
+        // Act
+        dictionaryService.saveDictionary(requestDTO, OWNER);
+
+        // Assert
+        OutboundEvent outbound = capturedEvent();
+        assertEquals(ROUTING_KEY_DICTIONARY_UPDATED, outbound.routingKey());
+        assertEquals("FR", ((DictionaryUpdatedEvent) outbound.payload()).getToLang());
+    }
+
+    @Test
+    void saveDictionary_PublicRename_ComparesAgainstValuesReadBeforeTheSave() {
+        // In JPA, saveAndFlush merges the new values onto the managed instance findById returned.
+        // Simulated here: the "existing" row is mutated by the save. If the service compared
+        // against it after saving, it would see no change and the rename would be lost
+        // Arrange
+        DictionaryRequestDTO requestDTO = requestDTO("dict1");
+        Dictionary managed = dictionary("dict1", true);
+        Dictionary incoming = dictionary("dict1", true);
+        incoming.setName("Renamed");
+
+        when(dictionaryRepository.findById("dict1")).thenReturn(Optional.of(managed));
+        when(dictionaryMapper.toDictionary(requestDTO)).thenReturn(incoming);
+        when(dictionaryRepository.saveAndFlush(incoming)).thenAnswer(invocation -> {
+            managed.setName(incoming.getName());
+            return managed;
+        });
+        when(dictionaryMapper.toDictionaryResponseDTO(managed)).thenReturn(new DictionaryResponseDTO());
+
+        // Act
+        dictionaryService.saveDictionary(requestDTO, OWNER);
+
+        // Assert
+        OutboundEvent outbound = capturedEvent();
+        assertEquals(ROUTING_KEY_DICTIONARY_UPDATED, outbound.routingKey());
+        assertEquals("Renamed", ((DictionaryUpdatedEvent) outbound.payload()).getDictionaryName());
+    }
+
+    @Test
+    void saveDictionary_PrivateDictionaryRenamed_PublishesNothing() {
+        // The marketplace does not list private dictionaries, so their edits are none of its business
+        // Arrange
+        DictionaryRequestDTO requestDTO = requestDTO("dict1");
+        Dictionary saved = dictionary("dict1", false);
+        saved.setName("Renamed");
+
+        when(dictionaryRepository.findById("dict1")).thenReturn(Optional.of(dictionary("dict1", false)));
+        when(dictionaryMapper.toDictionary(requestDTO)).thenReturn(saved);
+        when(dictionaryRepository.saveAndFlush(saved)).thenReturn(saved);
+        when(dictionaryMapper.toDictionaryResponseDTO(saved)).thenReturn(new DictionaryResponseDTO());
+
+        // Act
+        dictionaryService.saveDictionary(requestDTO, OWNER);
+
+        // Assert
+        verifyNoInteractions(eventPublisher);
+    }
+
+    @Test
+    void saveDictionary_GoingPublicWithRename_PublishesOnlyTheVisibilityEvent() {
+        // The public event already carries the new name; an extra dictionary.updated would make the
+        // marketplace apply the same change twice
+        // Arrange
+        DictionaryRequestDTO requestDTO = requestDTO("dict1");
+        Dictionary saved = dictionary("dict1", true);
+        saved.setName("Renamed");
+
+        when(dictionaryRepository.findById("dict1")).thenReturn(Optional.of(dictionary("dict1", false)));
+        when(dictionaryMapper.toDictionary(requestDTO)).thenReturn(saved);
+        when(dictionaryRepository.saveAndFlush(saved)).thenReturn(saved);
+        when(dictionaryMapper.toDictionaryResponseDTO(saved)).thenReturn(new DictionaryResponseDTO());
+
+        // Act
+        dictionaryService.saveDictionary(requestDTO, OWNER);
+
+        // Assert — capturedEvent() verifies exactly one publishEvent call
+        assertEquals(ROUTING_KEY_DICTIONARY_VISIBILITY_PUBLIC, capturedEvent().routingKey());
+    }
+
+    @Test
+    void saveDictionary_GoingPrivateWithRename_PublishesOnlyTheVisibilityEvent() {
+        // Arrange
+        DictionaryRequestDTO requestDTO = requestDTO("dict1");
+        Dictionary saved = dictionary("dict1", false);
+        saved.setName("Renamed");
+
+        when(dictionaryRepository.findById("dict1")).thenReturn(Optional.of(dictionary("dict1", true)));
+        when(dictionaryMapper.toDictionary(requestDTO)).thenReturn(saved);
+        when(dictionaryRepository.saveAndFlush(saved)).thenReturn(saved);
+        when(dictionaryMapper.toDictionaryResponseDTO(saved)).thenReturn(new DictionaryResponseDTO());
+
+        // Act
+        dictionaryService.saveDictionary(requestDTO, OWNER);
+
+        // Assert
+        assertEquals(ROUTING_KEY_DICTIONARY_VISIBILITY_PRIVATE, capturedEvent().routingKey());
+    }
+
+    @Test
+    void publishPublicSnapshot_PublishesEveryPublicDictionary() {
+        // Arrange
+        Dictionary first = dictionary("dict1", true);
+        Dictionary second = dictionary("dict2", true);
+        second.setName("Second");
+        when(dictionaryRepository.findByIsPublicTrue()).thenReturn(List.of(first, second));
+
+        // Act
+        dictionaryService.publishPublicSnapshot();
+
+        // Assert
+        OutboundEvent outbound = capturedEvent();
+        assertEquals(ROUTING_KEY_DICTIONARY_SNAPSHOT, outbound.routingKey());
+        DictionarySnapshotEvent event = (DictionarySnapshotEvent) outbound.payload();
+        assertEquals(2, event.getDictionaries().size());
+        assertEquals("dict1", event.getDictionaries().get(0).getDictionaryId());
+        assertEquals("user1", event.getDictionaries().get(0).getUserId());
+        assertEquals("Second", event.getDictionaries().get(1).getDictionaryName());
+        assertEquals("EN", event.getDictionaries().get(1).getFromLang());
+        assertEquals("DE", event.getDictionaries().get(1).getToLang());
+        assertNotNull(event.getTakenAt());
+    }
+
+    @Test
+    void publishPublicSnapshot_NothingPublic_StillPublishesAnEmptySnapshot() {
+        // An empty snapshot is how the marketplace learns that every listing it holds is gone
+        // Arrange
+        when(dictionaryRepository.findByIsPublicTrue()).thenReturn(List.of());
+
+        // Act
+        dictionaryService.publishPublicSnapshot();
+
+        // Assert
+        DictionarySnapshotEvent event = (DictionarySnapshotEvent) capturedEvent().payload();
+        assertTrue(event.getDictionaries().isEmpty());
+    }
+
+    @Test
+    void publishPublicSnapshot_TakenAtIsReadBeforeTheQuery() {
+        // A listing newer than takenAt is protected from deletion by the consumer; takenAt must not
+        // postdate the query or a dictionary published mid-query could be wrongly cleared
+        // Arrange
+        OffsetDateTime[] queriedAt = new OffsetDateTime[1];
+        when(dictionaryRepository.findByIsPublicTrue()).thenAnswer(invocation -> {
+            queriedAt[0] = OffsetDateTime.now();
+            return List.of();
+        });
+
+        // Act
+        dictionaryService.publishPublicSnapshot();
+
+        // Assert
+        DictionarySnapshotEvent event = (DictionarySnapshotEvent) capturedEvent().payload();
+        assertFalse(event.getTakenAt().isAfter(queriedAt[0]));
+    }
 }
+

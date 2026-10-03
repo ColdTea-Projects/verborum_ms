@@ -37,12 +37,14 @@ One durable **topic** exchange for everything: `verborum.events`. Keys are `{dom
 
 | Routing key | Published by | Consumer queue | Trigger |
 |---|---|---|---|
-| `dictionary.visibility.public` | ms_dictionary | ms_marketplace (unbuilt) | `is_public` set true |
-| `dictionary.visibility.private` | ms_dictionary | ms_marketplace (unbuilt) | `is_public` set false |
-| `dictionary.deleted` | ms_dictionary | ms_marketplace (unbuilt) | dictionary deleted |
+| `dictionary.visibility.public` | ms_dictionary | `marketplace.dictionary.visibility.public` (live) | `is_public` set true |
+| `dictionary.visibility.private` | ms_dictionary | `marketplace.dictionary.visibility.private` (live) | `is_public` set false |
+| `dictionary.deleted` | ms_dictionary | `marketplace.dictionary.deleted` (live) | dictionary deleted |
+| `dictionary.updated` | ms_dictionary | `marketplace.dictionary.updated` (live) | listed field of a public dictionary changed |
+| `dictionary.snapshot` | ms_dictionary | `marketplace.dictionary.snapshot` (live) | nightly schedule — reconciliation (rule 6) |
 | `word.created` | ms_dictionary | ms_autofil (V2) | new word added |
-| `user.deleted` | ms_user | `dictionary.user.deleted` (live) | account deleted |
-| `dictionary.imported` | ms_marketplace (unbuilt) | `user.dictionary.imported` (live) | public dictionary imported |
+| `user.deleted` | ms_user | `dictionary.user.deleted`, `marketplace.user.deleted` (live) | account deleted |
+| `dictionary.imported` | ms_marketplace | `user.dictionary.imported` (live) | listed dictionary imported (every successful call) |
 
 Both built services declare the exchange and the dead-letter infrastructure; declarations are
 idempotent, so whichever starts first creates them. Events with no bound queue are discarded by the

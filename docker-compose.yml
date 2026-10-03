@@ -55,6 +55,23 @@ services:
       timeout: 5s
       retries: 5
 
+  db_market:
+    image: postgres:14-alpine
+    container_name: verborum-db-market
+    ports:
+      - "5434:5432"
+    environment:
+      POSTGRES_USER: coldtea
+      POSTGRES_PASSWORD: qwerty
+      POSTGRES_DB: vdbmarket
+    volumes:
+      - db_market_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U coldtea -d vdbmarket"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   # Identity server. Runs in dev mode (start-dev): H2 storage, no HTTPS requirement — local only.
   # --import-realm loads keycloak/import/verborum-realm.json ON FIRST START of an empty data volume,
   # so the realm, clients, roles and dev users are reproducible from git instead of hand-clicked.
@@ -105,6 +122,7 @@ services:
     depends_on:
       - db_dictionary
       - db_user
+      - db_market
     ports:
       - "8080:8080"
 
@@ -163,4 +181,5 @@ volumes:
   rabbitmq_data:
   db_dictionary_data:
   db_user_data:
+  db_market_data:
   keycloak_data:

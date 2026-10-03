@@ -35,6 +35,7 @@ without one.
 | Write naming another user | **403** | the client has a bug; silently rewriting the id would let it ship looking healthy |
 | Read of another user's resource **by id** | **404** | a 403 confirms the id exists, so a caller could enumerate |
 | Batch or list endpoint | **filter to the caller** | refusing would break legitimate mixed requests, and filtering leaks nothing |
+| Read of a **public** dictionary (or its words/tags) by a non-owner | **200** | P4-10: marketplace imports are references and must be openable; writes on it are still 403 |
 | Event-driven path | **unguarded** | the actor is another service; `deleteAllByUserId` and the private delete helper are the deliberate exceptions |
 
 ## The two-helper split
@@ -52,15 +53,20 @@ private void requireOwnedDictionary(String dictionaryId, String ownerId) {
     }
 }
 
-/** Reads: someone else's dictionary is indistinguishable from one that does not exist. */
+/** Reads: owned or public (P4-10); anything else is indistinguishable from not existing. */
 private void requireReadableDictionary(String dictionaryId, String ownerId) {
     Dictionary dictionary = dictionaryRepository.findById(dictionaryId)
             .orElseThrow(() -> new RecordNotFoundException(DICTIONARY_WAS_NOT_FOUND_ID + dictionaryId));
-    if (!ownerId.equals(dictionary.getUserId())) {
+    if (!isReadableBy(dictionary, ownerId)) {
         throw new RecordNotFoundException(DICTIONARY_WAS_NOT_FOUND_ID + dictionaryId);
     }
 }
 ```
+
+**The read rule has one home: `DictionaryAccessUtils.isReadableBy`** (owned or public). The
+dictionary, word and tag services all call it — never re-derive it inline, or the three drift and a
+private dictionary's words become readable while the dictionary 404s. Writes never use it: public
+does not mean writable. A non-owner reading words gets `level` as `null` (the owner's progress).
 
 A child resource inherits its parent's ownership: tags follow their dictionary, so a write on
 someone else's dictionary's tags is 403 and a read is 404.

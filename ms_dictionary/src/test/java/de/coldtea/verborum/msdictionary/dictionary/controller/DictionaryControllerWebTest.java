@@ -20,6 +20,7 @@ import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -39,6 +40,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class DictionaryControllerWebTest {
 
     private static final String SUB = "b87fb499-2002-47a7-b88f-8ae517932802";
+    // Ids are validated as UUIDs since P4-09, so fixtures must use real ones
+    private static final String DICTIONARY_ID = "5b0c9a3e-1f2d-4c7b-9e8a-6d5f4c3b2a10";
 
     @Autowired
     private MockMvc mockMvc;
@@ -52,9 +55,65 @@ class DictionaryControllerWebTest {
 
     private static String body(String userId) {
         return """
-                {"dictionaryId":"d1","userId":"%s","name":"Test","isPublic":false,
+                {"dictionaryId":"%s","userId":"%s","name":"Test","isPublic":false,
                  "fromLang":"EN","toLang":"DE"}
-                """.formatted(userId);
+                """.formatted(DICTIONARY_ID, userId);
+    }
+
+    private static String bodyWith(String dictionaryId, String fromLang) {
+        return """
+                {"dictionaryId":"%s","userId":"%s","name":"Test","isPublic":false,
+                 "fromLang":"%s","toLang":"DE"}
+                """.formatted(dictionaryId, SUB, fromLang);
+    }
+
+    // ---- P4-09: @ValidUUID and @SupportedLanguage actually validate ----
+
+    @Test
+    void unsupportedLanguage_Is400AndNeverReachesTheService() throws Exception {
+        mockMvc.perform(post("/dictionaries/")
+                        .with(jwt().jwt(j -> j.subject(SUB)))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(bodyWith(DICTIONARY_ID, "XX")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorDetail").value("fromLang: unsupported language code"));
+
+        verifyNoInteractions(dictionaryService);
+    }
+
+    @Test
+    void lowercaseLanguage_IsStillAccepted() throws Exception {
+        when(dictionaryService.saveDictionary(any(), anyString())).thenReturn(new DictionaryResponseDTO());
+
+        mockMvc.perform(post("/dictionaries/")
+                        .with(jwt().jwt(j -> j.subject(SUB)))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(bodyWith(DICTIONARY_ID, "en")))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    void nonUuidDictionaryId_Is400AndNeverReachesTheService() throws Exception {
+        mockMvc.perform(post("/dictionaries/")
+                        .with(jwt().jwt(j -> j.subject(SUB)))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(bodyWith("not-a-uuid", "EN")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorDetail").value("dictionaryId: must be a valid UUID"));
+
+        verifyNoInteractions(dictionaryService);
+    }
+
+    @Test
+    void lenientlyParsedNonCanonicalUuid_Is400() throws Exception {
+        // UUID.fromString would accept this; the validator must not
+        mockMvc.perform(post("/dictionaries/")
+                        .with(jwt().jwt(j -> j.subject(SUB)))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(bodyWith("1-1-1-1-1", "EN")))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(dictionaryService);
     }
 
     @Test

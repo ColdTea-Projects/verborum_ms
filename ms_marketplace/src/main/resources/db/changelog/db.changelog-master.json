@@ -1,0 +1,29 @@
+{
+  "databaseChangeLog": [
+    {
+      "include": {
+        "file": "db/changelog/2026/09/27-01-changelog.json"
+      }
+    },
+    {
+      "include": {
+        "file": "db/changelog/2026/09/27-02-changelog.json"
+      }
+    },
+    {
+      "include": {
+        "file": "db/changelog/2026/09/27-03-changelog.json"
+      }
+    },
+    {
+      "include": {
+        "file": "db/changelog/2026/09/27-04-changelog.json"
+      }
+    },
+    {
+      "include": {
+        "file": "db/changelog/2026/09/27-05-changelog.json"
+      }
+    }
+  ]
+}

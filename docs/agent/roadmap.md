@@ -590,11 +590,8 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
   - **Authentication is enforced, ownership is not.** Endpoints still trust the `userId` in the
     request body, so any valid token can read or write another user's dictionaries. That is P3-05,
     and it is now the most security-relevant open item.
-- [ ] `P3-03a` **Tell the client teams ms_dictionary is closed** (added 2026-07-23)
-  - Android currently talks to `:8085` with no token and will start getting 401s the moment this is
-    deployed to their dev machine. `docs/integration/client-login-guide.md` is updated, but a heads-up
-    matters more than a doc edit here
-  - Done when: the Android/iOS repos know they must attach a bearer token to ms_dictionary calls
+- `P3-03a` **Tell the client teams ms_dictionary is closed** — moved to Deferred / Backlog on
+  2026-09-27 (a communication task that no backend work depends on; development is local-only).
 - [x] `P3-09` **Post-review hardening** (added 2026-07-23 after an independent architecture review)
   - An independent review of the whole repo (a second model, working only from the committed docs and
     code) produced these. Each was verified against the source before being acted on.
@@ -833,7 +830,8 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
       escaping, crimson submit button on the password screen (input-scoping fix), styled password
       reveal button. **Enabled by default** now (`EMAIL_CODE_ENABLED=true`);
       `configure-email-code-flow.sh` builds + binds the flow on boot.
-- [ ] `P3B-08` **Auth hardening** (added 2026-07-28 — first batch done, rest tracked below)
+- [x] `P3B-08` **Auth hardening** (added 2026-07-28; closed 2026-09-27 — the three open items were
+  split out, see below)
   - [x] **Brute-force detection** (done 2026-07-28): realm now has `bruteForceProtected: true`,
     `failureFactor: 5`, temporary lockout (`permanentLockout: false`), `waitIncrementSeconds: 60`,
     `maxFailureWaitSeconds: 900`. **Verified live:** 5 wrong passwords for `testuser` locked the account
@@ -846,15 +844,12 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
     out because the throwaway dev users (`testuser`/`testadmin`) have password == username and would
     fail validation on import — **add `notUsername` (and stronger complexity) in the prod realm**,
     which has no such users.
-  - [ ] **Registration bot protection:** enable Keycloak's reCAPTCHA on the hosted registration form
-    before opening public sign-up, or bots will create accounts.
-  - [ ] **Secret rotation before any shared/prod realm:** `admin`/`admin`, the `verborum-backend`
-    client secret, and the Google/Facebook client secrets (shared in chat + `.env`) must be rotated;
-    delete `verborum-dev-cli` (password-grant) from non-local realms.
-  - [ ] **Edge rate-limiting + TLS** land with the gateway/reverse proxy (Phase 5 +
-    `docs/ops/dockerization-and-environments.md`): rate-limit the token/auth endpoints, enforce HTTPS,
-    secure cookies.
-  - Done when: the four remaining boxes above are checked.
+  - **Split out 2026-09-27** (decided by the project owner). Development is local-only, where none of
+    these three protect anything, and edge rate-limiting could not be done before Phase 5 anyway —
+    left here, it would have blocked Phase 4 forever under the "never skip phases" rule:
+    - Registration bot protection (reCAPTCHA) → `BL-02`, trigger: before public sign-up opens
+    - Secret rotation before any shared/prod realm → `BL-03`, trigger: before any non-local realm
+    - Edge rate-limiting + TLS → `P5-04`, lands with the gateway
 
 ---
 
@@ -862,19 +857,64 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
 > Goal: Public dictionary listings, stats, ratings.
 > Depends on: Phase 3 complete (needs secured ms_dictionary events flowing via RabbitMQ)
 
-- [ ] `P4-01` **Scaffold ms_marketplace module**
+- [x] `P4-01` **Scaffold ms_marketplace module**
+  - Done 2026-09-27: module registered in the aggregator pom; `SecurityConfig` + `SecurityUtils` +
+    `GlobalExceptionHandler` + response envelope copied from the existing services; empty Liquibase
+    master changelog; `db_market` (5434, `vdbmarket`) added to the root compose and a per-module
+    compose (Postgres 5434 + Adminer 8082). **Verified live:** `/actuator/health` 200 `UP`; no token
+    and a garbage token both 401; a real Keycloak token passes security and gets a 404 (no endpoints
+    yet); `/actuator/env` 404. `./mvnw -pl ms_marketplace test` — 6/6 green.
+  - Deliberately **not** included: `spring-boot-starter-amqp` / `RabbitMQConfig` (arrive with the
+    first consumer at P4-03) and `@SupportedLanguage` (arrives with the language filter at P4-06)
   - Port: 8087, base package: `de.coldtea.verborum.msmarketplace`
   - DB: `vdbmarket` on port 5434, Adminer on 8082
   - **Include Spring Security + Keycloak JWT from the start** — see `docs/agent/security.md`
   - Add `spring-boot-starter-security` + `oauth2-resource-server` to `pom.xml`
   - Create `common/config/SecurityConfig.java` alongside the initial scaffold
   - Done when: app starts on port 8087 AND unauthenticated requests return 401
-- [ ] `P4-02` **Design DictionaryStats entity + migration**
+- [x] `P4-02` **Design DictionaryStats entity + migration**
   - Fields: `dictionaryId`, `userId`, `name`, `fromLang`, `toLang`, `importCount`, `viewCount`, `rating`, `publishedAt`
   - Done when: table `dictionary_stats` created on startup
-- [ ] `P4-03` **Consume `dictionary.visibility.public` event**
+  - Done 2026-09-27: `DictionaryStats` entity + `DictionaryStatsRepository` in the `dictionarystats`
+    package; migration `2026/09/27-01-changelog.json`. **Verified:** Liquibase applied it on boot;
+    `\d dictionary_stats` shows the columns, PK and three indexes; module tests 6/6 green.
+  - **Decisions (signed off by the project owner 2026-09-27):**
+    1. **`rating` and `viewCount` left out.** Nothing records a view or accepts a rating, and the
+       rating scale and one-rating-per-user rule are undecided. They get their own migration when
+       designed — an always-zero column would hide the question rather than answer it.
+    2. **Added `source_updated_at`** — ms_dictionary's `updatedAt` for the held values, the rule-4
+       ordering key. Distinct from `update_dt` (when this row was written).
+    3. **`dictionary_id` is the PK** (ms_dictionary's id, no DB FK), so consumers upsert on it.
+    4. **`published_at` comes from the event**, not the insert, so a listing recreated by
+       reconciliation keeps its original date.
+    5. Indexes: `(from_lang, to_lang)` for the language filter, `import_count` for the popular sort,
+       `published_at` for newest-first browse.
+    6. **The reconciliation job moved to `P4-03`** — it needs RabbitMQ in ms_marketplace, which
+       arrives with the first consumer there. Design recorded under `P4-03`.
+- [x] `P4-03` **Consume `dictionary.visibility.public` event**
   - On event: create a `DictionaryStats` record for the dictionary
   - Done when: making a dictionary public creates a marketplace entry
+  - Done 2026-09-27, with both obligations the 2026-07-23 decision attached — `dictionary.updated` and
+    the reconciliation job:
+    - **ms_dictionary:** publishes `dictionary.updated` when a public dictionary that stays public
+      changes `name`/`fromLang`/`toLang` (old values captured *before* `saveAndFlush` merges onto the
+      managed instance); publishes `dictionary.snapshot` via `DictionarySnapshotScheduler`
+      (`DICTIONARY_SNAPSHOT_CRON`, nightly 03:00); `idx_dictionaries_is_public`
+      (`2026/09/27-01-changelog.json`). Suite 86/86.
+    - **ms_marketplace:** AMQP + `RabbitMQConfig` (three dead-lettered queues, `INFERRED` converter);
+      `DictionaryEventListener` → `DictionaryStatsService`: `publishListing` (upsert),
+      `updateListing` (update-only — never re-lists), `reconcile` (create / correct / remove-if-older-
+      than-`takenAt`). All drop stale deliveries (rule 4). Suite 27/27.
+    - **Verified live** (new ms_dictionary on :18085, snapshot cron every 30 s): public create → listing
+      created (`import_count` 0, `published_at` = `source_updated_at`); rename + `toLang` change →
+      listing updated in place, `published_at` kept; unchanged re-save → no `dictionary.updated`;
+      snapshot recreated a deleted listing, removed a fake orphan, corrected a stale name; deleting the
+      dictionary removed its listing at the next snapshot. DLQ empty before and after.
+    - **Left for P4-04:** a dictionary made private between the snapshot query and `reconcile` got
+      re-listed until the next snapshot. **Closed by P4-04** (hidden rows instead of deletes).
+    - **Found:** `docs/agent/verborum.md`'s routing table and ms_dictionary's `deleteAllByUserId`
+      both say ms_marketplace consumes `user.deleted`, but no task built it. **Added to `P4-05`**
+      on 2026-09-27.
   - **The AFTER_COMMIT work is DONE (2026-07-23), in both services** — it was pulled forward out of
     this task because ms_dictionary already acts on `user.deleted` by deleting data, so the phantom-
     event window was live, not theoretical. Publishers raise an `OutboundEvent` and
@@ -909,10 +949,27 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
     - Reversible in one direction cheaply: if a detail view ever needs guaranteed-current data, read
       that single dictionary live for that screen. Browse stays on the local copy. Nothing about this
       decision has to be undone to do that.
-  - **`P4-02` must ship with a reconciliation job** (rule 6): a periodic re-sync of public
-    dictionaries into the projection. It is the backstop both for a lost event (the window
-    AFTER_COMMIT deliberately accepts) and for drift if an update is ever missed. Write it with the
-    projection, not after the first drift is reported.
+  - **This task ships the reconciliation job** (rule 6; moved here from `P4-02` on 2026-09-27): a
+    periodic re-sync of public dictionaries into the projection. It is the backstop both for a lost
+    event (the window AFTER_COMMIT deliberately accepts) and for drift if an update is ever missed.
+    - **DECIDED 2026-09-27 (signed off by the project owner): a `dictionary.snapshot` event, pushed
+      by ms_dictionary.** On a schedule, ms_dictionary publishes ONE message carrying every public
+      dictionary's listing payload (incl. `updatedAt`); ms_marketplace diffs it against
+      `dictionary_stats` in one transaction — create missing, update where the snapshot's
+      `updatedAt` is newer, delete listings absent from the snapshot.
+    - **Rejected: an internal pull endpoint** (`GET /internal/dictionaries/public` + a service role +
+      client credentials in ms_marketplace). Simpler diff, but it is the first synchronous
+      service-to-service call (against `service-boundaries.md`), adds a role and a secret, and ties
+      the job to ms_dictionary's uptime.
+    - **Schedule: nightly**, configurable — e.g. `${DICTIONARY_SNAPSHOT_CRON:0 0 3 * * *}` in
+      ms_dictionary. The snapshot only repairs *lost* events; normal listings still appear within
+      seconds via `dictionary.visibility.public`. Nightly means a lost event can leave a listing
+      wrong until the next run. Set the cron to every minute locally when testing.
+    - Size: ~200 bytes per listing (~2 MB at 10k public dictionaries). Fine for RabbitMQ; chunk it
+      if it grows — which also means the diff can no longer be one transaction, so revisit then.
+    - ms_dictionary has **no index on `is_public`** — add one (new changeset) for the snapshot query.
+    - When ms_dictionary runs more than one instance (Phase 5+), the scheduled publish needs a lock
+      (e.g. ShedLock) so only one instance sends the snapshot.
   - Read the P1-03 notes first — this is the task where two known issues stop being theoretical:
     1. ms_dictionary publishes *before* its transaction commits, so a listener that calls back
        into ms_dictionary can beat the commit. Switch ms_dictionary to
@@ -922,21 +979,121 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
        listing's `name`/`fromLang`/`toLang` will go stale. Decide here: either add a
        `dictionary.updated` event or have the listing re-read on access.
   - Make the listener idempotent regardless: a redelivery must not create a second listing.
-- [ ] `P4-04` **Consume `dictionary.visibility.private` event**
+- [x] `P4-04` **Consume `dictionary.visibility.private` event**
   - On event: remove or deactivate the `DictionaryStats` record
   - Done when: making a dictionary private removes it from marketplace
-- [ ] `P4-05` **Consume `dictionary.deleted` event**
-  - On event: remove the `DictionaryStats` record
-  - Done when: deleting a dictionary removes its marketplace entry
-- [ ] `P4-06` **Implement MarketplaceController**
+  - Done 2026-09-27. **Decided (project owner): hide, don't delete.** New `is_listed` column
+    (`2026/09/27-02-changelog.json`, NOT NULL DEFAULT true). Going private sets `is_listed = false`
+    and keeps the row with its `source_updated_at`, so older "public" state arriving late — a delayed
+    `visibility.public`, or a snapshot read just before the flip — compares as stale and cannot
+    re-list it. This closes the gap P4-03 left open.
+    - `hideListing`: newer event hides (keeps `import_count` and `published_at`); no row yet → creates
+      a hidden row (the private event overtook the public one); stale/redelivered → no-op.
+    - Every "public" path (`publishListing`, `updateListing`, snapshot entries) re-lists a hidden row
+      when newer, resetting `published_at` — re-published counts as newly published. `updateListing`
+      may re-list because `dictionary.updated` is only sent for public dictionaries.
+    - The snapshot removes hidden rows older than `takenAt` (cleanup — otherwise one row per
+      dictionary ever made private). Residual risk: a manual DLQ replay of an old public event after
+      that cleanup re-lists until the next snapshot. Accepted.
+    - **Verified live** against the IntelliJ-run services (devtools reloaded ms_marketplace):
+      public → listed; private → row kept, `is_listed = f`; public again → listed, `published_at`
+      reset, `import_count` kept (5); private, then a hand-published **older** `visibility.public`
+      via the management API → stayed hidden, name unchanged. DLQ empty. Suite 39/39.
+- [x] `P4-05` **Consume `dictionary.deleted` and `user.deleted` events**
+  - On `dictionary.deleted`: remove the `DictionaryStats` record
+  - On `user.deleted` (added 2026-09-27): remove every listing owned by that user
+    - **Why here:** ms_dictionary's `user.deleted` cascade deliberately publishes no
+      `dictionary.deleted` for the rows it removes, because the routing table has always said
+      ms_marketplace consumes `user.deleted` itself — but no task built it. Without it, a deleted
+      user's listings stay browsable until the next snapshot (up to a day), and importing one would
+      point at a dictionary that no longer exists.
+    - **Match on the event's `keycloakId`, not its `userId`.** `dictionary_stats.fk_user_id` is the
+      JWT subject, which is ms_user's `keycloak_id`; `userId` is ms_user's own primary key and matches
+      nothing here — the delete would affect zero rows and report success (messaging rule 3).
+    - New durable queue `marketplace.user.deleted` with `x-dead-letter-exchange`, bound to
+      `user.deleted`; copy `UserDeletedEvent` (`userId`, `keycloakId`, `eventTimestamp`) into
+      ms_marketplace. Listener in `common/listener/UserEventListener` (one class per source service),
+      delegating to one `DictionaryStatsService` method that bulk-deletes by `fk_user_id`. Add an
+      index on `fk_user_id` in a new changeset for that delete.
+    - Idempotent by construction: a redelivery finds no rows and does nothing.
+    - Interaction with P4-04: if private dictionaries keep a hidden row, `user.deleted` removes
+      those too — the user is gone, so nothing needs to be remembered.
+  - Done when: deleting a dictionary removes its marketplace entry, and `DELETE /users/{userId}` on
+    ms_user removes all of that user's listings without waiting for a snapshot
+  - Done 2026-09-27:
+    - **`dictionary.deleted` hides rather than deletes** — the same guard as P4-04, going slightly
+      beyond "remove the record" (proposed before building; the snapshot deletes the hidden row
+      later). The event has no `updatedAt`, so its `eventTimestamp` — ms_dictionary's clock, taken in
+      the deleting transaction, later than any `updatedAt` the dictionary had — becomes the row's
+      `source_updated_at`, and a late older public event cannot re-list a dictionary that no longer
+      exists. With no row, nothing happens: the event lacks name/languages for a hidden row, so a late
+      public event could list it until the next snapshot removes it.
+    - **`user.deleted` deletes** every row of the user, listed or hidden, matched on **`keycloakId`**.
+      Not hidden: the event is timed on ms_user's clock, which cannot be compared with ms_dictionary's
+      `updatedAt`, and ms_dictionary deletes the same user's dictionaries on the same event, so no
+      newer public state can follow. `idx_dictionary_stats_user` (`2026/09/27-03-changelog.json`).
+    - Queues `marketplace.dictionary.deleted`, `marketplace.user.deleted` (both dead-lettered);
+      `DictionaryEventListener.handleDictionaryDeleted`, new `UserEventListener`. Suite 49/49.
+    - **Verified live** against the IntelliJ-run services: public → deleted through ms_dictionary →
+      row hidden with the deletion time; a hand-published older `visibility.public` → stayed hidden.
+      `user.deleted` hand-published for a made-up subject (a real account was not deleted — that would
+      wipe `testuser`'s dev data) → both of its rows (one listed, one hidden) deleted, a bystander's row
+      kept, redelivery a no-op. DLQ empty.
+- [x] `P4-06` **Implement MarketplaceController**
+  - **Every browse query must filter `is_listed = true`** (P4-04) — hidden rows are private
+    dictionaries. Consider leading the browse indexes with `is_listed`, or partial indexes
+    `WHERE is_listed`, once the query shapes are known
   - `GET /marketplace/dictionaries` — list all public dictionaries (paginated)
   - `GET /marketplace/dictionaries/popular` — sorted by import count
   - `GET /marketplace/dictionaries/language?from=EN&to=DE` — filter by language pair
   - `POST /marketplace/dictionaries/{dictionaryId}/import` — import dictionary to vault
   - Done when: all endpoints work and publish/consume events correctly
-- [ ] `P4-07` **Publish `dictionary.imported` event from ms_marketplace**
-  - On import: publish event so ms_user can add to vault
+  - Done 2026-09-27 — the three browse endpoints plus a fourth. **Decisions (project owner):**
+    1. **Own paging envelope** `PageResponse {items, page, size, totalElements, totalPages}`, not
+       Spring's serialized `Page` (~15 fields, a shape Spring Data itself flags as unstable across
+       versions). Zero-based `page` (default 0), `size` default 20, capped at 100. Stable sort with
+       `dictionaryId` as the last key so ties cannot swap between pages. The first paged contract in
+       Verborum — reuse it.
+    2. **Import endpoint moved to P4-07**, where the event it publishes lives.
+    3. **Listings carry `publisherId`** (the owner's subject) and a fourth endpoint,
+       `GET /marketplace/dictionaries/publisher/{publisherId}`, serves "more from this publisher".
+       Checked: the subject grants no access anywhere (ownership always comes from the token). Display
+       names are a separate task (BL-04).
+    4. **Language codes normalized to uppercase in ms_marketplace** — consumers uppercase on write
+       (`Locale.ROOT`), `2026/09/27-04-changelog.json` uppercased existing rows, and the filter is
+       validated with a working `@SupportedLanguage` and uppercased. ms_dictionary untouched.
+    - Also: 400 handlers for `HandlerMethodValidationException`, `MissingServletRequestParameterException`
+      and `MethodArgumentTypeMismatchException` (all three were falling through to the catch-all 500).
+    - **Verified live** against the IntelliJ-run service: list / popular (7, 3, 0) / lowercase language
+      filter / publisher with paging / unknown publisher → empty page; `XX`, `size=101`, `page=abc` →
+      400; no token → 401. Suite 67/67 (11 new web-slice tests).
+    - **Found, not fixed:** `@SupportedLanguage` and `@ValidUUID` are **inert in ms_dictionary and
+      ms_user** — see `P4-09`.
+- [x] `P4-07` **Import endpoint + publish `dictionary.imported` from ms_marketplace**
+  - `POST /marketplace/dictionaries/{dictionaryId}/import` (moved here from P4-06 on 2026-09-27) —
+    only a **listed** dictionary is importable (a hidden row is private or deleted → 404)
+  - On import: publish event so ms_user can add to vault, and increment `import_count`
   - Done when: importing triggers a vault entry in ms_user
+  - Done 2026-09-27. **Decisions (project owner):**
+    1. **Import = a reference** (the P2 vault model) — the importer sees the owner's latest version.
+       This needs public dictionaries to be readable in ms_dictionary, which today 404s any
+       non-owner → **P4-10**. Until P4-10 lands, an imported dictionary cannot be opened.
+    2. **`import_count` counts unique importers.** New `dictionary_imports` table
+       (`2026/09/27-05-changelog.json`), UNIQUE (dictionary, user), real FK to `dictionary_stats` with
+       ON DELETE CASCADE. The count rises only on a first import, via an atomic
+       `UPDATE ... SET import_count = import_count + 1` (no lost updates between concurrent importers).
+    3. **Importing your own dictionary → 400** (`SelfImportException`); the clients prevent it.
+    - Hidden (private/deleted) or unknown → 404. `dictionary.imported` is published after commit on
+      every successful call — ms_user's vault is idempotent, and a re-send repairs a lost first event.
+      `OutboundEvent`/`OutboundEventPublisher` copied into ms_marketplace (its first publisher).
+    - `user.deleted` now also deletes the user's import records (counts stay — history).
+    - Known edge: a concurrent double-tap by the same user can make the second transaction fail on the
+      UNIQUE constraint (500); a retry takes the idempotent path. Counts are never wrong.
+    - **Verified live, all three services:** import → 201, `import_count` 0→1, one import row, ms_user
+      vault entry created; re-import → 201, count still 1, vault unchanged; unknown → 404; own → 400;
+      private → 404. DLQ empty. testuser had no ms_user profile, so a temporary one was created and
+      removed afterwards directly in the database (not via `DELETE /users/`, which would cascade).
+      Suite 79/79.
 - [x] `P4-08` **Dictionary tags** (requested 2026-07-23; built ahead of the phase)
   - Built now rather than with the rest of Phase 4 because the clients can start attaching tags
     immediately, and the data is only useful once it has accumulated — the marketplace and the AI
@@ -973,6 +1130,67 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
     rows**.
   - Not built (say the word if wanted): a "find dictionaries by tag" lookup. That is really a
     marketplace query and belongs with P4-06, not in ms_dictionary.
+- [x] `P4-09` **Make `@SupportedLanguage` and `@ValidUUID` actually validate** (found 2026-09-27 at P4-06)
+  - **The bug:** in ms_dictionary and ms_user both annotations are plain annotations with no
+    `@Constraint(validatedBy = …)`, so Bean Validation never runs their validators. Verified live on
+    ms_dictionary: `POST /dictionaries/` with `fromLang: "XX"` → 201, with `dictionaryId: "not-a-uuid"`
+    → 201, `GET /words/language/from/XX` → 200. The P3-09 note claiming one of a symmetric pair 400'd
+    was not accurate. Affects `DictionaryRequestDTO`, `WordRequestDTO`, `WordBundleRequestDTO`,
+    `WordController` (ms_dictionary) and `UserRequestDTO`, `VaultEntryRequestDTO` (ms_user).
+  - **Why it matters now:** invalid codes flow into marketplace listings, where they can never match a
+    (validated) language filter; non-UUID ids are stored as primary keys.
+  - **The fix is more than adding `@Constraint`:** both validators *throw* from `isValid`. Once they
+    actually run, the framework wraps that in a `ValidationException`, which no handler catches → 500.
+    They must return false instead (as ms_marketplace's does), and the path-variable uses need the
+    `HandlerMethodValidationException` 400 handler ms_marketplace now has. Then clean up any invalid
+    rows already stored. ms_marketplace's `SupportedLanguage`/`SupportedLanguageValidator` is the
+    working template.
+  - Needs care with clients: requests they send today that succeed will start returning 400.
+  - Done 2026-09-27, in **all three** services (ms_marketplace had an unused inert `@ValidUUID` copy
+    too). `@Constraint` + `message`/`groups`/`payload` on both annotations; validators return false;
+    `UUIDValidator` checks the canonical form by regex (`UUID.fromString` accepts `1-1-1-1-1`); the
+    redundant `fieldName` attribute and its constants removed (errors name the field);
+    `InvalidUUIDException`, `InvalidLanguageCodeException` and their handlers deleted (dead).
+  - **Also found and fixed:** ms_dictionary had no `HandlerMethodValidationException` handler, so a
+    constraint failure inside the `POST /words` **list** body — e.g. a blank word — was a **500**. Now
+    a 400 naming the nested field (`bundles.words[0].word`).
+  - **Root cause was in the skill:** `web-api/references/validation-and-errors.md` prescribed
+    "validators throw a specific exception rather than returning false" and never mentioned
+    `@Constraint`. Rewritten with both rules and a "prove it with a 400 test" requirement.
+  - **Data:** checked the dev databases first — no invalid language codes and no non-UUID ids in 24
+    dictionaries, 114 words or ms_user, so no cleanup migration was needed.
+  - **Verified live** against the IntelliJ-run services: `fromLang: XX`, non-UUID `dictionaryId`,
+    `/words/language/from/XX`, `DELETE /words/not-a-uuid`, a blank word and a non-UUID `wordId` inside
+    a bundle, and a non-UUID `keycloakId` on ms_user — all 400 with the field named; lowercase `en`
+    still accepted. Suites: ms_dictionary 109/109 (12 new, incl. a new `WordControllerWebTest`),
+    ms_user 44/44, ms_marketplace 79/79. Two existing web tests used non-UUID fixtures (`"d1"`,
+    `"kc-someone-else"`) and were given real UUIDs.
+  - Client integration doc updated — clients must send canonical UUIDs and supported codes.
+- [x] `P4-10` **Public dictionaries readable by any authenticated user in ms_dictionary** (added 2026-09-27 at P4-07)
+  - **Why:** an import is a reference (P4-07 decision). The importer's client must read the
+    dictionary and its words from ms_dictionary, but every read there 404s a non-owner (P3-08) — so an
+    imported dictionary cannot be opened today.
+  - Change the read rules for **public** dictionaries only: `GET /dictionaries/dictionary/{id}`,
+    `GET /dictionaries/batch`, `GET /words/dictionary/{id}` (and tags) return a public dictionary to any
+    authenticated caller; a private one still 404s a non-owner. Writes stay owner-only (403).
+  - This amends the P3-08 ownership contract — update `docs/agent/security.md`,
+    `.claude/skills/security/references/ownership-rules.md` and the client integration docs, and run
+    the `security-auditor` agent.
+  - When the owner makes it private or deletes it, it disappears from importers too (reference
+    semantics, accepted). A "make my own copy" action would be a separate, later task.
+  - Done 2026-09-27. One rule, `common/utils/DictionaryAccessUtils.isReadableBy` (owned **or**
+    public), applied in `DictionaryServiceImpl` (by id, batch), `WordServiceImpl` (by dictionary, by
+    word id) and `DictionaryTagServiceImpl` (tags). Writes untouched. **Also:** a word's `level` is
+    returned as `null` to non-owners — the owner's personal mastery, which an importer's client would
+    otherwise show as its own. `getWordsByIds` now resolves dictionaries in one query, not one per word.
+  - Docs: `security.md` (the normative contract), `ownership-rules.md` (skill), the client integration
+    doc, `ms_dictionary/CLAUDE.md`.
+  - **Verified live** with two real users (testadmin publishes, testuser reads) against the
+    IntelliJ-run ms_dictionary: public → dictionary 200, batch 1 item, words 1 with `level` null
+    (owner still sees 4), tags visible; testuser adding a tag or deleting → 403; made private →
+    dictionary 404, words `[]`, tags 404. Test data removed. Suite 97/97 (11 new).
+  - **Clients:** the integration doc now says `level` is `null` on others' words — keep your own
+    progress for imported words locally.
 
 ---
 
@@ -993,6 +1211,10 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
 - [ ] `P5-03` **Add JWT validation at gateway level**
   - Validate token once at the gateway, forward user info in headers
   - Done when: invalid tokens are rejected at the gateway before reaching services
+- [ ] `P5-04` **Edge rate-limiting + TLS** (split out of `P3B-08` on 2026-09-27)
+  - Lands with the gateway / reverse proxy — see `docs/ops/dockerization-and-environments.md`
+  - Rate-limit the Keycloak token/auth endpoints, enforce HTTPS, secure cookies
+  - Done when: auth endpoints are rate-limited at the edge and all external traffic is HTTPS
 
 ---
 
@@ -1045,3 +1267,28 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
     purely additive, backward-compatible change — existing full-fetch callers are unaffected
   - Trigger: sync payload sizes or read traffic become a measured problem, or marketplace import
     (Phase 4) starts adding large dictionaries to vaults
+- [ ] `P3-03a` **Tell the client teams ms_dictionary is closed** (added 2026-07-23; moved here from
+  Phase 3 on 2026-09-27)
+  - Android currently talks to `:8085` with no token and will start getting 401s the moment this is
+    deployed to their dev machine. `docs/integration/client-login-guide.md` is updated, but a heads-up
+    matters more than a doc edit here
+  - Trigger: before a client developer pulls this backend and runs against it. Costs two minutes —
+    do it sooner rather than later
+  - Done when: the Android/iOS repos know they must attach a bearer token to ms_dictionary calls
+  - **Message drafted 2026-09-27** in `docs/integration/marketplace-client-guide.md` §0 — it now also
+    covers the P4-09 validation 400s, P4-10 public read, the marketplace and the web CORS gap. Still
+    open until it has actually been sent to the client teams.
+- [ ] `BL-04` **Publisher display names on marketplace listings** (added 2026-09-27 at P4-06)
+  - Listings carry `publisherId` only; users will want "by Anna". The name lives in ms_user, so per
+    rule 5 the marketplace stores it (`publisher_name`) and keeps it current from an ms_user event —
+    e.g. `user.profile.updated` carrying `keycloakId` + `displayName` — which does not exist yet
+  - Trigger: when the client teams build the marketplace screens
+- [ ] `BL-02` **Registration bot protection** (split out of `P3B-08` on 2026-09-27)
+  - Enable Keycloak's reCAPTCHA on the hosted registration form, or bots will create accounts
+  - Trigger: before public sign-up opens
+- [ ] `BL-03` **Secret rotation before any shared/prod realm** (split out of `P3B-08` on 2026-09-27)
+  - Rotate `admin`/`admin`, the `verborum-backend` client secret, and the Google/Facebook client
+    secrets (shared in chat + `.env`); delete `verborum-dev-cli` (password-grant) from non-local
+    realms; add `notUsername` and stronger complexity to the prod password policy (see `P3B-08`)
+  - Trigger: before any non-local realm exists. The Google/Facebook secrets were pasted into chat, so
+    rotate those two earlier if that chat left this machine

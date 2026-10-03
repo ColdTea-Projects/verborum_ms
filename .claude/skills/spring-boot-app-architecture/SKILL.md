@@ -17,7 +17,7 @@ and copy. New services must be structurally identical to it.
 Client (Android / iOS / web)  ──Bearer JWT──►  API Gateway (planned)
         ├──► ms_user         8086  vdbprofile     profile, vault, stats, Keycloak admin
         ├──► ms_dictionary   8085  vdbdictionary  dictionaries, words, tags
-        └──► ms_marketplace  8087  (not built)    public listings, ratings, imports
+        └──► ms_marketplace  8087  vdbmarket      public listings, ratings, imports
 
 RabbitMQ  — async inter-service events (verborum.events)
 Keycloak  — identity; Google and Facebook federate behind it
@@ -25,7 +25,7 @@ V2: ms_autofil — community word suggestions, NoSQL
 ```
 
 State: ms_dictionary complete and secured; ms_user Phase 2 complete and verified over HTTP;
-ms_marketplace, ms_gateway and ms_autofil not built.
+ms_marketplace scaffolded and secured (P4-01), no domain yet; ms_gateway and ms_autofil not built.
 
 ## Package layout
 

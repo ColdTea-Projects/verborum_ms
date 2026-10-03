@@ -1,7 +1,7 @@
 package de.coldtea.verborum.msdictionary.common.utils;
 
 import de.coldtea.verborum.msdictionary.common.response.Response;
-import de.coldtea.verborum.msdictionary.word.dto.WordRequestDTO;
+import de.coldtea.verborum.msdictionary.word.dto.WordBundleRequestDTO;
 import lombok.AllArgsConstructor;
 import lombok.NoArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -14,10 +14,10 @@ import java.util.stream.Collectors;
 
 @AllArgsConstructor
 public class ResponseUtils {
-    public static ResponseEntity<Response> buildResponse(HttpStatus status, String message, String dictionaryOrWord, WebRequest request) {
+    public static ResponseEntity<Response> buildResponse(HttpStatus status, String message, String detail, WebRequest request) {
         return new ResponseEntity<>(Response.builder()
                 .status(status.value())
-                .message(message + dictionaryOrWord)
+                .message(message + detail)
                 .path(extractPath(request))
                 .timestamp(OffsetDateTime.now())
                 .build(), status);
@@ -27,9 +27,16 @@ public class ResponseUtils {
         return request.getDescription(false).replaceFirst("^uri=", "");
     }
 
-    public static String getListOfWords(List<WordRequestDTO> words) {
-        return words.stream()
-                .map(WordRequestDTO::getWord)
+    /**
+     * The detail for the word save/update messages ("Saved successfully into dictionary "): the
+     * dictionaries the bundles targeted, each once. It used to be the saved words themselves — which
+     * did not match the message, and since a word is a JSON array of surfaces, a large batch echoed its
+     * whole payload back in the response.
+     */
+    public static String getDictionaryIds(List<WordBundleRequestDTO> bundles) {
+        return bundles.stream()
+                .map(WordBundleRequestDTO::getDictionaryId)
+                .distinct()
                 .collect(Collectors.joining(", "));
     }
 }

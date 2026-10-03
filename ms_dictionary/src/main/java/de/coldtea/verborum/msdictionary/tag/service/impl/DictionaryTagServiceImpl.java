@@ -20,6 +20,7 @@ import java.util.UUID;
 
 import static de.coldtea.verborum.msdictionary.common.constants.ErrorMessageConstants.DICTIONARY_WAS_NOT_FOUND_ID;
 import static de.coldtea.verborum.msdictionary.common.constants.ErrorMessageConstants.NOT_THE_OWNER;
+import static de.coldtea.verborum.msdictionary.common.utils.DictionaryAccessUtils.isReadableBy;
 
 @Service
 @RequiredArgsConstructor
@@ -101,7 +102,8 @@ public class DictionaryTagServiceImpl implements DictionaryTagService {
         Dictionary dictionary = dictionaryRepository.findById(dictionaryId)
                 .orElseThrow(() -> new RecordNotFoundException(DICTIONARY_WAS_NOT_FOUND_ID + dictionaryId));
 
-        if (!ownerId.equals(dictionary.getUserId())) {
+        // Owned or public (P4-10) — a public dictionary's tags are part of what the marketplace shows
+        if (!isReadableBy(dictionary, ownerId)) {
             throw new RecordNotFoundException(DICTIONARY_WAS_NOT_FOUND_ID + dictionaryId);
         }
     }

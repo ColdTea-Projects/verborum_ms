@@ -13,7 +13,7 @@ in `infra-ops` for a clash.
 |---|---|---|---|
 | ms_dictionary | 8085 | `vdbdictionary` | 5432 |
 | ms_user | 8086 | `vdbprofile` | 5433 |
-| ms_marketplace | 8087 (proposed) | `vdbmarket` | 5434 |
+| ms_marketplace | 8087 | `vdbmarket` | 5434 |
 | ms_gateway | 8080 | none (Spring Cloud Gateway) | — |
 
 ## 1. Module and pom

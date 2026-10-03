@@ -38,6 +38,8 @@ public class RabbitMQConfig {
     public static final String ROUTING_KEY_DICTIONARY_VISIBILITY_PUBLIC = "dictionary.visibility.public";
     public static final String ROUTING_KEY_DICTIONARY_VISIBILITY_PRIVATE = "dictionary.visibility.private";
     public static final String ROUTING_KEY_DICTIONARY_DELETED = "dictionary.deleted";
+    public static final String ROUTING_KEY_DICTIONARY_UPDATED = "dictionary.updated";
+    public static final String ROUTING_KEY_DICTIONARY_SNAPSHOT = "dictionary.snapshot";
     public static final String ROUTING_KEY_WORD_CREATED = "word.created";
     public static final String ROUTING_KEY_USER_DELETED = "user.deleted";
 

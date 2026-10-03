@@ -34,13 +34,13 @@ auth needs the root file.
 |---|---|---|---|
 | `rabbitmq` | `rabbitmq:3-management` | 5672 AMQP, 15672 UI | `verborum` / `verborum` |
 | `db_dictionary` | `postgres:14-alpine` | 5432 → `vdbdictionary` | `coldtea` / `qwerty` |
-| `db_user` | `postgres:14-alpine` | 5433 → `vdbprofile` | `coldtea` / `qwerty` |
+| `db_user`, `db_market` | `postgres:14-alpine` | 5433 → `vdbprofile`, 5434 → `vdbmarket` | `coldtea` / `qwerty` |
 | `keycloak` | `verborum-keycloak:local` (built) | 8180 | `admin` / `admin` |
 | `keycloak-bootstrap` | Keycloak 23 | — | runs once, then exits |
 | `admin` | `adminer` | 8080 | — |
 | `mailpit` | `axllent/mailpit:latest` | 1025 SMTP, 8025 UI | — |
 
-On the host: ms_dictionary 8085, ms_user 8086 (ms_marketplace 8087 and ms_gateway 8080 when built).
+On the host: ms_dictionary 8085, ms_user 8086, ms_marketplace 8087 (ms_gateway 8080 when built).
 **Known clash:** Adminer holds 8080, which the roadmap also assigns to `ms_gateway` — move Adminer
 to 8090 before the gateway arrives. Container layout, the three Keycloak surprises, and what a new
 service must add are in [references/local-stack.md](references/local-stack.md).

@@ -7,7 +7,6 @@ import jakarta.validation.constraints.NotEmpty;
 import lombok.*;
 
 import java.util.List;
-import java.util.stream.Stream;
 
 import static de.coldtea.verborum.msdictionary.common.constants.DTOMessageConstants.*;
 
@@ -19,14 +18,10 @@ import static de.coldtea.verborum.msdictionary.common.constants.DTOMessageConsta
 public class WordBundleRequestDTO {
 
     @NotBlank(message = DICTIONARY_DICTIONARY_ID)
-    @ValidUUID(fieldName = DICTIONARY_ID)
+    @ValidUUID
     private String dictionaryId;
 
     @Valid
     @NotEmpty(message = WORD_WORD_LIST)
     private List<WordRequestDTO> words;
-
-    public Stream<WordRequestDTO> getWordStream() {
-        return words.stream();
-    }
 }

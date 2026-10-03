@@ -293,6 +293,14 @@ never trusted, because clients generate them. Rules, applied consistently:
 - a write naming another user → **403**
 - a read of another user's resource *by id* → **404**, so a caller cannot probe which ids exist
 - batch/list endpoints → **filter** to the caller instead of refusing, for the same reason
+- **exception (P4-10, 2026-09-27): a *public* dictionary is readable by any authenticated user** —
+  the dictionary by id, in batch reads, its words (by dictionary and by word id) and its tags. This
+  is what lets an importer open a dictionary from the marketplace (the vault holds a reference). The
+  rule lives in one place, `DictionaryAccessUtils.isReadableBy` (owned **or** public). A private
+  dictionary still 404s a non-owner, and **writes stay owner-only (403) whether public or not**. A
+  word's `level` (the owner's personal mastery) is returned as `null` to anyone but the owner.
+  Per-user lists (`/dictionaries/{userId}`, `/words/user/{userId}`) and `/words/language/*` are
+  unchanged — still the caller's own data only
 - event-driven paths (`user.deleted` cascade, `dictionary.imported`) take no caller and are
   deliberately unguarded — their actor is another service
 

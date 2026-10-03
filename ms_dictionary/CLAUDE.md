@@ -32,7 +32,20 @@ Full CRUD for **Dictionaries** and **Words** — the core vocabulary store.
   here that touches `RabbitTemplate`. Unit tests verify `ApplicationEventPublisher`. The rollback
   guarantee is proven once, in ms_user's `UserDeletedAfterCommitTest` — both services share the
   listener.
-- **Publishes:** `dictionary.visibility.public/private`, `dictionary.deleted`, `word.created`
+- **Publishes:** `dictionary.visibility.public/private`, `dictionary.deleted`, `dictionary.updated`,
+  `dictionary.snapshot`, `word.created`
+- `dictionary.updated` (P4-03) fires only when a dictionary that was public **and stays public**
+  changes `name`, `fromLang` or `toLang`. A visibility flip never also fires it. The old values are
+  copied out *before* `saveAndFlush`, which merges the new values onto the managed instance
+  `findById` returned — comparing after the save would always see "no change". A test simulates
+  exactly that; keep it.
+- `dictionary.snapshot` (P4-03) — every public dictionary in one message, sent by
+  `common/scheduler/DictionarySnapshotScheduler` on `dictionary.snapshot.cron`
+  (`DICTIONARY_SNAPSHOT_CRON`, nightly 03:00 by default; `@EnableScheduling` in `SchedulingConfig`).
+  `takenAt` is read **before** the query — ms_marketplace relies on that to avoid removing a listing
+  made public mid-snapshot. Sent even when empty. Backed by `idx_dictionaries_is_public`
+  (`2026/09/27-01-changelog.json`). Every instance runs the schedule: add a lock (ShedLock) before
+  scaling out.
 - `DictionaryVisibilityEvent` carries the dictionary's `updatedAt` as an ordering key (rule 4): the
   marketplace projection must drop an event older than the state it holds, or two quick edits
   delivered out of order leave the listing permanently stale.
@@ -79,12 +92,24 @@ Full CRUD for **Dictionaries** and **Words** — the core vocabulary store.
   for marketplace browse and the later AI aggregation, so `Food`/`food `/`FOOD` must be one tag. If a
   client ever needs the original casing for display, that is a new column, not a change here.
 - Adding a tag is idempotent (`UNIQUE (fk_dictionary_id, tag)`); re-adding returns the existing row.
-- Tags follow their dictionary's ownership rules: writes on someone else's dictionary 403, reads 404.
+- Tags follow their dictionary's ownership rules: writes on someone else's dictionary 403, reads 404
+  unless the dictionary is public (P4-10).
 - Authorization (P3-05/P3-08): services take an explicit `ownerId` — the token subject, passed in by
   the controller — and never trust an id from the body or path. Writes 403 on a mismatch; reads by id
   404 (so a caller cannot probe which ids exist); batch/list endpoints filter to the caller instead
   of refusing. `deleteAllByUserId` and the private delete helper are the exception: they are the
   `user.deleted` cascade, where the actor is ms_user rather than a logged-in caller.
+- **Public dictionaries are readable by anyone authenticated (P4-10)** — by id, in batch, their words
+  and tags — so a marketplace import (a vault reference) can be opened. One rule,
+  `common/utils/DictionaryAccessUtils.isReadableBy` (owned or public), used by all three services;
+  writes stay owner-only. Non-owners get a word's `level` as `null` (it is the owner's mastery).
+  `getWordsByIds` now resolves the words' dictionaries in one batch query instead of one per word.
+- **`@ValidUUID` / `@SupportedLanguage` validate since P4-09** (2026-09-27). Before, both lacked
+  `@Constraint` and were silently ignored: `fromLang: "XX"`, non-UUID ids and `/words/language/from/XX`
+  were all accepted. Validators return false (never throw); failures on a DTO are
+  `MethodArgumentNotValidException`, on a path variable or inside the `POST /words` list body
+  `HandlerMethodValidationException` — both 400. Before P4-09 a blank word in a bundle was a 500.
+  Language codes are still stored as sent (lowercase allowed); the marketplace uppercases its copy.
 - Security: `common/config/SecurityConfig.java` (P3-03) — stateless JWT resource server, `/actuator/**`
   and Swagger permitted, everything else authenticated. Realm roles are mapped by the hand-written
   `extractRealmRoles` (see the P2-11 note in `security.md`); do not swap in

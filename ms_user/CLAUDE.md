@@ -81,8 +81,8 @@ unchanged (`creation_dt`/`update_dt`/`imported_at`).
   - A delete of an unknown id publishes nothing and still returns 200.
 - **Consumes:** `dictionary.imported` on the durable queue `user.dictionary.imported`
   (`common/listener/MarketplaceEventListener` → `VaultService.importDictionary`, P2-09 done).
-  Nothing publishes it until ms_marketplace ships (P4-07), but the queue is bound already, so
-  imports are captured rather than discarded.
+  Published by ms_marketplace's import endpoint since P4-07 — verified end-to-end 2026-09-27
+  (marketplace import → vault entry here). A repeat import re-sends it; the idempotent insert absorbs it.
   - The event is `{dictionaryId, keycloakId, eventTimestamp}` — **`keycloakId`, not `userId`**, for
     the same reason as `user.deleted`. `importDictionary` resolves it to `user_id` before writing,
     because `vault_entries.fk_user_id` is a real FK.
@@ -118,6 +118,11 @@ unchanged (`creation_dt`/`update_dt`/`imported_at`).
     realm import grants it.
 - `keycloak.admin.client-secret` is intentionally left blank in `application.properties` and
   sourced from the `KEYCLOAK_ADMIN_CLIENT_SECRET` environment variable — never hardcode it.
+
+## Validation
+- `@ValidUUID` on `userId`/`keycloakId` (UserRequestDTO) and `dictionaryId` (VaultEntryRequestDTO)
+  validates since P4-09 (2026-09-27) — before, it lacked `@Constraint` and accepted anything. A
+  non-UUID is a 400 `keycloakId: must be a valid UUID` before the service runs.
 
 ## Service-specific quirks
 - The cross-service user key is `keycloak_id`, not `user_id`. Dictionaries/words store the JWT

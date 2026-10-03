@@ -19,7 +19,7 @@ import static de.coldtea.verborum.msuser.common.constants.DTOMessageConstants.*;
 public class VaultEntryRequestDTO {
 
     @NotBlank(message = VAULT_ENTRY_DICTIONARY_ID)
-    @ValidUUID(fieldName = DICTIONARY_ID)
+    @ValidUUID
     private String dictionaryId;
 
 }

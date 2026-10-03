@@ -2,22 +2,26 @@ package de.coldtea.verborum.msdictionary.common.exception;
 
 import de.coldtea.verborum.msdictionary.common.response.ErrorResponse;
 import de.coldtea.verborum.msdictionary.common.utils.ResponseUtils;
+
 import lombok.extern.slf4j.Slf4j;
+
 import org.jetbrains.annotations.NotNull;
+import org.springframework.context.MessageSourceResolvable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
-
-import static de.coldtea.verborum.msdictionary.common.constants.ErrorMessageConstants.INTERNAL_SERVER_ERROR;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import static de.coldtea.verborum.msdictionary.common.constants.ErrorMessageConstants.INTERNAL_SERVER_ERROR;
 
 @ControllerAdvice
 @Slf4j
@@ -38,20 +42,6 @@ public class GlobalExceptionHandler {
         return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, Exception.class.getSimpleName(), INTERNAL_SERVER_ERROR, request);
     }
 
-    @ExceptionHandler(InvalidUUIDException.class)
-    @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public ResponseEntity<ErrorResponse> handleInvalidUUIDException(InvalidUUIDException ex, WebRequest request) {
-        log.error(InvalidUUIDException.class.getCanonicalName(), ex);
-        return buildErrorResponse(HttpStatus.BAD_REQUEST, InvalidUUIDException.class.getSimpleName(), ex.getMessage(), request);
-    }
-
-    @ExceptionHandler(InvalidLanguageCodeException.class)
-    @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public ResponseEntity<ErrorResponse> handleInvalidLanguageCodeException(InvalidLanguageCodeException ex, WebRequest request) {
-        log.error(InvalidLanguageCodeException.class.getCanonicalName(), ex);
-        return buildErrorResponse(HttpStatus.BAD_REQUEST, InvalidLanguageCodeException.class.getSimpleName(), ex.getMessage(), request);
-    }
-
     @ExceptionHandler(HttpMessageNotReadableException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ResponseEntity<ErrorResponse> handleHttpMessageNotReadableException(HttpMessageNotReadableException ex, WebRequest request) {
@@ -64,6 +54,36 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleRecordNotFoundException(RecordNotFoundException ex, WebRequest request) {
         log.error(RecordNotFoundException.class.getCanonicalName(), ex);
         return buildErrorResponse(HttpStatus.NOT_FOUND, RecordNotFoundException.class.getSimpleName(), ex.getMessage(), request);
+    }
+
+    /**
+     * A failed constraint on a controller parameter (@ValidUUID / @SupportedLanguage on a path
+     * variable) or on an element of a list request body (`POST /words` takes a List of bundles) —
+     * Spring MVC's built-in method validation. Added at P4-09: until then a blank word in a word bundle
+     * fell through to the catch-all and came back as a 500.
+     */
+    @ExceptionHandler(HandlerMethodValidationException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ResponseEntity<ErrorResponse> handleHandlerMethodValidationException(HandlerMethodValidationException ex,
+                                                                                WebRequest request) {
+        log.warn("{}: {}", HandlerMethodValidationException.class.getCanonicalName(), ex.getMessage());
+
+        List<String> errorMessages = ex.getAllValidationResults().stream()
+                .flatMap(result -> result.getResolvableErrors().stream()
+                        .map(error -> errorField(result.getMethodParameter().getParameterName(), error)
+                                + ": " + error.getDefaultMessage()))
+                .toList();
+
+        return buildErrorResponse(HttpStatus.BAD_REQUEST, HandlerMethodValidationException.class.getSimpleName(),
+                String.join(", ", errorMessages), request);
+    }
+
+    /**
+     * For an element of a list body the failing field is a nested path (e.g. `words[0].word`), which
+     * is what the client needs; for a plain parameter it is the parameter name.
+     */
+    private static String errorField(String parameterName, MessageSourceResolvable error) {
+        return error instanceof FieldError fieldError ? parameterName + "." + fieldError.getField() : parameterName;
     }
 
     private static ResponseEntity<ErrorResponse> buildErrorResponse(HttpStatus badRequest, String simpleName, String ex, WebRequest request) {
@@ -111,7 +131,6 @@ public class GlobalExceptionHandler {
                 .toList();
 
         String errorMessage = String.join(", ", errorMessages);
-
 
         return buildErrorResponse(HttpStatus.BAD_REQUEST, MethodArgumentNotValidException.class.getSimpleName(), errorMessage, request);
     }

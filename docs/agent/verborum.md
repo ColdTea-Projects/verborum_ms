@@ -51,7 +51,7 @@ API Gateway ──► Autofil Service  (word suggestions from community data, No
   subject, and acting on another user's data is refused (P3-05, P3-08). `/actuator/**` (health+info
   only) and Swagger are open.
 
-### 🚧 ms_user — PHASE 2 COMPLETE, NOT YET EXERCISED OVER HTTP
+### ✅ ms_user — PHASE 2 COMPLETE, SECURED, VERIFIED OVER HTTP
 - **Port:** 8086
 - **DB:** `vdbprofile` (PostgreSQL) — docker-compose in `ms_user/` (Postgres 5433 + Adminer 8081)
 - **Base package:** `de.coldtea.verborum.msuser`
@@ -65,9 +65,10 @@ API Gateway ──► Autofil Service  (word suggestions from community data, No
   401 without a token, 404s, validation 400s, idempotent vault POST, and `DELETE /users/{id}`
   publishing `user.deleted` on the wire.
 
-### ❌ ms_marketplace — TO BE BUILT
-- **Port:** TBD (suggest 8087)
-- **DB:** `DB_Market` (PostgreSQL)
+### 🚧 ms_marketplace — SCAFFOLDED (P4-01), ENTITIES/ENDPOINTS TO BE BUILT
+- **Port:** 8087
+- **DB:** `vdbmarket` (PostgreSQL) — host port 5434; docker-compose in `ms_marketplace/` (Postgres
+  5434 + Adminer 8082), and `db_market` in the root compose
 - **Base package:** `de.coldtea.verborum.msmarketplace`
 - **What it does:** Public dictionary listings, stats, ratings, user market imports
 - **Security requirement:** Must be built with Spring Security + Keycloak JWT validation
@@ -168,13 +169,37 @@ measure, class, polite`.
 > The earlier `partOfSpeech` / `example` / `notes` shape documented here was a placeholder written
 > before the client schema existed. No client ever used it. The contract above is the real one.
 
-### User Profile (ms_user — to be designed)
+### User Profile (ms_user — built)
 ```
-Entities needed:
-- User           (user_id, keycloak_id, email, display_name, created_at, updated_at)
-- UserStats      (user_id, total_words, total_dictionaries, ...)
-- VaultEntry     (user_id, dictionary_id, imported_at)  ← imported public dictionaries
+- User           (user_id, keycloak_id, email, display_name, creation_dt, update_dt)
+- UserStats      (user_id, total_words, total_dictionaries, update_dt)
+- VaultEntry     (vault_entry_id, fk_user_id, fk_dictionary_id, imported_at)  ← imported public dictionaries
 ```
+Column-level detail, constraints and quirks (the cross-service user key is `keycloak_id`, not
+`user_id`) are in `ms_user/CLAUDE.md`.
+
+### DictionaryStats (`dictionary_stats` table in ms_marketplace)
+```
+- dictionary_id      VARCHAR(255) PK   ← ms_dictionary's id; no DB FK (other service's database)
+- fk_user_id         VARCHAR(255)      ← owner's JWT subject (ms_user's keycloak_id)
+- name, from_lang, to_lang VARCHAR(255) ← copies, kept current by events + nightly snapshot
+- is_listed          BOOLEAN, default true ← false = went private; row kept as a stale-event guard
+- import_count       INT, default 0
+- published_at       timestamptz       ← from the event, not the insert
+- source_updated_at  timestamptz       ← ms_dictionary's updatedAt; rule-4 stale-event guard
+- creation_dt / update_dt timestamptz
+```
+### DictionaryImport (`dictionary_imports` table in ms_marketplace, P4-07)
+```
+- import_id          VARCHAR(255) PK   ← server-generated
+- fk_dictionary_id   VARCHAR(255)      ← real FK to dictionary_stats, ON DELETE CASCADE
+- fk_user_id         VARCHAR(255)      ← the importer's JWT subject; indexed
+- imported_at        timestamptz
+UNIQUE (fk_dictionary_id, fk_user_id)   ← import_count counts unique importers
+```
+
+A read model, not a source of truth. Browse must filter `is_listed = true`. `rating` /
+`view_count` are not built yet (undesigned).
 
 ---
 
@@ -217,6 +242,35 @@ the whole dictionary payload. The tag in the path is normalised the same way as 
 | GET | `/words/user/{userId}` | — | `List<WordResponseDTO>` |
 | GET | `/words/batch?ids=id1,id2` | — | `List<WordResponseDTO>` (empty list for no matches) |
 
+### ms_marketplace — MarketplaceController (`/marketplace/dictionaries`, P4-06)
+Read-only browse, any authenticated caller. Every endpoint returns only **listed** dictionaries and
+takes `page` (zero-based, default 0, ≥ 0) and `size` (default 20, 1–100); anything else is a 400.
+
+| Method | Path | Returns |
+|---|---|---|
+| GET | `/marketplace/dictionaries` | `PageResponse<DictionaryListingResponseDTO>` — newest first |
+| GET | `/marketplace/dictionaries/popular` | same — most imported first, newest first among equals |
+| GET | `/marketplace/dictionaries/language?from=EN&to=DE` | same — one language pair, newest first; codes case-insensitive, validated (400 on unsupported or missing) |
+| GET | `/marketplace/dictionaries/publisher/{publisherId}` | same — one publisher's listings, newest first; unknown id → empty page |
+
+```
+PageResponse                { items, page, size, totalElements, totalPages }
+DictionaryListingResponseDTO { dictionaryId, publisherId, name, fromLang, toLang, importCount, publishedAt }
+```
+`PageResponse` is Verborum's own paging envelope, not Spring's serialized `Page` (unstable shape).
+`publisherId` is the owner's JWT subject — the value for the publisher endpoint; it grants no access
+(ownership always comes from the caller's token). No display name yet (BL-04). Language codes come
+back uppercase.
+
+| Method | Path | Returns |
+|---|---|---|
+| POST | `/marketplace/dictionaries/{dictionaryId}/import` | `Response` (201) — P4-07. 404 if unknown, private or deleted; 400 (`SelfImportException`) for your own. Idempotent: a repeat is 201 again and counts nothing |
+
+Import records `(dictionary, importer)` once in `dictionary_imports`, increments `import_count` only
+on a first import (unique importers), and publishes `dictionary.imported` on every successful call.
+The importer can open the dictionary only once public dictionaries are readable in ms_dictionary
+(P4-10).
+
 ---
 
 ## Supported Languages
@@ -235,10 +289,12 @@ This is the single source of truth — every client's language enum must be a su
 
 | Routing Key | Published by | Consumed by | Trigger |
 |---|---|---|---|
-| `dictionary.visibility.public` | ms_dictionary | ms_marketplace | `is_public` set to true |
-| `dictionary.visibility.private` | ms_dictionary | ms_marketplace | `is_public` set to false |
-| `dictionary.deleted` | ms_dictionary | ms_marketplace | Dictionary deleted |
-| `user.deleted` | ms_user | ms_dictionary, ms_marketplace | User account deleted |
+| `dictionary.visibility.public` | ms_dictionary | ms_marketplace (`marketplace.dictionary.visibility.public`) | `is_public` set to true |
+| `dictionary.visibility.private` | ms_dictionary | ms_marketplace (`marketplace.dictionary.visibility.private`) | `is_public` set to false |
+| `dictionary.deleted` | ms_dictionary | ms_marketplace (`marketplace.dictionary.deleted`) | Dictionary deleted |
+| `dictionary.updated` | ms_dictionary | ms_marketplace (`marketplace.dictionary.updated`) | A public dictionary's `name`/`fromLang`/`toLang` changed and it stayed public |
+| `dictionary.snapshot` | ms_dictionary | ms_marketplace (`marketplace.dictionary.snapshot`) | Schedule, nightly by default (`DICTIONARY_SNAPSHOT_CRON`) — every public dictionary in one message |
+| `user.deleted` | ms_user | ms_dictionary (`dictionary.user.deleted`), ms_marketplace (`marketplace.user.deleted`) | User account deleted |
 | `dictionary.imported` | ms_marketplace | ms_user | User imports a public dictionary |
 | `word.created` | ms_dictionary | ms_autofil (V2) | New word added |
 
@@ -250,7 +306,7 @@ direct DLX would fail to match and drop. See `docs/agent/rabbitmq.md`.
 
 **User-identifying events carry `keycloakId`.** This applies to `user.deleted` (below) and to
 `dictionary.imported`, whose payload is `{dictionaryId, keycloakId, eventTimestamp}` — fixed by the
-P2-09 consumer, and what ms_marketplace must publish at P4-07. ms_marketplace and ms_dictionary only
+P2-09 consumer, and published by ms_marketplace since P4-07. ms_marketplace and ms_dictionary only
 ever see the JWT subject; ms_user's `user_id` is private to ms_user, which resolves
 keycloakId → user_id on the way in.
 
@@ -269,15 +325,29 @@ fire-and-forget until P4-03. ms_dictionary has no consumer queue until it starts
 whichever service starts first creates it.
 As of 2026-07-23 (P2-08, P2-09) ms_user is wired too: same exchange and dead letter infrastructure,
 publishing `user.deleted` and consuming `dictionary.imported` on the durable queue
-`user.dictionary.imported`. Nothing publishes `dictionary.imported` until ms_marketplace ships
-(P4-07), but a bound durable queue captures those imports instead of letting the topic exchange
-discard them.
+`user.dictionary.imported`. ms_marketplace publishes `dictionary.imported` since P4-07 (verified
+end-to-end: marketplace import → vault entry).
 
 As of P2-10 ms_dictionary consumes `user.deleted` on the durable queue `dictionary.user.deleted` and
 cascade-deletes that user's dictionaries and words — **matching on the event's `keycloakId`**, since
 `fk_user_id` is the JWT subject. It publishes no `dictionary.deleted` for the cascaded rows, because
 ms_marketplace consumes `user.deleted` itself. Verified live end-to-end: `DELETE /users/{userId}` on
 ms_user removes the user's dictionaries and words from ms_dictionary, and a redelivery is a no-op.
+
+As of P4-03 (2026-09-27) ms_marketplace consumes `dictionary.visibility.public`,
+`dictionary.updated` and `dictionary.snapshot` into its `dictionary_stats` read model — one queue
+each, all dead-lettered. Publish-to-listing updates, idempotent and stale-safe by `updatedAt`:
+`visibility.public` upserts; `updated` only updates an existing listing (never creates, so it cannot
+re-list a dictionary already made private or deleted); `snapshot` reconciles the whole table —
+creates missing, corrects stale, and removes listings absent from it **whose own state predates the
+snapshot's `takenAt`**. Verified live end-to-end.
+As of P4-04 `dictionary.visibility.private` is consumed too: it **hides** the listing
+(`is_listed = false`) instead of deleting it, so the row's `source_updated_at` keeps rejecting older
+public state; every public path re-lists a hidden row when newer.
+As of P4-05 `dictionary.deleted` hides the listing too, using the event's `eventTimestamp` as the
+ordering key (there is no `updatedAt` for a deleted dictionary), and `user.deleted` deletes every row
+of that user — matched on **`keycloakId`**. The snapshot removes hidden rows once it confirms them
+gone.
 
 **Consuming services must set `INFERRED` type precedence on the message converter.**
 `Jackson2JsonMessageConverter` writes the publisher's fully-qualified class name into a `__TypeId__`
