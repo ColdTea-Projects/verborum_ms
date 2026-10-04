@@ -20,7 +20,8 @@ import de.coldtea.verborum.msmarketplace.common.event.DictionaryVisibilityEvent;
  */
 public interface DictionaryStatsService {
 
-    // ---- Browse (P4-06, filters and slices P4-11). Listed rows only; any authenticated caller may read ----
+    // ---- Browse (P4-06; filters and slices P4-11..P4-13). Listed rows of publishers with a display
+    // name only; any authenticated caller may read ----
 
     /** Newest first, narrowed by whichever filters are set. */
     SliceResponse<DictionaryListingResponseDTO> getListings(ListingFilter filter, int page, int size);
@@ -63,8 +64,8 @@ public interface DictionaryStatsService {
     void hideDeletedListing(DictionaryDeletedEvent event);
 
     /**
-     * `user.deleted` — deletes every row owned by that user, listed or hidden (P4-05), and the
-     * records of what they imported (P4-07).
+     * `user.deleted` — deletes every row owned by that user, listed or hidden (P4-05), the records
+     * of what they imported (P4-07), and their display name (P4-13).
      *
      * @param keycloakId the event's `keycloakId` — the JWT subject stored in `fk_user_id`. Never the
      *                   event's `userId`, which is ms_user's own key and matches nothing here

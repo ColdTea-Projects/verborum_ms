@@ -3,6 +3,7 @@ package de.coldtea.verborum.msuser.user.service.impl;
 import de.coldtea.verborum.msuser.common.event.KeycloakUserDeletionRequested;
 import de.coldtea.verborum.msuser.common.event.OutboundEvent;
 import de.coldtea.verborum.msuser.common.event.UserDeletedEvent;
+import de.coldtea.verborum.msuser.common.event.UserProfileUpdatedEvent;
 import de.coldtea.verborum.msuser.common.exception.ForbiddenOperationException;
 import de.coldtea.verborum.msuser.common.exception.RecordNotFoundException;
 import de.coldtea.verborum.msuser.common.mapper.UserMapper;
@@ -19,10 +20,14 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.springframework.context.ApplicationEventPublisher;
 
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Optional;
 
 import static de.coldtea.verborum.msuser.common.config.RabbitMQConfig.ROUTING_KEY_USER_DELETED;
+import static de.coldtea.verborum.msuser.common.config.RabbitMQConfig.ROUTING_KEY_USER_PROFILE_UPDATED;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -32,6 +37,8 @@ class UserServiceImplTest {
 
     /** The JWT subject of the caller — in ms_user that is the profile's keycloakId (P3-05). */
     private static final String CALLER_KC_ID = "kc-1";
+
+    private static final OffsetDateTime UPDATED_AT = OffsetDateTime.of(2026, 10, 4, 12, 0, 0, 0, ZoneOffset.UTC);
 
     @Mock
     private UserRepository userRepository;
@@ -255,5 +262,121 @@ class UserServiceImplTest {
         UserRequestDTO requestDTO = new UserRequestDTO();
         requestDTO.setKeycloakId(keycloakId);
         return requestDTO;
+    }
+
+    // ---- user.profile.updated (P4-13) ----
+
+    @Test
+    void saveUser_NewProfileWithDisplayName_PublishesProfileUpdated() {
+        // Arrange
+        UserRequestDTO requestDTO = requestDTO(CALLER_KC_ID);
+        requestDTO.setUserId("user-1");
+        User saved = user("Anna Bauer", UPDATED_AT);
+        when(userRepository.findById("user-1")).thenReturn(Optional.empty());
+        when(userMapper.toUser(requestDTO)).thenReturn(saved);
+        when(userRepository.saveAndFlush(saved)).thenReturn(saved);
+
+        // Act
+        userService.saveUser(requestDTO, CALLER_KC_ID);
+
+        // Assert
+        ArgumentCaptor<OutboundEvent> captor = ArgumentCaptor.forClass(OutboundEvent.class);
+        verify(eventPublisher).publishEvent(captor.capture());
+        assertEquals(ROUTING_KEY_USER_PROFILE_UPDATED, captor.getValue().routingKey());
+        UserProfileUpdatedEvent event = (UserProfileUpdatedEvent) captor.getValue().payload();
+        assertEquals(CALLER_KC_ID, event.getKeycloakId());
+        assertEquals("Anna Bauer", event.getDisplayName());
+        assertEquals(UPDATED_AT, event.getUpdatedAt());
+    }
+
+    @Test
+    void saveUser_NewProfileWithoutDisplayName_PublishesNothing() {
+        // Arrange — nothing to announce: the marketplace treats an unknown publisher as nameless
+        UserRequestDTO requestDTO = requestDTO(CALLER_KC_ID);
+        requestDTO.setUserId("user-1");
+        User saved = user(null, UPDATED_AT);
+        when(userRepository.findById("user-1")).thenReturn(Optional.empty());
+        when(userMapper.toUser(requestDTO)).thenReturn(saved);
+        when(userRepository.saveAndFlush(saved)).thenReturn(saved);
+
+        // Act
+        userService.saveUser(requestDTO, CALLER_KC_ID);
+
+        // Assert
+        verifyNoInteractions(eventPublisher);
+    }
+
+    @Test
+    void saveUser_DisplayNameChanged_PublishesTheNewName() {
+        // Arrange — saveAndFlush merges onto the managed instance, so the old name must be read first;
+        // simulate that by changing the existing object during the save
+        UserRequestDTO requestDTO = requestDTO(CALLER_KC_ID);
+        requestDTO.setUserId("user-1");
+        User existing = user("Anna", UPDATED_AT.minusDays(1));
+        User incoming = user("Anna Bauer", null);
+        when(userRepository.findById("user-1")).thenReturn(Optional.of(existing));
+        when(userMapper.toUser(requestDTO)).thenReturn(incoming);
+        when(userRepository.saveAndFlush(incoming)).thenAnswer(invocation -> {
+            existing.setDisplayName("Anna Bauer");
+            existing.setUpdatedAt(UPDATED_AT);
+            return existing;
+        });
+
+        // Act
+        userService.saveUser(requestDTO, CALLER_KC_ID);
+
+        // Assert
+        ArgumentCaptor<OutboundEvent> captor = ArgumentCaptor.forClass(OutboundEvent.class);
+        verify(eventPublisher).publishEvent(captor.capture());
+        UserProfileUpdatedEvent event = (UserProfileUpdatedEvent) captor.getValue().payload();
+        assertEquals("Anna Bauer", event.getDisplayName());
+        assertEquals(UPDATED_AT, event.getUpdatedAt());
+    }
+
+    @Test
+    void saveUser_DisplayNameCleared_PublishesNull() {
+        // Arrange — the marketplace hides a publisher's listings once the name is gone
+        UserRequestDTO requestDTO = requestDTO(CALLER_KC_ID);
+        requestDTO.setUserId("user-1");
+        User existing = user("Anna", UPDATED_AT.minusDays(1));
+        User saved = user(null, UPDATED_AT);
+        when(userRepository.findById("user-1")).thenReturn(Optional.of(existing));
+        when(userMapper.toUser(requestDTO)).thenReturn(saved);
+        when(userRepository.saveAndFlush(saved)).thenReturn(saved);
+
+        // Act
+        userService.saveUser(requestDTO, CALLER_KC_ID);
+
+        // Assert
+        ArgumentCaptor<OutboundEvent> captor = ArgumentCaptor.forClass(OutboundEvent.class);
+        verify(eventPublisher).publishEvent(captor.capture());
+        assertNull(((UserProfileUpdatedEvent) captor.getValue().payload()).getDisplayName());
+    }
+
+    @Test
+    void saveUser_SameDisplayNameResaved_PublishesNothing() {
+        // Arrange — e.g. an email change; the marketplace has nothing to learn
+        UserRequestDTO requestDTO = requestDTO(CALLER_KC_ID);
+        requestDTO.setUserId("user-1");
+        User existing = user("Anna", UPDATED_AT.minusDays(1));
+        User saved = user("Anna", UPDATED_AT);
+        when(userRepository.findById("user-1")).thenReturn(Optional.of(existing));
+        when(userMapper.toUser(requestDTO)).thenReturn(saved);
+        when(userRepository.saveAndFlush(saved)).thenReturn(saved);
+
+        // Act
+        userService.saveUser(requestDTO, CALLER_KC_ID);
+
+        // Assert
+        verifyNoInteractions(eventPublisher);
+    }
+
+    private static User user(String displayName, OffsetDateTime updatedAt) {
+        User user = new User();
+        user.setUserId("user-1");
+        user.setKeycloakId(CALLER_KC_ID);
+        user.setDisplayName(displayName);
+        user.setUpdatedAt(updatedAt);
+        return user;
     }
 }

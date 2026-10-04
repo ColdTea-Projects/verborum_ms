@@ -6,8 +6,8 @@ to be followed literally. Where this file and the code in the backend repo disag
 and this file is the bug — say so rather than working around it.
 
 **Backend state this describes:** roadmap Phase 4 complete, verified against a running stack on
-**2026-09-27** (tasks P4-01 … P4-10), plus the language-pair filter and slice paging of **P4-11** and
-the tag filter of **P4-12** (2026-10-04). Nothing here is planned-only unless it says so.
+**2026-09-27** (tasks P4-01 … P4-10), plus the language-pair filter and slice paging of **P4-11**, the
+tag filter of **P4-12** and the publisher display names of **P4-13** (2026-10-04). Nothing here is planned-only unless it says so.
 
 **Read first, and keep open:**
 - `docs/integration/frontend-backend-integration.md` — the normative contract (envelope, error shape,
@@ -42,8 +42,9 @@ otherwise surface as unexplained 401 / 400 / 403 / 404 responses.
 >    you can never write to someone else's dictionary (**403**). On words from someone else's
 >    dictionary, `level` is always **`null`** — it is the owner's progress, not yours.
 > 5. **The marketplace is live (`ms_marketplace`, `:8087`).** Browse public dictionaries, filter by
->    language pairs, tags or publisher, and import them into your vault. Browse pages carry `hasNext`
->    (infinite scroll), not totals. See `docs/integration/marketplace-client-guide.md` in the backend repo.
+>    language pairs, tags or publisher name, and import them into your vault. Browse pages carry
+>    `hasNext` (infinite scroll), not totals. **A user's dictionaries only appear once they have a
+>    display name** — require one (with the marketplace terms) before marketplace use. See `docs/integration/marketplace-client-guide.md` in the backend repo.
 > 6. **Word save/update messages changed.** `POST`/`PUT /words` now reply "Saved/Updated successfully
 >    into dictionary `<dictionaryId>`" instead of listing the words. Do not parse `message` — it is for
 >    humans and logs.
@@ -66,8 +67,7 @@ otherwise surface as unexplained 401 / 400 / 403 / 404 responses.
 - If the owner makes it private again or deletes it, it **disappears** for importers too: the listing
   vanishes and reads return 404. The vault entry stays behind (see §5.4).
 
-There is no rating, no view count, no publisher display name, and no "make my own editable copy" yet
-(§9).
+There is no rating, no view count, and no "make my own editable copy" yet (§9).
 
 ---
 
@@ -169,9 +169,20 @@ the user scrolls — acceptable for browsing; de-duplicate by `dictionaryId` whe
   let a tap add that tag to the filter.
 - A tag added or removed in the app reaches the marketplace within seconds, like a rename.
 
-**Planned, not built yet:** a publisher display-name filter with `publisherName` on every listing
-(roadmap P4-13). Listings whose publisher has no display name will then stop appearing — require a
-display name before a user publishes to the marketplace.
+**Publisher-name filter (`publisher`):** optional, since 2026-10-04.
+- Part of the publisher's display name, any case: `publisher=nna` finds "Anna Bauer", and so do
+  `ANN` and `a b`. Wildcards are literal — `%` matches only a `%`.
+- 3 to 255 characters, otherwise **400**. Run it when the user taps Search, not on every keystroke.
+- Combines with `pair` and `tag` by AND.
+- Display names are not unique; two publishers can both be "Anna". Use `publisherId` to tell them
+  apart (e.g. for "More from this publisher").
+
+**A publisher must have a display name.** Every browse endpoint — filtered or not, including
+`/publisher/{publisherId}` — returns only listings whose publisher has set a display name in their
+profile (`POST`/`PUT /users/`, `displayName`). Before a user publishes to the marketplace, have them
+accept the marketplace terms **and** enter a display name. If they later clear it, their listings
+disappear from the marketplace until they set one again. A name change reaches listings within
+seconds. `displayName` is at most 255 characters (400 otherwise).
 
 Only **listed** (public) dictionaries are ever returned. You will never see a private or deleted one
 here.
@@ -184,6 +195,7 @@ here.
     {
       "dictionaryId": "00000006-0000-4000-8000-000000000000",
       "publisherId":  "765a81ed-2612-4dcc-bf7a-3d5fecf3d0d6",
+      "publisherName": "Anna Bauer",
       "name":         "Polish → Ukrainian",
       "fromLang":     "PL",
       "toLang":       "UK",
@@ -204,6 +216,7 @@ here.
 | `page` / `size` | echo of what you asked for (defaults applied) |
 | `hasNext` | whether another page exists — request `page + 1` only while it is `true`. There are no totals: the marketplace is infinite scroll, and a count would cost the server a second query on every filter change |
 | `dictionaryId` | the dictionary's id in ms_dictionary — use it to import and to read it |
+| `publisherName` | the publisher's display name — show this ("by Anna Bauer"). Not unique |
 | `publisherId` | the owner's `sub`. Pass it to the publisher endpoint for "more from this publisher"; compare it with your own `sub` to detect your own listings. **Not a display name** — do not show the raw UUID to users |
 | `name`, `fromLang`, `toLang` | copies of the dictionary's fields, kept current by the backend within seconds |
 | `tags` | the dictionary's tags, lowercase and sorted; `[]` when untagged. Kept current like `name` |
@@ -268,7 +281,8 @@ whenever `GET /users/{userId}` returns 404, before offering the marketplace.
 1. `GET /marketplace/dictionaries?page=0&size=20` (or `/popular`) → render `items`.
 2. On scroll near the end and `hasNext` → request `page + 1`, append, de-duplicate by
    `dictionaryId`.
-3. Language-pair and tag filters → `?pair=..&pair=..&tag=..` on the same endpoint. Pre-fill it from the user's own
+3. Language-pair, tag and publisher-name filters → `?pair=..&pair=..&tag=..&publisher=..` on the
+   same endpoint. Pre-fill it from the user's own
    dictionaries. Re-query on every change of the chips, reset to page 0, and **cancel the request
    still in flight** (`collectLatest`/`flatMapLatest`, `switchMap`) so a slow, older response can never
    overwrite a newer one.
@@ -399,9 +413,8 @@ profile first (`POST /users/`).
 
 | Missing | Status |
 |---|---|
-| Publisher display name ("by Anna") | backend `BL-04` — show "More from this publisher" without a name for now |
 | Ratings, view counts | not designed |
-| Search by text / by tag | not built (tags are readable per dictionary, not filterable in the marketplace) |
+| Search by dictionary name or word text | not planned (filters are language pair, tag and publisher name) |
 | "Make my own editable copy" of an imported dictionary | not built — imports are references |
 | Automatic vault cleanup when a dictionary becomes unavailable | not built — clients handle it (§5.4) |
 | CORS / single gateway origin | backend Phase 5 |

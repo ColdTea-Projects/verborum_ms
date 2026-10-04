@@ -64,6 +64,7 @@ Durable: true
 | `dictionary.deleted` | ms_dictionary | `marketplace.dictionary.deleted` | Dictionary deleted |
 | `user.deleted` | ms_user | `dictionary.user.deleted` | Cascade cleanup in ms_dictionary |
 | `user.deleted` | ms_user | `marketplace.user.deleted` | Cascade cleanup in ms_marketplace |
+| `user.profile.updated` | ms_user | `marketplace.user.profile.updated` | Publisher display name for listings and the name filter (P4-13) |
 | `dictionary.imported` | ms_marketplace | `user.dictionary.imported` | Add to user vault |
 | `word.created` | ms_dictionary | `autofil.word.created` (V2) | Feed Autofil suggestions |
 

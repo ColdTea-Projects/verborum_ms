@@ -39,6 +39,11 @@
       "include": {
         "file": "db/changelog/2026/10/04-03-changelog.json"
       }
+    },
+    {
+      "include": {
+        "file": "db/changelog/2026/10/04-04-changelog.json"
+      }
     }
   ]
 }

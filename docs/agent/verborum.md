@@ -191,6 +191,14 @@ Column-level detail, constraints and quirks (the cross-service user key is `keyc
 - source_updated_at  timestamptz       ← ms_dictionary's updatedAt; rule-4 stale-event guard
 - creation_dt / update_dt timestamptz
 ```
+### Publisher (`publishers` table in ms_marketplace, P4-13)
+```
+- keycloak_id        VARCHAR(255) PK   ← the JWT subject = dictionary_stats.fk_user_id; no FK
+- display_name       VARCHAR(255)      ← ms_user's display name, trimmed; null = none → listings hidden
+- source_updated_at  timestamptz       ← ms_user's updatedAt; rule-4 stale-event guard
+- creation_dt / update_dt timestamptz
+GIN (lower(display_name) gin_trgm_ops)  ← the case-insensitive substring name filter
+```
 ### DictionaryImport (`dictionary_imports` table in ms_marketplace, P4-07)
 ```
 - import_id          VARCHAR(255) PK   ← server-generated
@@ -250,19 +258,20 @@ takes `page` (zero-based, default 0, ≥ 0) and `size` (default 20, 1–100); an
 
 | Method | Path | Returns |
 |---|---|---|
-| GET | `/marketplace/dictionaries?pair=EN-TR&pair=FR-DE&tag=food` | `SliceResponse<DictionaryListingResponseDTO>` — newest first. `pair` optional, repeatable or comma-separated, max 10; **direction ignored** (`EN-TR` → EN→TR and TR→EN); any case; 400 on an unsupported code, the same code twice or a malformed pair. `tag` optional, repeatable, max 10, each non-blank and ≤ 100 chars, any case; **any** of them matches (P4-12). Different filters are AND-ed |
-| GET | `/marketplace/dictionaries/popular?pair=...&tag=...` | same — most imported first, newest first among equals; same filters |
+| GET | `/marketplace/dictionaries?pair=EN-TR&pair=FR-DE&tag=food&publisher=nna` | `SliceResponse<DictionaryListingResponseDTO>` — newest first. `pair` optional, repeatable or comma-separated, max 10; **direction ignored** (`EN-TR` → EN→TR and TR→EN); any case; 400 on an unsupported code, the same code twice or a malformed pair. `tag` optional, repeatable, max 10, each non-blank and ≤ 100 chars, any case; **any** of them matches (P4-12). `publisher` optional, 3–255 chars: part of the publisher's display name, any case — `nna` finds "Anna Bauer" (P4-13). Different filters are AND-ed |
+| GET | `/marketplace/dictionaries/popular?pair=...&tag=...&publisher=...` | same — most imported first, newest first among equals; same filters |
 | GET | `/marketplace/dictionaries/publisher/{publisherId}` | same — one publisher's listings, newest first; unknown id → empty slice |
 
 ```
 SliceResponse                { items, page, size, hasNext }
-DictionaryListingResponseDTO { dictionaryId, publisherId, name, fromLang, toLang, tags, importCount, publishedAt }
+DictionaryListingResponseDTO { dictionaryId, publisherId, publisherName, name, fromLang, toLang, tags, importCount, publishedAt }
 ```
 `SliceResponse` is Verborum's own paging envelope for infinite scroll — no totals, so no count query
 (P4-11 replaced `PageResponse`). `GET /language?from=&to=` was removed at P4-11; use `pair`.
 `publisherId` is the owner's JWT subject — the value for the publisher endpoint; it grants no access
-(ownership always comes from the caller's token). No display name yet (P4-13). Language codes come
-back uppercase; `tags` lowercase and sorted (`[]` when untagged). A publisher-name filter (P4-13) is planned.
+(ownership always comes from the caller's token). **Every browse endpoint returns only listings whose
+publisher has a display name** (P4-13), and `publisherName` carries it. Language codes come back
+uppercase; `tags` lowercase and sorted (`[]` when untagged).
 
 | Method | Path | Returns |
 |---|---|---|
@@ -297,6 +306,7 @@ This is the single source of truth — every client's language enum must be a su
 | `dictionary.updated` | ms_dictionary | ms_marketplace (`marketplace.dictionary.updated`) | A public dictionary's `name`/`fromLang`/`toLang` changed and it stayed public, or a tag was actually added to/removed from it (P4-12; bumps its `updatedAt`) |
 | `dictionary.snapshot` | ms_dictionary | ms_marketplace (`marketplace.dictionary.snapshot`) | Schedule, nightly by default (`DICTIONARY_SNAPSHOT_CRON`) — every public dictionary in one message |
 | `user.deleted` | ms_user | ms_dictionary (`dictionary.user.deleted`), ms_marketplace (`marketplace.user.deleted`) | User account deleted |
+| `user.profile.updated` | ms_user | ms_marketplace (`marketplace.user.profile.updated`) | A user's display name was set, changed or cleared (P4-13). `{keycloakId, displayName, updatedAt, eventTimestamp}`; `displayName: null` = no name now |
 | `dictionary.imported` | ms_marketplace | ms_user | User imports a public dictionary |
 | `word.created` | ms_dictionary | ms_autofil (V2) | New word added |
 

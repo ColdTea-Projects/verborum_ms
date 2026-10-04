@@ -30,6 +30,9 @@ import static de.coldtea.verborum.msmarketplace.common.constants.DTOMessageConst
 import static de.coldtea.verborum.msmarketplace.common.constants.DTOMessageConstants.PAGE_SIZE_DEFAULT;
 import static de.coldtea.verborum.msmarketplace.common.constants.DTOMessageConstants.PAGE_SIZE_MAX;
 import static de.coldtea.verborum.msmarketplace.common.constants.DTOMessageConstants.PAGE_SIZE_OUT_OF_RANGE;
+import static de.coldtea.verborum.msmarketplace.common.constants.DTOMessageConstants.PUBLISHER_NAME_LENGTH;
+import static de.coldtea.verborum.msmarketplace.common.constants.DTOMessageConstants.PUBLISHER_NAME_MAX;
+import static de.coldtea.verborum.msmarketplace.common.constants.DTOMessageConstants.PUBLISHER_NAME_MIN;
 import static de.coldtea.verborum.msmarketplace.common.constants.DTOMessageConstants.TAGS_MAX;
 import static de.coldtea.verborum.msmarketplace.common.constants.DTOMessageConstants.TAG_BLANK;
 import static de.coldtea.verborum.msmarketplace.common.constants.DTOMessageConstants.TAG_MAX_LENGTH;
@@ -72,8 +75,9 @@ public class MarketplaceController {
     /**
      * Newest first. `pair` narrows to the given language pairs in both directions — `pair=EN-TR`
      * returns EN→TR and TR→EN listings (P4-11). `tag` narrows to listings with any of the given tags,
-     * in any case (P4-12). Both repeat for several values (`pair=EN-TR&pair=FR-DE`); leave one out
-     * to not filter on it.
+     * in any case (P4-12). Both repeat for several values (`pair=EN-TR&pair=FR-DE`). `publisher` is
+     * part of a publisher's display name, any case — "nna" finds "Anna Bauer" (P4-13). Leave a filter
+     * out to not filter on it. Listings of publishers without a display name are never returned.
      */
     @GetMapping
     public ResponseEntity<SliceResponse<DictionaryListingResponseDTO>> getListings(
@@ -82,10 +86,12 @@ public class MarketplaceController {
             @RequestParam(required = false)
             @Size(max = TAGS_MAX, message = TOO_MANY_TAGS)
             List<@NotBlank(message = TAG_BLANK) @Size(max = TAG_MAX_LENGTH, message = TAG_TOO_LONG) String> tag,
+            @RequestParam(required = false)
+            @Size(min = PUBLISHER_NAME_MIN, max = PUBLISHER_NAME_MAX, message = PUBLISHER_NAME_LENGTH) String publisher,
             @RequestParam(defaultValue = PAGE_DEFAULT) @Min(value = 0, message = PAGE_NEGATIVE) int page,
             @RequestParam(defaultValue = PAGE_SIZE_DEFAULT)
             @Min(value = 1, message = PAGE_SIZE_OUT_OF_RANGE) @Max(value = PAGE_SIZE_MAX, message = PAGE_SIZE_OUT_OF_RANGE) int size) {
-        return new ResponseEntity<>(dictionaryStatsService.getListings(new ListingFilter(pair, tag), page, size), HttpStatus.OK);
+        return new ResponseEntity<>(dictionaryStatsService.getListings(new ListingFilter(pair, tag, publisher), page, size), HttpStatus.OK);
     }
 
     /** Most imported first, with the same filters as {@link #getListings}. */
@@ -96,10 +102,12 @@ public class MarketplaceController {
             @RequestParam(required = false)
             @Size(max = TAGS_MAX, message = TOO_MANY_TAGS)
             List<@NotBlank(message = TAG_BLANK) @Size(max = TAG_MAX_LENGTH, message = TAG_TOO_LONG) String> tag,
+            @RequestParam(required = false)
+            @Size(min = PUBLISHER_NAME_MIN, max = PUBLISHER_NAME_MAX, message = PUBLISHER_NAME_LENGTH) String publisher,
             @RequestParam(defaultValue = PAGE_DEFAULT) @Min(value = 0, message = PAGE_NEGATIVE) int page,
             @RequestParam(defaultValue = PAGE_SIZE_DEFAULT)
             @Min(value = 1, message = PAGE_SIZE_OUT_OF_RANGE) @Max(value = PAGE_SIZE_MAX, message = PAGE_SIZE_OUT_OF_RANGE) int size) {
-        return new ResponseEntity<>(dictionaryStatsService.getPopularListings(new ListingFilter(pair, tag), page, size), HttpStatus.OK);
+        return new ResponseEntity<>(dictionaryStatsService.getPopularListings(new ListingFilter(pair, tag, publisher), page, size), HttpStatus.OK);
     }
 
     /**

@@ -13,6 +13,8 @@ import de.coldtea.verborum.msmarketplace.dictionarystats.dto.DictionaryListingRe
 import de.coldtea.verborum.msmarketplace.dictionarystats.dto.ListingFilter;
 import de.coldtea.verborum.msmarketplace.dictionarystats.entity.DictionaryStats;
 import de.coldtea.verborum.msmarketplace.dictionarystats.repository.DictionaryStatsRepository;
+import de.coldtea.verborum.msmarketplace.publisher.entity.Publisher;
+import de.coldtea.verborum.msmarketplace.publisher.repository.PublisherRepository;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -54,6 +56,9 @@ class DictionaryStatsServiceImplTest {
 
     @Mock
     private DictionaryImportRepository dictionaryImportRepository;
+
+    @Mock
+    private PublisherRepository publisherRepository;
 
     @InjectMocks
     private DictionaryStatsServiceImpl dictionaryStatsService;
@@ -99,7 +104,7 @@ class DictionaryStatsServiceImplTest {
 
         // Act
         SliceResponse<DictionaryListingResponseDTO> result =
-                dictionaryStatsService.getListings(new ListingFilter(List.of("EN-TR", "de-fr"), null), 0, 20);
+                dictionaryStatsService.getListings(new ListingFilter(List.of("EN-TR", "de-fr"), null, null), 0, 20);
 
         // Assert
         assertTrue(result.getItems().isEmpty());
@@ -112,7 +117,7 @@ class DictionaryStatsServiceImplTest {
         when(dictionaryStatsRepository.findSlice(any(), any(Pageable.class))).thenReturn(new SliceImpl<>(List.of()));
 
         // Act
-        dictionaryStatsService.getPopularListings(new ListingFilter(List.of("EN-TR"), null), 0, 20);
+        dictionaryStatsService.getPopularListings(new ListingFilter(List.of("EN-TR"), null, null), 0, 20);
 
         // Assert
         assertEquals(Sort.by(Sort.Order.desc("importCount"), Sort.Order.desc("publishedAt"), Sort.Order.asc("dictionaryId")),
@@ -131,6 +136,45 @@ class DictionaryStatsServiceImplTest {
         Pageable pageable = capturedPageable();
         assertEquals(1, pageable.getPageNumber());
         assertEquals(Sort.by(Sort.Order.desc("publishedAt"), Sort.Order.asc("dictionaryId")), pageable.getSort());
+    }
+
+    // ---- publisher names (P4-13) ----
+
+    @Test
+    void getListings_EveryListingCarriesItsPublishersNameFromOneLookup() {
+        // Arrange — two listings, one publisher: the names come from a single findAllById
+        DictionaryStats first = listing("One", T1);
+        DictionaryStats second = listing("Two", T1);
+        second.setDictionaryId("dict2");
+        when(dictionaryStatsRepository.findSlice(any(), any(Pageable.class)))
+                .thenReturn(new SliceImpl<>(List.of(first, second), PageRequest.of(0, 20), false));
+        when(dictionaryStatsMapper.toDictionaryListingResponseDTO(any()))
+                .thenAnswer(invocation -> DictionaryListingResponseDTO.builder()
+                        .dictionaryId(((DictionaryStats) invocation.getArgument(0)).getDictionaryId()).build());
+        when(publisherRepository.findAllById(List.of(OWNER)))
+                .thenReturn(List.of(Publisher.builder().keycloakId(OWNER).displayName("Anna Bauer").build()));
+
+        // Act
+        SliceResponse<DictionaryListingResponseDTO> result =
+                dictionaryStatsService.getListings(new ListingFilter(null, null, "nna"), 0, 20);
+
+        // Assert
+        assertEquals("Anna Bauer", result.getItems().get(0).getPublisherName());
+        assertEquals("Anna Bauer", result.getItems().get(1).getPublisherName());
+        verify(publisherRepository, times(1)).findAllById(any());
+    }
+
+    @Test
+    void getListingsByPublisher_EmptySlice_LooksUpNoNames() {
+        // Arrange
+        when(dictionaryStatsRepository.findSlice(any(), any(Pageable.class))).thenReturn(new SliceImpl<>(List.of()));
+        when(publisherRepository.findAllById(List.of())).thenReturn(List.of());
+
+        // Act
+        SliceResponse<DictionaryListingResponseDTO> result = dictionaryStatsService.getListingsByPublisher(OWNER, 0, 20);
+
+        // Assert
+        assertTrue(result.getItems().isEmpty());
     }
 
     // ---- lang_pair (P4-11): set from the languages on every write, without direction ----
@@ -197,7 +241,7 @@ class DictionaryStatsServiceImplTest {
         when(dictionaryStatsRepository.findSlice(any(), any(Pageable.class))).thenReturn(new SliceImpl<>(List.of()));
 
         // Act
-        dictionaryStatsService.getListings(new ListingFilter(null, List.of(" Food", "TRAVEL")), 0, 20);
+        dictionaryStatsService.getListings(new ListingFilter(null, List.of(" Food", "TRAVEL"), null), 0, 20);
 
         // Assert
         assertEquals(Sort.by(Sort.Order.desc("publishedAt"), Sort.Order.asc("dictionaryId")), capturedPageable().getSort());
@@ -683,6 +727,8 @@ class DictionaryStatsServiceImplTest {
 
         // Assert
         verify(dictionaryStatsRepository).deleteAllInBatch(List.of(listed, hidden));
+        // ...and their display name (P4-13)
+        verify(publisherRepository).deleteById(OWNER);
     }
 
     @Test

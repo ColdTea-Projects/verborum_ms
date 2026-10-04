@@ -43,6 +43,8 @@ public class RabbitMQConfig {
     public static final String ROUTING_KEY_DICTIONARY_SNAPSHOT = "dictionary.snapshot";
     public static final String ROUTING_KEY_DICTIONARY_DELETED = "dictionary.deleted";
     public static final String ROUTING_KEY_USER_DELETED = "user.deleted";
+    // P4-13: from ms_user, a display name set, changed or cleared
+    public static final String ROUTING_KEY_USER_PROFILE_UPDATED = "user.profile.updated";
     // Published by this service (P4-07); ms_user consumes it on `user.dictionary.imported`
     public static final String ROUTING_KEY_DICTIONARY_IMPORTED = "dictionary.imported";
 
@@ -52,6 +54,7 @@ public class RabbitMQConfig {
     public static final String QUEUE_DICTIONARY_SNAPSHOT = "marketplace.dictionary.snapshot";
     public static final String QUEUE_DICTIONARY_DELETED = "marketplace.dictionary.deleted";
     public static final String QUEUE_USER_DELETED = "marketplace.user.deleted";
+    public static final String QUEUE_USER_PROFILE_UPDATED = "marketplace.user.profile.updated";
 
     @Bean
     public TopicExchange verborumExchange() {
@@ -154,6 +157,22 @@ public class RabbitMQConfig {
                 .bind(userDeletedQueue)
                 .to(verborumExchange)
                 .with(ROUTING_KEY_USER_DELETED);
+    }
+
+    /** P4-13: publisher display names, for listings and the name filter. */
+    @Bean
+    public Queue userProfileUpdatedQueue() {
+        return QueueBuilder.durable(QUEUE_USER_PROFILE_UPDATED)
+                .withArgument("x-dead-letter-exchange", DEAD_LETTER_EXCHANGE)
+                .build();
+    }
+
+    @Bean
+    public Binding userProfileUpdatedBinding(Queue userProfileUpdatedQueue, TopicExchange verborumExchange) {
+        return BindingBuilder
+                .bind(userProfileUpdatedQueue)
+                .to(verborumExchange)
+                .with(ROUTING_KEY_USER_PROFILE_UPDATED);
     }
 
     /**

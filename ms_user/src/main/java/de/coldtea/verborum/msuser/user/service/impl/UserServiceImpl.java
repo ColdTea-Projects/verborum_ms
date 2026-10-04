@@ -3,6 +3,7 @@ package de.coldtea.verborum.msuser.user.service.impl;
 import de.coldtea.verborum.msuser.common.event.KeycloakUserDeletionRequested;
 import de.coldtea.verborum.msuser.common.event.OutboundEvent;
 import de.coldtea.verborum.msuser.common.event.UserDeletedEvent;
+import de.coldtea.verborum.msuser.common.event.UserProfileUpdatedEvent;
 import de.coldtea.verborum.msuser.common.exception.ForbiddenOperationException;
 import de.coldtea.verborum.msuser.common.exception.RecordNotFoundException;
 import de.coldtea.verborum.msuser.common.mapper.UserMapper;
@@ -17,8 +18,11 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
+import java.util.Objects;
+import java.util.Optional;
 
 import static de.coldtea.verborum.msuser.common.config.RabbitMQConfig.ROUTING_KEY_USER_DELETED;
+import static de.coldtea.verborum.msuser.common.config.RabbitMQConfig.ROUTING_KEY_USER_PROFILE_UPDATED;
 import static de.coldtea.verborum.msuser.common.constants.ErrorMessageConstants.NOT_THE_OWNER;
 import static de.coldtea.verborum.msuser.common.constants.ErrorMessageConstants.USER_WAS_NOT_FOUND_ID;
 
@@ -48,11 +52,41 @@ public class UserServiceImpl implements UserService {
         // otherwise an insert (mirrors DictionaryServiceImpl.saveDictionary). The client supplies
         // the userId, so an existing row must be checked too, or a PUT could overwrite a stranger's
         // profile with the caller's own keycloakId
-        userRepository.findById(userRequestDTO.getUserId())
-                .ifPresent(existing -> requireOwnProfile(existing, callerKeycloakId));
+        Optional<User> existing = userRepository.findById(userRequestDTO.getUserId());
+        existing.ifPresent(user -> requireOwnProfile(user, callerKeycloakId));
+
+        // Copied out now, not read from `existing` after the save: saveAndFlush merges the new values
+        // onto that same managed instance, so afterwards it would always equal the saved name
+        String previousDisplayName = existing.map(User::getDisplayName).orElse(null);
 
         User savedUser = userRepository.saveAndFlush(userMapper.toUser(userRequestDTO));
+
+        publishDisplayNameChange(savedUser, previousDisplayName);
+
         return userMapper.toUserResponseDTO(savedUser);
+    }
+
+    /**
+     * Announces a display-name change to ms_marketplace (P4-13), which lists publishers by it and hides
+     * the listings of a publisher without one. Only on an actual change — setting it on a new profile,
+     * renaming, or clearing it — never on a re-save of the same name. A new profile without a name has
+     * nothing to announce: the marketplace already treats an unknown publisher as nameless.
+     */
+    private void publishDisplayNameChange(User user, String previousDisplayName) {
+        if (Objects.equals(previousDisplayName, user.getDisplayName())) {
+            return;
+        }
+
+        eventPublisher.publishEvent(new OutboundEvent(
+                ROUTING_KEY_USER_PROFILE_UPDATED,
+                UserProfileUpdatedEvent.builder()
+                        .keycloakId(user.getKeycloakId())
+                        .displayName(user.getDisplayName())
+                        // The ordering key (rule 4): the name changed, so the row was dirty and
+                        // @UpdateTimestamp moved this forward
+                        .updatedAt(user.getUpdatedAt())
+                        .eventTimestamp(OffsetDateTime.now())
+                        .build()));
     }
 
     @Override

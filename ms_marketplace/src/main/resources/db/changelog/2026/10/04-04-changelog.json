@@ -1,0 +1,79 @@
+{
+  "databaseChangeLog": [
+    {
+      "changeSet": {
+        "id": "20261004-04-publishers",
+        "author": "claude (P4-13)",
+        "comment": "Publisher display names (decided 2026-10-03): listings show them, browse can search them, and listings whose publisher has no name are hidden. A copy of ms_user's display_name kept current by user.profile.updated (rule 5 - no call to ms_user at request time). keycloak_id is the JWT subject, the same value dictionary_stats.fk_user_id holds; no FK either way, because a listing can arrive before its publisher's name. display_name is nullable: null = the user has no name now, and the row stays so its source_updated_at rejects older events (rule 4). VARCHAR(255) matches ms_user's column. The name filter is a case-insensitive substring match (lower(display_name) LIKE '%...%'), which only a trigram index can serve, so pg_trgm is installed and the GIN index is on lower(display_name), the exact expression the query uses. pg_trgm is a trusted extension on Postgres 13+, so a database owner can create it without superuser. The rollback leaves the extension installed: dropping it could break anything else that started using it.",
+        "objectQuotingStrategy": "QUOTE_ONLY_RESERVED_WORDS",
+        "changes": [
+          {
+            "sql": {
+              "sql": "CREATE EXTENSION IF NOT EXISTS pg_trgm;"
+            }
+          },
+          {
+            "createTable": {
+              "tableName": "publishers",
+              "columns": [
+                {
+                  "column": {
+                    "name": "keycloak_id",
+                    "type": "VARCHAR(255)",
+                    "constraints": {
+                      "nullable": false,
+                      "primaryKey": true,
+                      "primaryKeyName": "pk_publishers"
+                    }
+                  }
+                },
+                {
+                  "column": {
+                    "name": "display_name",
+                    "type": "VARCHAR(255)"
+                  }
+                },
+                {
+                  "column": {
+                    "name": "source_updated_at",
+                    "type": "TIMESTAMP WITH TIME ZONE",
+                    "constraints": {
+                      "nullable": false
+                    }
+                  }
+                },
+                {
+                  "column": {
+                    "name": "creation_dt",
+                    "type": "TIMESTAMP WITH TIME ZONE",
+                    "constraints": {
+                      "nullable": false
+                    }
+                  }
+                },
+                {
+                  "column": {
+                    "name": "update_dt",
+                    "type": "TIMESTAMP WITH TIME ZONE"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "sql": {
+              "sql": "CREATE INDEX idx_publishers_display_name_trgm ON publishers USING GIN (lower(display_name) gin_trgm_ops);"
+            }
+          }
+        ],
+        "rollback": [
+          {
+            "dropTable": {
+              "tableName": "publishers"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

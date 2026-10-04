@@ -16,7 +16,8 @@ request time — decided 2026-07-23, see roadmap `P4-03`.
 - **Status:** Scaffolded (P4-01), `dictionary_stats` table (P4-02), listing projection +
   snapshot reconciliation fed by ms_dictionary events (P4-03), private → hidden (P4-04),
   deletion and `user.deleted` (P4-05), browse API (P4-06), import + `dictionary.imported` (P4-07),
-  language-pair filter + slices + browse indexes (P4-11), tag filter (P4-12). Next: publisher names (P4-13).
+  language-pair filter + slices + browse indexes (P4-11), tag filter (P4-12), publisher display names
+  + name filter (P4-13). The marketplace search plan (P4-11..P4-13) is complete.
 
 ## Entities
 - `DictionaryStats` (`dictionary_stats`) — `dictionaryId` (PK, ms_dictionary's id, no DB FK),
@@ -38,6 +39,12 @@ request time — decided 2026-07-23, see roadmap `P4-03`.
     purpose as a stale-event guard; **browse must filter `is_listed = true`**. Set explicitly on
     create (Hibernate ignores column defaults). Migration `2026/09/27-02-changelog.json`.
   - `rating` / `viewCount` are deliberately absent until designed.
+- `Publisher` (`publishers`, P4-13) — `keycloakId` (PK, the JWT subject = `fk_user_id`), `displayName`
+  (nullable, trimmed; blank stored as null), `sourceUpdatedAt` (ms_user's `updatedAt`, rule 4). Own
+  package `publisher/`. Migration `2026/10/04-04-changelog.json` — also installs `pg_trgm` and the GIN
+  trigram index on `lower(display_name)`. No row or a null name = that user's listings are hidden. A
+  cleared name keeps the row (stale-event guard). No backfill: names set before P4-13 arrive only when
+  the user next saves their profile.
 - `DictionaryImport` (`dictionary_imports`, P4-07) — `importId` (server-generated), `dictionaryId`
   (real FK to `dictionary_stats`, ON DELETE CASCADE), `userId` (importer's subject), `importedAt`.
   UNIQUE (dictionary, user) — `import_count` counts unique importers. Migration
@@ -78,6 +85,10 @@ request time — decided 2026-07-23, see roadmap `P4-03`.
   consumer; **`keycloakId`** is the importer's JWT subject. Sent on every successful import, repeats
   included (the vault is idempotent; a re-send repairs a lost first event).
 - `user.deleted` also deletes the user's import records; their earlier imports stay counted.
+- `user.profile.updated` (from ms_user, P4-13) on `marketplace.user.profile.updated` →
+  `UserEventListener.handleUserProfileUpdated` → `PublisherService.updateDisplayName` — upsert on
+  `keycloakId`, dropped unless newer than the held `sourceUpdatedAt`. `user.deleted` also deletes the
+  `publishers` row; a late profile event can recreate it, harmlessly (no listings, subjects never reused).
 - `RabbitMQConfig` mirrors the other services: same exchange, fanout DLX + DLQ, ISO-8601 converter
   with `INFERRED` type precedence (ms_dictionary's `__TypeId__` names classes that do not exist here).
 
@@ -89,7 +100,11 @@ request time — decided 2026-07-23, see roadmap `P4-03`.
   ignored via the `lang_pair` column — both codes alphabetical, set by `LanguagePairUtils` on **every**
   write path that sets the languages (keep it that way; the column is NOT NULL). `tag=food` (P4-12,
   repeatable, max 10): **any** match through `hasAnyTag` → Hibernate `arrayOverlaps` → `tags && ?`.
-  The publisher name (P4-13) joins `ListingFilter` and `DictionaryStatsSpecifications` next.
+  `publisher=nna` (P4-13, 3–255 chars): case-insensitive substring of the display name, through
+  `LikePatternUtils.toContainsPattern` (escapes `%`, `_`, `\`) and `hasNamedPublisher(pattern)`.
+- **`hasNamedPublisher` is applied to every browse read, filter or not** — a listing whose publisher has
+  no `publishers` row or a null name is never returned. `publisherName` on each listing comes from one
+  `publisherRepository.findAllById` per page; the mapper ignores the field.
 - Returns `common/response/SliceResponse` `{items, page, size, hasNext}` — infinite scroll, no count
   query. Reuse it for any future paged read. Browse goes through `findSlice` (the
   `DictionaryStatsSliceRepository` fragment, size + 1 rows), never `findAll(spec, pageable)`, which
@@ -104,7 +119,7 @@ request time — decided 2026-07-23, see roadmap `P4-03`.
 - `SupportedLanguage` and `ValidUUID` have `@Constraint` and validators that return false — the same
   in all three services since P4-09.
 - Language codes are stored and returned **uppercase** (normalized on write, `Locale.ROOT`).
-- `publisherId` = the owner's JWT subject (`fk_user_id`). Safe to expose; no display name yet (P4-13).
+- `publisherId` = the owner's JWT subject (`fk_user_id`). Safe to expose; show `publisherName` instead.
 
 - `POST /{dictionaryId}/import` (P4-07) — the one write. Importer = token subject. 404 hidden or
   unknown (never reveal a private dictionary exists), 400 `SelfImportException` for your own, 201

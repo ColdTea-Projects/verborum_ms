@@ -15,10 +15,13 @@ import de.coldtea.verborum.msmarketplace.dictionarystats.dto.ListingFilter;
 import de.coldtea.verborum.msmarketplace.dictionarystats.entity.DictionaryStats;
 import de.coldtea.verborum.msmarketplace.dictionarystats.repository.DictionaryStatsRepository;
 import de.coldtea.verborum.msmarketplace.dictionarystats.service.DictionaryStatsService;
+import de.coldtea.verborum.msmarketplace.publisher.entity.Publisher;
+import de.coldtea.verborum.msmarketplace.publisher.repository.PublisherRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Slice;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -36,9 +39,11 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static de.coldtea.verborum.msmarketplace.common.utils.LanguagePairUtils.toLangPair;
+import static de.coldtea.verborum.msmarketplace.common.utils.LikePatternUtils.toContainsPattern;
 import static de.coldtea.verborum.msmarketplace.common.utils.ResponseUtils.toSliceResponse;
 import static de.coldtea.verborum.msmarketplace.dictionarystats.repository.DictionaryStatsSpecifications.hasAnyTag;
 import static de.coldtea.verborum.msmarketplace.dictionarystats.repository.DictionaryStatsSpecifications.hasLangPairIn;
+import static de.coldtea.verborum.msmarketplace.dictionarystats.repository.DictionaryStatsSpecifications.hasNamedPublisher;
 import static de.coldtea.verborum.msmarketplace.dictionarystats.repository.DictionaryStatsSpecifications.isListed;
 import static de.coldtea.verborum.msmarketplace.dictionarystats.repository.DictionaryStatsSpecifications.isPublishedBy;
 
@@ -68,6 +73,9 @@ public class DictionaryStatsServiceImpl implements DictionaryStatsService {
 
     private final DictionaryImportRepository dictionaryImportRepository;
 
+    // Display names (P4-13): read for browse, removed on user.deleted. Written by PublisherService
+    private final PublisherRepository publisherRepository;
+
     @Override
     public SliceResponse<DictionaryListingResponseDTO> getListings(ListingFilter filter, int page, int size) {
         return browse(toSpecification(filter), PageRequest.of(page, size, NEWEST_FIRST));
@@ -80,7 +88,9 @@ public class DictionaryStatsServiceImpl implements DictionaryStatsService {
 
     @Override
     public SliceResponse<DictionaryListingResponseDTO> getListingsByPublisher(String publisherId, int page, int size) {
-        return browse(isListed().and(isPublishedBy(publisherId)), PageRequest.of(page, size, NEWEST_FIRST));
+        // A publisher without a display name has no visible listings here either (P4-13)
+        return browse(isListed().and(hasNamedPublisher(null)).and(isPublishedBy(publisherId)),
+                PageRequest.of(page, size, NEWEST_FIRST));
     }
 
     @Transactional
@@ -193,6 +203,9 @@ public class DictionaryStatsServiceImpl implements DictionaryStatsService {
 
         // As a publisher: their listings. Other users' imports of those listings go with them via the
         // ON DELETE CASCADE foreign key
+        // As a publisher (P4-13): their display name. deleteById is a no-op when there is none
+        publisherRepository.deleteById(keycloakId);
+
         List<DictionaryStats> owned = dictionaryStatsRepository.findByUserId(keycloakId);
         if (owned.isEmpty()) {
             return;
@@ -270,8 +283,23 @@ public class DictionaryStatsServiceImpl implements DictionaryStatsService {
 
     private SliceResponse<DictionaryListingResponseDTO> browse(Specification<DictionaryStats> specification,
                                                                PageRequest pageRequest) {
-        return toSliceResponse(dictionaryStatsRepository.findSlice(specification, pageRequest)
-                .map(dictionaryStatsMapper::toDictionaryListingResponseDTO));
+        Slice<DictionaryStats> listings = dictionaryStatsRepository.findSlice(specification, pageRequest);
+
+        // Display names for the whole page in one query (P4-13), not one per listing. Every listing
+        // here has a named publisher — the query required it — so a miss only happens if the name was
+        // cleared between the two queries; the listing then goes out without one
+        Map<String, String> namesByPublisher = publisherRepository.findAllById(listings.stream()
+                        .map(DictionaryStats::getUserId)
+                        .distinct()
+                        .toList()).stream()
+                .filter(publisher -> publisher.getDisplayName() != null)
+                .collect(Collectors.toMap(Publisher::getKeycloakId, Publisher::getDisplayName));
+
+        return toSliceResponse(listings.map(listing -> {
+            DictionaryListingResponseDTO dto = dictionaryStatsMapper.toDictionaryListingResponseDTO(listing);
+            dto.setPublisherName(namesByPublisher.get(listing.getUserId()));
+            return dto;
+        }));
     }
 
     /**
@@ -280,7 +308,10 @@ public class DictionaryStatsServiceImpl implements DictionaryStatsService {
      * collapse in the set. Tags likewise go through the same normalisation as stored ones.
      */
     private static Specification<DictionaryStats> toSpecification(ListingFilter filter) {
-        Specification<DictionaryStats> specification = isListed();
+        // Listed, and published by someone with a display name (P4-13) — matching the name filter if set:
+        // a case-insensitive substring, so "nna" finds "Anna Bauer"
+        Specification<DictionaryStats> specification = isListed()
+                .and(hasNamedPublisher(toContainsPattern(filter.publisherName())));
 
         if (filter.pairs() != null && !filter.pairs().isEmpty()) {
             Set<String> langPairs = filter.pairs().stream()

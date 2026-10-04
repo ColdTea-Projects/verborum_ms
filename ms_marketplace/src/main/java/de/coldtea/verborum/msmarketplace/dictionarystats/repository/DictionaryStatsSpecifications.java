@@ -1,13 +1,18 @@
 package de.coldtea.verborum.msmarketplace.dictionarystats.repository;
 
 import de.coldtea.verborum.msmarketplace.dictionarystats.entity.DictionaryStats;
+import de.coldtea.verborum.msmarketplace.common.utils.LikePatternUtils;
+import de.coldtea.verborum.msmarketplace.publisher.entity.Publisher;
+import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
+import jakarta.persistence.criteria.Subquery;
 import org.hibernate.query.criteria.HibernateCriteriaBuilder;
 import org.springframework.data.jpa.domain.Specification;
 
 import java.util.Collection;
 
 /**
- * The browse filters (P4-11, P4-12), one condition each, combined by the service for whichever filters a
+ * The browse filters (P4-11..P4-13), one condition each, combined by the service for whichever filters a
  * request carries. Attribute names are the entity's, not the columns'.
  */
 public class DictionaryStatsSpecifications {
@@ -41,6 +46,34 @@ public class DictionaryStatsSpecifications {
     public static Specification<DictionaryStats> hasAnyTag(String[] tags) {
         return (root, query, criteriaBuilder) ->
                 ((HibernateCriteriaBuilder) criteriaBuilder).arrayOverlaps(root.get("tags"), tags);
+    }
+
+    /**
+     * The listing's publisher has a display name (P4-13) — and, given a pattern, one that matches it.
+     * Every browse read applies it: a user must name themselves before their dictionaries show.
+     * <p>
+     * `EXISTS (SELECT 1 FROM publishers p WHERE p.keycloak_id = fk_user_id AND p.display_name IS NOT
+     * NULL [AND lower(p.display_name) LIKE :pattern ESCAPE '\'])`. A subquery rather than a join: there
+     * is no association to join on, and EXISTS cannot duplicate a listing. The LIKE is on
+     * `lower(display_name)` because that is the expression the trigram index covers.
+     *
+     * @param namePattern a ready pattern from {@link LikePatternUtils#toContainsPattern}, or null for "any name"
+     */
+    public static Specification<DictionaryStats> hasNamedPublisher(String namePattern) {
+        return (root, query, criteriaBuilder) -> {
+            Subquery<String> publisher = query.subquery(String.class);
+            Root<Publisher> publisherRoot = publisher.from(Publisher.class);
+
+            Predicate named = criteriaBuilder.and(
+                    criteriaBuilder.equal(publisherRoot.get("keycloakId"), root.get("userId")),
+                    criteriaBuilder.isNotNull(publisherRoot.get("displayName")));
+            if (namePattern != null) {
+                named = criteriaBuilder.and(named, criteriaBuilder.like(
+                        criteriaBuilder.lower(publisherRoot.get("displayName")), namePattern, LikePatternUtils.ESCAPE));
+            }
+
+            return criteriaBuilder.exists(publisher.select(publisherRoot.get("keycloakId")).where(named));
+        };
     }
 
     public static Specification<DictionaryStats> isPublishedBy(String publisherId) {

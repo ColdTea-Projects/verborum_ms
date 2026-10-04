@@ -1253,7 +1253,7 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
     tags; one real `dictionary.snapshot` repaired a same-version listing from `{}` to `{travel}`.
     `EXPLAIN` at 50k rows: rare tags use `idx_dictionary_stats_listed_tags` (GIN), common tags walk the
     newest-first index. Test data, temp queue and instances removed; DLQ stayed empty.
-- [ ] `P4-13` **Publisher display names: filter and on listings** (ms_user + ms_marketplace; absorbs `BL-04`) — depends on P4-11
+- [x] `P4-13` **Publisher display names: filter and on listings** (ms_user + ms_marketplace; absorbs `BL-04`) — depends on P4-11
   - Display name, not Keycloak username (can be an email for SSO users). Not unique; that is fine.
     Clients require a display name and the marketplace T&C before marketplace use; ms_user keeps it
     optional for users who never use the marketplace.
@@ -1265,6 +1265,39 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
     has no display name are hidden from every browse endpoint.** `publisherName` on listings via one
     batched lookup per page.
   - Agent: `spring-boot-architect`.
+  - Done 2026-10-04.
+    - **ms_user:** `UserServiceImpl.saveUser` copies the old name out before `saveAndFlush` (which
+      merges onto the managed instance) and publishes `user.profile.updated` only on an actual change:
+      a new profile with a name, a rename, or a clear (`displayName: null`). A new profile without a
+      name, or a re-save of the same name, sends nothing. **Also:** `displayName` got
+      `@Size(max = 255)` — it had no limit, so a longer name was a 500 from the `VARCHAR(255)` column.
+    - **ms_marketplace:** `publisher/` package — `Publisher` entity, `PublisherService` (upsert, rule-4
+      guard on ms_user's `updatedAt`, trims, blank → null, null kept as a row so it still guards),
+      `UserEventListener.handleUserProfileUpdated` on `marketplace.user.profile.updated` (durable,
+      dead-lettered). Migration `2026/10/04-04`: `CREATE EXTENSION IF NOT EXISTS pg_trgm` (trusted on
+      PG13+, so a DB owner can run it), `publishers` table, GIN `lower(display_name) gin_trgm_ops`.
+    - Browse: `hasNamedPublisher(pattern)` — an `EXISTS` subquery on `publishers` — is applied to
+      **every** browse read (`GET`, `/popular`, `/publisher/{id}`); `publisher=` adds a `LIKE` on
+      `lower(display_name)` built by `LikePatternUtils.toContainsPattern` (trim, lowercase
+      `Locale.ROOT`, escape `\`, `%`, `_`). 3–255 chars. `publisherName` filled from one
+      `findAllById` per page. `user.deleted` also deletes the publisher row. A late
+      `user.profile.updated` after `user.deleted` recreates a row nobody can see — accepted.
+    - **No backfill:** a user whose name was set before this ships has no `publishers` row, so their
+      listings stay hidden until they save their profile again (decided 2026-10-03: no profile
+      snapshot). Clients send `displayName` from the ID token on profile creation
+      (`client-login-guide.md`), so new users normally have one from the start.
+    - Suites: ms_user 50/50, ms_marketplace 133/133. **Verified live** (new builds on :8095/:8096/:8097,
+      testuser): a public DE→TR dictionary was listed but **not shown** (no publisher); creating the
+      profile as "Anna Bauer" sent one event and the listing appeared with `publisherName`;
+      `publisher=NNA`, `a b`, `bauer&pair=DE-TR` matched; `xyz` and `%%%` (escaped) matched nothing;
+      `an` → 400; rename to "Anna Schmidt" → `bauer` empty, `schmidt` matches; re-save sent no event;
+      clearing the name hid the listing again and kept the row with a null name. Generated SQL is
+      `exists(select ... from publishers where keycloak_id = fk_user_id and display_name is not null
+      and lower(display_name) like ? escape '\')`. `EXPLAIN ANALYZE` at 200k publishers: trigram GIN,
+      2 ms; unfiltered browse walks the newest-first index with a PK probe per row. Test data removed
+      from all three DBs, temp queue deleted, DLQ empty.
+    - **Dev data:** the three seeded listings belong to a user with no profile, so they no longer show
+      in browse. Expected.
 
 ---
 
@@ -1352,7 +1385,7 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
   - **Message drafted 2026-09-27** in `docs/integration/marketplace-client-guide.md` §0 — it now also
     covers the P4-09 validation 400s, P4-10 public read, the marketplace and the web CORS gap. Still
     open until it has actually been sent to the client teams.
-- [ ] `BL-04` **Publisher display names on marketplace listings** (added 2026-09-27 at P4-06) — **moved to `P4-13` on 2026-10-03**
+- [x] `BL-04` **Publisher display names on marketplace listings** (added 2026-09-27 at P4-06) — **moved to `P4-13` on 2026-10-03, done there 2026-10-04**
   - Listings carry `publisherId` only; users will want "by Anna". The name lives in ms_user, so per
     rule 5 the marketplace stores it (`publisher_name`) and keeps it current from an ms_user event —
     e.g. `user.profile.updated` carrying `keycloakId` + `displayName` — which does not exist yet

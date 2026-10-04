@@ -15,6 +15,10 @@ public final class DTOMessageConstants {
     public static final String USER_KEYCLOAK_ID = "keycloakId is mandatory";
     public static final String USER_EMAIL = "email is mandatory";
     public static final String USER_EMAIL_INVALID = "email must be a valid email address";
+    // P4-13: the column is VARCHAR(255) — without the limit a longer name is a 500 from the database,
+    // and since P4-13 the name is public on the marketplace and copied into ms_marketplace
+    public static final int USER_DISPLAY_NAME_MAX = 255;
+    public static final String USER_DISPLAY_NAME_TOO_LONG = "displayName must be at most " + USER_DISPLAY_NAME_MAX + " characters";
 
 
     //Vault DTOs — validation messages

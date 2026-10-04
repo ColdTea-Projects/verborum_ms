@@ -78,6 +78,21 @@ class UserControllerWebTest {
     }
 
     @Test
+    void displayNameTooLong_Is400AndNeverReachesTheService() throws Exception {
+        // P4-13: VARCHAR(255) — a longer name was a 500 from the database
+        mockMvc.perform(post("/users/")
+                        .with(jwt().jwt(j -> j.subject(KEYCLOAK_ID)))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"userId":"%s","keycloakId":"%s","email":"a@b.co","displayName":"%s"}
+                                """.formatted(USER_ID, KEYCLOAK_ID, "a".repeat(256))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorDetail").value("displayName: displayName must be at most 255 characters"));
+
+        verifyNoInteractions(userService);
+    }
+
+    @Test
     void nonUuidKeycloakId_Is400AndNeverReachesTheService() throws Exception {
         // P4-09: @ValidUUID was inert until 2026-09-27 and stored whatever it was sent
         mockMvc.perform(post("/users/")

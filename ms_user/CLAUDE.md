@@ -72,6 +72,13 @@ unchanged (`creation_dt`/`update_dt`/`imported_at`).
   - `UserDeletedAfterCommitTest` drives a real transaction and asserts a rollback publishes nothing.
     That test is the regression guard — do not delete it.
   - Unit tests verify `ApplicationEventPublisher`, not `RabbitTemplate`.
+- **Publishes `user.profile.updated`** (P4-13) from `UserServiceImpl.saveUser()` when the display
+  name actually changes — set on a new profile, renamed, or cleared (`displayName: null`). Payload
+  `{keycloakId, displayName, updatedAt, eventTimestamp}`; ms_marketplace shows the name on listings
+  and **hides the listings of a user without one**. The old name is copied out *before*
+  `saveAndFlush`, which merges onto the managed instance `findById` returned — comparing after the save
+  would always see "no change" (same trap as ms_dictionary's `dictionary.updated`; a test simulates it).
+  A new profile without a name, or a re-save of the same name, sends nothing.
 - **Publishes:** `user.deleted` from `UserServiceImpl.deleteUser()` (P2-08 done). `common/config/
   RabbitMQConfig` mirrors ms_dictionary's — same exchange, fanout DLX + DLQ, ISO-8601-pinned message
   converter. Publisher-only until P2-09, so no consumer queue is declared yet.
@@ -120,6 +127,8 @@ unchanged (`creation_dt`/`update_dt`/`imported_at`).
   sourced from the `KEYCLOAK_ADMIN_CLIENT_SECRET` environment variable — never hardcode it.
 
 ## Validation
+- `displayName` is optional but at most 255 characters (`@Size`, P4-13) — the column is `VARCHAR(255)`,
+  so before the limit a longer name was a 500.
 - `@ValidUUID` on `userId`/`keycloakId` (UserRequestDTO) and `dictionaryId` (VaultEntryRequestDTO)
   validates since P4-09 (2026-09-27) — before, it lacked `@Constraint` and accepted anything. A
   non-UUID is a 400 `keycloakId: must be a valid UUID` before the service runs.

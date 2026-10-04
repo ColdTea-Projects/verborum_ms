@@ -35,6 +35,12 @@ public final class DTOMessageConstants {
     public static final String TAG_BLANK = "must not be blank";
     public static final String TAG_TOO_LONG = "must be at most " + TAG_MAX_LENGTH + " characters";
 
+    //Marketplace browse (P4-13) — publisher display-name filter. Three characters is the shortest search
+    //a trigram index can serve; the maximum matches ms_user's display_name column
+    public static final int PUBLISHER_NAME_MIN = 3;
+    public static final int PUBLISHER_NAME_MAX = 255;
+    public static final String PUBLISHER_NAME_LENGTH = "must be between " + PUBLISHER_NAME_MIN + " and " + PUBLISHER_NAME_MAX + " characters";
+
     private DTOMessageConstants() {
     }
 }

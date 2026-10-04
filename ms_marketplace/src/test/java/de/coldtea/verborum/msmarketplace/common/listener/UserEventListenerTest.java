@@ -1,7 +1,9 @@
 package de.coldtea.verborum.msmarketplace.common.listener;
 
 import de.coldtea.verborum.msmarketplace.common.event.UserDeletedEvent;
+import de.coldtea.verborum.msmarketplace.common.event.UserProfileUpdatedEvent;
 import de.coldtea.verborum.msmarketplace.dictionarystats.service.DictionaryStatsService;
+import de.coldtea.verborum.msmarketplace.publisher.service.PublisherService;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -21,6 +23,9 @@ class UserEventListenerTest {
 
     @Mock
     private DictionaryStatsService dictionaryStatsService;
+
+    @Mock
+    private PublisherService publisherService;
 
     @InjectMocks
     private UserEventListener userEventListener;
@@ -56,5 +61,30 @@ class UserEventListenerTest {
 
         // Act & Assert — swallowing would ack the event with the user's listings still browsable
         assertThrows(RuntimeException.class, () -> userEventListener.handleUserDeleted(event()));
+    }
+
+    // ---- user.profile.updated (P4-13) ----
+
+    @Test
+    void handleUserProfileUpdated_Delegates() {
+        // Arrange
+        UserProfileUpdatedEvent event = UserProfileUpdatedEvent.builder()
+                .keycloakId(KEYCLOAK_ID).displayName("Anna").updatedAt(OffsetDateTime.now()).build();
+
+        // Act
+        userEventListener.handleUserProfileUpdated(event);
+
+        // Assert
+        verify(publisherService).updateDisplayName(event);
+    }
+
+    @Test
+    void handleUserProfileUpdated_RethrowsSoTheMessageIsDeadLettered() {
+        // Arrange
+        UserProfileUpdatedEvent event = UserProfileUpdatedEvent.builder().keycloakId(KEYCLOAK_ID).build();
+        doThrow(new RuntimeException("db down")).when(publisherService).updateDisplayName(event);
+
+        // Act & Assert
+        assertThrows(RuntimeException.class, () -> userEventListener.handleUserProfileUpdated(event));
     }
 }
