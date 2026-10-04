@@ -51,6 +51,12 @@ public class DictionaryStats {
     @Column(name = "to_lang", nullable = false)
     private String toLang;
 
+    // fromLang and toLang without direction — `DE-TR` for DE→TR and TR→DE alike (P4-11). Derived, never
+    // set on its own: every write that sets the two languages sets this from them, through
+    // LanguagePairUtils. Browse filters on it alone, so one indexed IN covers both directions
+    @Column(name = "lang_pair", nullable = false)
+    private String langPair;
+
     // false = the dictionary went private: hidden from browse, but the row stays so its
     // sourceUpdatedAt can reject older "public" state arriving late (P4-04). Browse filters on it.
     // Set explicitly on create, for the same Hibernate reason as importCount below

@@ -1,0 +1,46 @@
+{
+  "databaseChangeLog": [
+    {
+      "changeSet": {
+        "id": "20261004-01-dictionary-stats-lang-pair",
+        "author": "claude (P4-11)",
+        "comment": "Browse filters by language pair without direction (decided 2026-10-03): pair=DE-TR must return DE->TR and TR->DE listings. lang_pair stores both codes in alphabetical order (DE-TR for either direction), so the filter is one indexed lang_pair IN (...) rather than an OR over both directions. The application derives it from from_lang/to_lang on every write (LanguagePairUtils); this backfills existing rows the same way. COLLATE \"C\" orders by code point, matching Java's String.compareTo - a locale collation could order some pair differently and leave it unmatched. Codes are already uppercase (2026/09/27-04). Added nullable, backfilled, then made NOT NULL, because addColumn with NOT NULL fails on a non-empty table.",
+        "changes": [
+          {
+            "addColumn": {
+              "tableName": "dictionary_stats",
+              "columns": [
+                {
+                  "column": {
+                    "name": "lang_pair",
+                    "type": "VARCHAR(255)"
+                  }
+                }
+              ]
+            }
+          },
+          {
+            "sql": {
+              "sql": "UPDATE dictionary_stats SET lang_pair = LEAST(from_lang COLLATE \"C\", to_lang COLLATE \"C\") || '-' || GREATEST(from_lang COLLATE \"C\", to_lang COLLATE \"C\");"
+            }
+          },
+          {
+            "addNotNullConstraint": {
+              "tableName": "dictionary_stats",
+              "columnName": "lang_pair",
+              "columnDataType": "VARCHAR(255)"
+            }
+          }
+        ],
+        "rollback": [
+          {
+            "dropColumn": {
+              "tableName": "dictionary_stats",
+              "columnName": "lang_pair"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

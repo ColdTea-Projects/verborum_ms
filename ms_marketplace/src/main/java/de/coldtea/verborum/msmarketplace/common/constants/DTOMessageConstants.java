@@ -21,6 +21,12 @@ public final class DTOMessageConstants {
     //Marketplace browse (P4-06) — language filter
     public static final String INVALID_LANGUAGE_CODE = "unsupported language code";
 
+    //Marketplace browse (P4-11) — language-pair filter. The cap keeps one request from expanding into
+    //an arbitrarily long IN list; a learner's own dictionaries rarely span more than a handful of pairs
+    public static final int LANGUAGE_PAIRS_MAX = 10;
+    public static final String INVALID_LANGUAGE_PAIR = "must be two different supported language codes, e.g. EN-TR";
+    public static final String TOO_MANY_LANGUAGE_PAIRS = "at most " + LANGUAGE_PAIRS_MAX + " language pairs";
+
     private DTOMessageConstants() {
     }
 }

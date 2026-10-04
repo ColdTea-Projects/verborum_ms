@@ -1,0 +1,25 @@
+{
+  "databaseChangeLog": [
+    {
+      "changeSet": {
+        "id": "20261004-02-dictionary-stats-browse-indexes",
+        "author": "claude (P4-11)",
+        "comment": "Indexes shaped like the browse queries. Every browse read filters is_listed and sorts on a fixed key ending in dictionary_id, so the sort indexes are partial (WHERE is_listed) and carry the full sort key: Postgres can walk one in order and stop after page size + 1 rows instead of sorting every listed row. They replace the single-column import_count and published_at indexes (2026/09/27-01), which matched neither sort. lang_pair serves the language-pair filter; the (from_lang, to_lang) index goes with GET /language, the only query that used it. The partial indexes only apply because the query renders is_listed as a literal (DictionaryStatsSpecifications.isListed). Raw SQL because Liquibase's createIndex has no WHERE clause or per-column sort direction. idx_dictionary_stats_user stays: the user.deleted cascade and the publisher endpoint use it.",
+        "changes": [
+          {
+            "sql": {
+              "sql": "DROP INDEX IF EXISTS idx_dictionary_stats_import_count; DROP INDEX IF EXISTS idx_dictionary_stats_published_at; DROP INDEX IF EXISTS idx_dictionary_stats_language_pair; CREATE INDEX idx_dictionary_stats_listed_newest ON dictionary_stats (published_at DESC, dictionary_id) WHERE is_listed; CREATE INDEX idx_dictionary_stats_listed_popular ON dictionary_stats (import_count DESC, published_at DESC, dictionary_id) WHERE is_listed; CREATE INDEX idx_dictionary_stats_listed_lang_pair ON dictionary_stats (lang_pair) WHERE is_listed;"
+            }
+          }
+        ],
+        "rollback": [
+          {
+            "sql": {
+              "sql": "DROP INDEX IF EXISTS idx_dictionary_stats_listed_newest; DROP INDEX IF EXISTS idx_dictionary_stats_listed_popular; DROP INDEX IF EXISTS idx_dictionary_stats_listed_lang_pair; CREATE INDEX idx_dictionary_stats_import_count ON dictionary_stats (import_count); CREATE INDEX idx_dictionary_stats_published_at ON dictionary_stats (published_at); CREATE INDEX idx_dictionary_stats_language_pair ON dictionary_stats (from_lang, to_lang);"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

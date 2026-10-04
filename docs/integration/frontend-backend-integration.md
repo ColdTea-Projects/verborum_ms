@@ -128,7 +128,7 @@ backend (BE task P3-05).
 `GET/POST /users/{userId}/vault`, `DELETE /users/{userId}/vault/{dictionaryId}`.
 
 **ms_marketplace — live since BE Phase 4 (2026-09-27):** `GET /marketplace/dictionaries`
-(paginated), `…/popular`, `…/language?from=EN&to=DE`, `…/publisher/{publisherId}`,
+(paginated, `?pair=EN-TR` filter since 2026-10-04), `…/popular`, `…/publisher/{publisherId}`,
 `POST /marketplace/dictionaries/{id}/import`. Full client guide — endpoints, flows, security rules and
 per-platform notes: `docs/integration/marketplace-client-guide.md`.
 

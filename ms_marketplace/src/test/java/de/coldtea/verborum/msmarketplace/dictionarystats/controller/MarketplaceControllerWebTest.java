@@ -4,9 +4,10 @@ import de.coldtea.verborum.msmarketplace.common.config.SecurityConfig;
 import de.coldtea.verborum.msmarketplace.common.exception.GlobalExceptionHandler;
 import de.coldtea.verborum.msmarketplace.common.exception.RecordNotFoundException;
 import de.coldtea.verborum.msmarketplace.common.exception.SelfImportException;
-import de.coldtea.verborum.msmarketplace.common.response.PageResponse;
+import de.coldtea.verborum.msmarketplace.common.response.SliceResponse;
 import de.coldtea.verborum.msmarketplace.dictionaryimport.service.DictionaryImportService;
 import de.coldtea.verborum.msmarketplace.dictionarystats.dto.DictionaryListingResponseDTO;
+import de.coldtea.verborum.msmarketplace.dictionarystats.dto.ListingFilter;
 import de.coldtea.verborum.msmarketplace.dictionarystats.service.DictionaryStatsService;
 
 import org.junit.jupiter.api.Test;
@@ -21,8 +22,8 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -34,7 +35,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 /**
- * Web-layer tests for marketplace browse (P4-06): the real security chain, the parameter validation
+ * Web-layer tests for marketplace browse (P4-06, P4-11): the real security chain, the parameter validation
  * that turns bad input into 400s, and the paging envelope's JSON shape — the contract clients build
  * against.
  */
@@ -58,8 +59,8 @@ class MarketplaceControllerWebTest {
     @MockBean
     private JwtDecoder jwtDecoder;
 
-    private static PageResponse<DictionaryListingResponseDTO> onePage() {
-        return PageResponse.<DictionaryListingResponseDTO>builder()
+    private static SliceResponse<DictionaryListingResponseDTO> oneSlice() {
+        return SliceResponse.<DictionaryListingResponseDTO>builder()
                 .items(List.of(DictionaryListingResponseDTO.builder()
                         .dictionaryId("dict1")
                         .publisherId(PUBLISHER)
@@ -71,8 +72,7 @@ class MarketplaceControllerWebTest {
                         .build()))
                 .page(0)
                 .size(20)
-                .totalElements(1)
-                .totalPages(1)
+                .hasNext(true)
                 .build();
     }
 
@@ -84,7 +84,7 @@ class MarketplaceControllerWebTest {
 
     @Test
     void getListings_DefaultsAndEnvelopeShape() throws Exception {
-        when(dictionaryStatsService.getListings(0, 20)).thenReturn(onePage());
+        when(dictionaryStatsService.getListings(ListingFilter.NONE, 0, 20)).thenReturn(oneSlice());
 
         mockMvc.perform(get("/marketplace/dictionaries").with(jwt().jwt(j -> j.subject(SUB))))
                 .andExpect(status().isOk())
@@ -98,42 +98,95 @@ class MarketplaceControllerWebTest {
                 .andExpect(jsonPath("$.items[0].sourceUpdatedAt").doesNotExist())
                 .andExpect(jsonPath("$.page").value(0))
                 .andExpect(jsonPath("$.size").value(20))
-                .andExpect(jsonPath("$.totalElements").value(1))
-                .andExpect(jsonPath("$.totalPages").value(1));
+                .andExpect(jsonPath("$.hasNext").value(true))
+                // infinite scroll (P4-11): no totals, so no count query behind them
+                .andExpect(jsonPath("$.totalElements").doesNotExist())
+                .andExpect(jsonPath("$.totalPages").doesNotExist());
         // the stub only matches page=0, size=20, so a green run also proves the defaults
     }
 
     @Test
     void getPopularListings_PassesPaging() throws Exception {
-        when(dictionaryStatsService.getPopularListings(1, 50)).thenReturn(onePage());
+        when(dictionaryStatsService.getPopularListings(ListingFilter.NONE, 1, 50)).thenReturn(oneSlice());
 
         mockMvc.perform(get("/marketplace/dictionaries/popular?page=1&size=50").with(jwt().jwt(j -> j.subject(SUB))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items[0].dictionaryId").value("dict1"));
     }
 
-    @Test
-    void getListingsByLanguage_LowercaseCodesAccepted() throws Exception {
-        when(dictionaryStatsService.getListingsByLanguage("en", "de", 0, 20)).thenReturn(onePage());
+    // ---- language-pair filter (P4-11) ----
 
-        mockMvc.perform(get("/marketplace/dictionaries/language?from=en&to=de").with(jwt().jwt(j -> j.subject(SUB))))
-                .andExpect(status().isOk());
+    @Test
+    void getListings_RepeatedPairs_PassedAsSentInAnyCase() throws Exception {
+        // Normalising is the service's job; the controller hands over what was validated
+        when(dictionaryStatsService.getListings(new ListingFilter(List.of("en-tr", "FR-DE")), 0, 20)).thenReturn(oneSlice());
+
+        mockMvc.perform(get("/marketplace/dictionaries?pair=en-tr&pair=FR-DE").with(jwt().jwt(j -> j.subject(SUB))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].dictionaryId").value("dict1"));
     }
 
     @Test
-    void getListingsByLanguage_UnsupportedCode_Is400() throws Exception {
-        mockMvc.perform(get("/marketplace/dictionaries/language?from=XX&to=DE").with(jwt().jwt(j -> j.subject(SUB))))
+    void getListings_CommaSeparatedPairs_AlsoAccepted() throws Exception {
+        when(dictionaryStatsService.getListings(new ListingFilter(List.of("EN-TR", "FR-DE")), 0, 20)).thenReturn(oneSlice());
+
+        mockMvc.perform(get("/marketplace/dictionaries?pair=EN-TR,FR-DE").with(jwt().jwt(j -> j.subject(SUB))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].dictionaryId").value("dict1"));
+    }
+
+    @Test
+    void getPopularListings_PairFilter_Passed() throws Exception {
+        when(dictionaryStatsService.getPopularListings(new ListingFilter(List.of("DE-TR")), 0, 20)).thenReturn(oneSlice());
+
+        mockMvc.perform(get("/marketplace/dictionaries/popular?pair=DE-TR").with(jwt().jwt(j -> j.subject(SUB))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].dictionaryId").value("dict1"));
+    }
+
+    @Test
+    void getListings_UnsupportedLanguageInPair_Is400() throws Exception {
+        mockMvc.perform(get("/marketplace/dictionaries?pair=EN-TR&pair=EN-XX").with(jwt().jwt(j -> j.subject(SUB))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("HandlerMethodValidationException"))
+                .andExpect(jsonPath("$.errorDetail").value("pair: must be two different supported language codes, e.g. EN-TR"));
+
+        verify(dictionaryStatsService, never()).getListings(any(), anyInt(), anyInt());
+    }
+
+    @Test
+    void getPopularListings_SameLanguageTwice_Is400() throws Exception {
+        mockMvc.perform(get("/marketplace/dictionaries/popular?pair=EN-EN").with(jwt().jwt(j -> j.subject(SUB))))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("HandlerMethodValidationException"));
 
-        verify(dictionaryStatsService, never()).getListingsByLanguage(anyString(), anyString(), anyInt(), anyInt());
+        verify(dictionaryStatsService, never()).getPopularListings(any(), anyInt(), anyInt());
     }
 
     @Test
-    void getListingsByLanguage_MissingParameter_Is400() throws Exception {
-        mockMvc.perform(get("/marketplace/dictionaries/language?from=EN").with(jwt().jwt(j -> j.subject(SUB))))
+    void getListings_MalformedPair_Is400() throws Exception {
+        mockMvc.perform(get("/marketplace/dictionaries?pair=ENTR").with(jwt().jwt(j -> j.subject(SUB))))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("MissingServletRequestParameterException"));
+                .andExpect(jsonPath("$.error").value("HandlerMethodValidationException"));
+    }
+
+    @Test
+    void getListings_MoreThanTenPairs_Is400() throws Exception {
+        String pairs = "pair=EN-DE&pair=EN-FR&pair=EN-ES&pair=EN-IT&pair=EN-PT&pair=EN-NL"
+                + "&pair=EN-TR&pair=EN-AZ&pair=EN-LT&pair=EN-PL&pair=EN-UK";
+
+        mockMvc.perform(get("/marketplace/dictionaries?" + pairs).with(jwt().jwt(j -> j.subject(SUB))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorDetail").value("pair: at most 10 language pairs"));
+
+        verify(dictionaryStatsService, never()).getListings(any(), anyInt(), anyInt());
+    }
+
+    @Test
+    void getListingsByLanguage_EndpointRemoved_Is404() throws Exception {
+        // Replaced by ?pair= (P4-11); a client still calling it must fail visibly, not get everything
+        mockMvc.perform(get("/marketplace/dictionaries/language?from=EN&to=DE").with(jwt().jwt(j -> j.subject(SUB))))
+                .andExpect(status().isNotFound());
     }
 
     @Test
@@ -202,7 +255,7 @@ class MarketplaceControllerWebTest {
     @Test
     void getListingsByPublisher_PassesThePathIdNotTheCaller() throws Exception {
         // Browsing someone else's listings is the point — the caller's own subject must not be substituted
-        when(dictionaryStatsService.getListingsByPublisher(PUBLISHER, 0, 20)).thenReturn(onePage());
+        when(dictionaryStatsService.getListingsByPublisher(PUBLISHER, 0, 20)).thenReturn(oneSlice());
 
         mockMvc.perform(get("/marketplace/dictionaries/publisher/" + PUBLISHER).with(jwt().jwt(j -> j.subject(SUB))))
                 .andExpect(status().isOk())

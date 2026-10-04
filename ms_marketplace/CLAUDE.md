@@ -15,8 +15,8 @@ request time — decided 2026-07-23, see roadmap `P4-03`.
 - **Base package:** `de.coldtea.verborum.msmarketplace`
 - **Status:** Scaffolded (P4-01), `dictionary_stats` table (P4-02), listing projection +
   snapshot reconciliation fed by ms_dictionary events (P4-03), private → hidden (P4-04),
-  deletion and `user.deleted` (P4-05), browse API (P4-06), import + `dictionary.imported` (P4-07).
-  Phase 4 work left here: none; P4-10 (public read) is in ms_dictionary.
+  deletion and `user.deleted` (P4-05), browse API (P4-06), import + `dictionary.imported` (P4-07),
+  language-pair filter + slices + browse indexes (P4-11). Next: tag filter (P4-12), publisher names (P4-13).
 
 ## Entities
 - `DictionaryStats` (`dictionary_stats`) — `dictionaryId` (PK, ms_dictionary's id, no DB FK),
@@ -24,6 +24,8 @@ request time — decided 2026-07-23, see roadmap `P4-03`.
   `publishedAt`, `sourceUpdatedAt`, `createdAt`/`updatedAt`. Migration `2026/09/27-01-changelog.json`.
   - `sourceUpdatedAt` is ms_dictionary's `updatedAt` — compare against it to drop stale events.
     `updatedAt` is only when this row was written. Do not mix them up.
+  - `langPair` (`lang_pair`, P4-11) — `fromLang`/`toLang` without direction, alphabetical. Derived
+    in the service from the two languages; never set it on its own. Migration `2026/10/04-01`.
   - `importCount` must be set to 0 explicitly on create; the column default does not apply through
     Hibernate.
   - `isListed` (`is_listed`, P4-04) — false means the dictionary went private. The row is kept on
@@ -73,21 +75,29 @@ request time — decided 2026-07-23, see roadmap `P4-03`.
 - `RabbitMQConfig` mirrors the other services: same exchange, fanout DLX + DLQ, ISO-8601 converter
   with `INFERRED` type precedence (ms_dictionary's `__TypeId__` names classes that do not exist here).
 
-## API — MarketplaceController (`/marketplace/dictionaries`, P4-06)
-- `GET` (newest first) · `GET /popular` (most imported) · `GET /language?from=&to=` ·
+## API — MarketplaceController (`/marketplace/dictionaries`, P4-06, P4-11)
+- `GET` (newest first) · `GET /popular` (most imported) — both take the optional filters ·
   `GET /publisher/{publisherId}` — all paginated (`page` 0-based default 0, `size` default 20, max 100),
   all **listed rows only**. Contract table in `docs/agent/verborum.md`.
-- Returns `common/response/PageResponse` — Verborum's own paging envelope. Reuse it for any future
-  paged read rather than returning Spring's `Page`.
+- Filters (P4-11): `pair=EN-TR` (repeatable, max 10, `@LanguagePair` per element). Direction is
+  ignored via the `lang_pair` column — both codes alphabetical, set by `LanguagePairUtils` on **every**
+  write path that sets the languages (keep it that way; the column is NOT NULL). Tags (P4-12) and
+  publisher name (P4-13) join `ListingFilter` and `DictionaryStatsSpecifications` next.
+- Returns `common/response/SliceResponse` `{items, page, size, hasNext}` — infinite scroll, no count
+  query. Reuse it for any future paged read. Browse goes through `findSlice` (the
+  `DictionaryStatsSliceRepository` fragment, size + 1 rows), never `findAll(spec, pageable)`, which
+  counts.
+- `DictionaryStatsSpecifications.isListed()` must stay a literal (`isTrue`): the browse indexes are
+  partial `WHERE is_listed`, and a bound parameter can stop Postgres from using them.
 - Every sort ends in `dictionaryId` so ties are stable across pages; the sorts live as constants in
   `DictionaryStatsServiceImpl`.
-- Parameter constraints (`@Min`/`@Max`, `@SupportedLanguage`) run via Spring MVC's built-in method
+- Parameter constraints (`@Min`/`@Max`, `@Size`, `@LanguagePair`) run via Spring MVC's built-in method
   validation → `HandlerMethodValidationException` → 400. **Do not add class-level `@Validated`** —
   that switches to AOP validation and a `ConstraintViolationException` nobody handles.
 - `SupportedLanguage` and `ValidUUID` have `@Constraint` and validators that return false — the same
   in all three services since P4-09.
 - Language codes are stored and returned **uppercase** (normalized on write, `Locale.ROOT`).
-- `publisherId` = the owner's JWT subject (`fk_user_id`). Safe to expose; no display name (BL-04).
+- `publisherId` = the owner's JWT subject (`fk_user_id`). Safe to expose; no display name yet (P4-13).
 
 - `POST /{dictionaryId}/import` (P4-07) — the one write. Importer = token subject. 404 hidden or
   unknown (never reveal a private dictionary exists), 400 `SelfImportException` for your own, 201

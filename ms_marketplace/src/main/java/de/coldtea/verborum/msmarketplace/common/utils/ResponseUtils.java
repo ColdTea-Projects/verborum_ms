@@ -1,9 +1,9 @@
 package de.coldtea.verborum.msmarketplace.common.utils;
 
-import de.coldtea.verborum.msmarketplace.common.response.PageResponse;
 import de.coldtea.verborum.msmarketplace.common.response.Response;
+import de.coldtea.verborum.msmarketplace.common.response.SliceResponse;
 import lombok.AllArgsConstructor;
-import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Slice;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.context.request.WebRequest;
@@ -25,14 +25,13 @@ public class ResponseUtils {
         return request.getDescription(false).replaceFirst("^uri=", "");
     }
 
-    /** Copies a Spring `Page` into the public paging envelope; see {@link PageResponse}. */
-    public static <T> PageResponse<T> toPageResponse(Page<T> page) {
-        return PageResponse.<T>builder()
-                .items(page.getContent())
-                .page(page.getNumber())
-                .size(page.getSize())
-                .totalElements(page.getTotalElements())
-                .totalPages(page.getTotalPages())
+    /** Copies a Spring `Slice` into the public paging envelope; see {@link SliceResponse}. */
+    public static <T> SliceResponse<T> toSliceResponse(Slice<T> slice) {
+        return SliceResponse.<T>builder()
+                .items(slice.getContent())
+                .page(slice.getNumber())
+                .size(slice.getSize())
+                .hasNext(slice.hasNext())
                 .build();
     }
 }

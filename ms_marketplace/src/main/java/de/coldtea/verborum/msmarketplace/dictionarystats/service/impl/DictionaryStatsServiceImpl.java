@@ -6,10 +6,12 @@ import de.coldtea.verborum.msmarketplace.common.event.DictionarySnapshotEvent;
 import de.coldtea.verborum.msmarketplace.common.event.DictionaryUpdatedEvent;
 import de.coldtea.verborum.msmarketplace.common.event.DictionaryVisibilityEvent;
 import de.coldtea.verborum.msmarketplace.common.mapper.DictionaryStatsMapper;
-import de.coldtea.verborum.msmarketplace.common.response.PageResponse;
+import de.coldtea.verborum.msmarketplace.common.response.SliceResponse;
+import de.coldtea.verborum.msmarketplace.common.utils.LanguagePairUtils;
 import de.coldtea.verborum.msmarketplace.dictionaryimport.entity.DictionaryImport;
 import de.coldtea.verborum.msmarketplace.dictionaryimport.repository.DictionaryImportRepository;
 import de.coldtea.verborum.msmarketplace.dictionarystats.dto.DictionaryListingResponseDTO;
+import de.coldtea.verborum.msmarketplace.dictionarystats.dto.ListingFilter;
 import de.coldtea.verborum.msmarketplace.dictionarystats.entity.DictionaryStats;
 import de.coldtea.verborum.msmarketplace.dictionarystats.repository.DictionaryStatsRepository;
 import de.coldtea.verborum.msmarketplace.dictionarystats.service.DictionaryStatsService;
@@ -18,6 +20,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
@@ -31,7 +34,11 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static de.coldtea.verborum.msmarketplace.common.utils.ResponseUtils.toPageResponse;
+import static de.coldtea.verborum.msmarketplace.common.utils.LanguagePairUtils.toLangPair;
+import static de.coldtea.verborum.msmarketplace.common.utils.ResponseUtils.toSliceResponse;
+import static de.coldtea.verborum.msmarketplace.dictionarystats.repository.DictionaryStatsSpecifications.hasLangPairIn;
+import static de.coldtea.verborum.msmarketplace.dictionarystats.repository.DictionaryStatsSpecifications.isListed;
+import static de.coldtea.verborum.msmarketplace.dictionarystats.repository.DictionaryStatsSpecifications.isPublishedBy;
 
 /**
  * Every write here is "apply this state if it is newer than what I hold" (rule 4), with the
@@ -60,29 +67,18 @@ public class DictionaryStatsServiceImpl implements DictionaryStatsService {
     private final DictionaryImportRepository dictionaryImportRepository;
 
     @Override
-    public PageResponse<DictionaryListingResponseDTO> getListings(int page, int size) {
-        return toPageResponse(dictionaryStatsRepository.findByIsListedTrue(PageRequest.of(page, size, NEWEST_FIRST))
-                .map(dictionaryStatsMapper::toDictionaryListingResponseDTO));
+    public SliceResponse<DictionaryListingResponseDTO> getListings(ListingFilter filter, int page, int size) {
+        return browse(toSpecification(filter), PageRequest.of(page, size, NEWEST_FIRST));
     }
 
     @Override
-    public PageResponse<DictionaryListingResponseDTO> getPopularListings(int page, int size) {
-        return toPageResponse(dictionaryStatsRepository.findByIsListedTrue(PageRequest.of(page, size, MOST_IMPORTED_FIRST))
-                .map(dictionaryStatsMapper::toDictionaryListingResponseDTO));
+    public SliceResponse<DictionaryListingResponseDTO> getPopularListings(ListingFilter filter, int page, int size) {
+        return browse(toSpecification(filter), PageRequest.of(page, size, MOST_IMPORTED_FIRST));
     }
 
     @Override
-    public PageResponse<DictionaryListingResponseDTO> getListingsByLanguage(String fromLang, String toLang, int page, int size) {
-        return toPageResponse(dictionaryStatsRepository.findByIsListedTrueAndFromLangAndToLang(
-                        normalizeLanguage(fromLang), normalizeLanguage(toLang), PageRequest.of(page, size, NEWEST_FIRST))
-                .map(dictionaryStatsMapper::toDictionaryListingResponseDTO));
-    }
-
-    @Override
-    public PageResponse<DictionaryListingResponseDTO> getListingsByPublisher(String publisherId, int page, int size) {
-        return toPageResponse(dictionaryStatsRepository.findByIsListedTrueAndUserId(
-                        publisherId, PageRequest.of(page, size, NEWEST_FIRST))
-                .map(dictionaryStatsMapper::toDictionaryListingResponseDTO));
+    public SliceResponse<DictionaryListingResponseDTO> getListingsByPublisher(String publisherId, int page, int size) {
+        return browse(isListed().and(isPublishedBy(publisherId)), PageRequest.of(page, size, NEWEST_FIRST));
     }
 
     @Transactional
@@ -267,6 +263,30 @@ public class DictionaryStatsServiceImpl implements DictionaryStatsService {
                 entries.size(), toSave.size(), toRemove.size());
     }
 
+    private SliceResponse<DictionaryListingResponseDTO> browse(Specification<DictionaryStats> specification,
+                                                               PageRequest pageRequest) {
+        return toSliceResponse(dictionaryStatsRepository.findSlice(specification, pageRequest)
+                .map(dictionaryStatsMapper::toDictionaryListingResponseDTO));
+    }
+
+    /**
+     * Listed rows, narrowed by each filter the request set. Requested pairs are made canonical the same
+     * way the stored ones are, so `TR-DE` and `de-tr` both match DE→TR and TR→DE listings; duplicates
+     * collapse in the set.
+     */
+    private static Specification<DictionaryStats> toSpecification(ListingFilter filter) {
+        Specification<DictionaryStats> specification = isListed();
+
+        if (filter.pairs() != null && !filter.pairs().isEmpty()) {
+            Set<String> langPairs = filter.pairs().stream()
+                    .map(LanguagePairUtils::toLangPair)
+                    .collect(Collectors.toSet());
+            specification = specification.and(hasLangPairIn(langPairs));
+        }
+
+        return specification;
+    }
+
     private static DictionaryStats newRow(String dictionaryId, String userId, String name, String fromLang,
                                           String toLang, OffsetDateTime sourceUpdatedAt, boolean listed) {
         return DictionaryStats.builder()
@@ -275,6 +295,7 @@ public class DictionaryStatsServiceImpl implements DictionaryStatsService {
                 .name(name)
                 .fromLang(normalizeLanguage(fromLang))
                 .toLang(normalizeLanguage(toLang))
+                .langPair(toLangPair(fromLang, toLang))
                 // Both explicit — the column defaults do not apply through Hibernate (see the entity)
                 .isListed(listed)
                 .importCount(0)
@@ -305,12 +326,13 @@ public class DictionaryStatsServiceImpl implements DictionaryStatsService {
         listing.setName(name);
         listing.setFromLang(normalizeLanguage(fromLang));
         listing.setToLang(normalizeLanguage(toLang));
+        listing.setLangPair(toLangPair(fromLang, toLang));
         listing.setSourceUpdatedAt(sourceUpdatedAt);
     }
 
     /**
-     * Language codes are stored uppercase so the language filter is a plain indexed equality
-     * (decided at P4-06). ms_dictionary validates case-insensitively but stores codes exactly as the
+     * Language codes are stored uppercase (decided at P4-06), and `lang_pair` is built from the same
+     * uppercase codes, so the pair filter is a plain indexed equality (P4-11). ms_dictionary validates case-insensitively but stores codes exactly as the
      * client sent them, so events arrive as `en` as often as `EN`. Locale.ROOT, not the default
      * locale: TR is a supported language, and Turkish uppercasing turns `i` into `İ`.
      */

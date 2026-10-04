@@ -6,10 +6,11 @@ import de.coldtea.verborum.msmarketplace.common.event.DictionarySnapshotEvent;
 import de.coldtea.verborum.msmarketplace.common.event.DictionaryUpdatedEvent;
 import de.coldtea.verborum.msmarketplace.common.event.DictionaryVisibilityEvent;
 import de.coldtea.verborum.msmarketplace.common.mapper.DictionaryStatsMapper;
-import de.coldtea.verborum.msmarketplace.common.response.PageResponse;
+import de.coldtea.verborum.msmarketplace.common.response.SliceResponse;
 import de.coldtea.verborum.msmarketplace.dictionaryimport.entity.DictionaryImport;
 import de.coldtea.verborum.msmarketplace.dictionaryimport.repository.DictionaryImportRepository;
 import de.coldtea.verborum.msmarketplace.dictionarystats.dto.DictionaryListingResponseDTO;
+import de.coldtea.verborum.msmarketplace.dictionarystats.dto.ListingFilter;
 import de.coldtea.verborum.msmarketplace.dictionarystats.entity.DictionaryStats;
 import de.coldtea.verborum.msmarketplace.dictionarystats.repository.DictionaryStatsRepository;
 
@@ -19,23 +20,20 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.SliceImpl;
 import org.springframework.data.domain.Sort;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
-import java.util.Locale;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 class DictionaryStatsServiceImplTest {
@@ -64,93 +62,130 @@ class DictionaryStatsServiceImplTest {
         MockitoAnnotations.openMocks(this);
     }
 
-    // ---- browse (P4-06) ----
+    // ---- browse (P4-06; filters and slices P4-11) ----
+    // The Specification is a lambda tree and is not asserted here; that the filters select the right
+    // rows is verified against Postgres (see the P4-11 roadmap entry). These pin paging, sort and shape
 
     @Test
     void getListings_NewestFirstWithStableTieBreak() {
         // Arrange
         DictionaryStats listing = listing("Travel", T1);
         DictionaryListingResponseDTO dto = DictionaryListingResponseDTO.builder().dictionaryId(DICTIONARY_ID).build();
-        when(dictionaryStatsRepository.findByIsListedTrue(any(Pageable.class)))
-                .thenReturn(new PageImpl<>(List.of(listing), PageRequest.of(2, 5), 11));
+        when(dictionaryStatsRepository.findSlice(any(), any(Pageable.class)))
+                .thenReturn(new SliceImpl<>(List.of(listing), PageRequest.of(2, 5), true));
         when(dictionaryStatsMapper.toDictionaryListingResponseDTO(listing)).thenReturn(dto);
 
         // Act
-        PageResponse<DictionaryListingResponseDTO> result = dictionaryStatsService.getListings(2, 5);
+        SliceResponse<DictionaryListingResponseDTO> result = dictionaryStatsService.getListings(ListingFilter.NONE, 2, 5);
 
         // Assert
-        ArgumentCaptor<Pageable> captor = ArgumentCaptor.forClass(Pageable.class);
-        verify(dictionaryStatsRepository).findByIsListedTrue(captor.capture());
-        assertEquals(2, captor.getValue().getPageNumber());
-        assertEquals(5, captor.getValue().getPageSize());
-        assertEquals(Sort.by(Sort.Order.desc("publishedAt"), Sort.Order.asc("dictionaryId")), captor.getValue().getSort());
+        Pageable pageable = capturedPageable();
+        assertEquals(2, pageable.getPageNumber());
+        assertEquals(5, pageable.getPageSize());
+        assertEquals(Sort.by(Sort.Order.desc("publishedAt"), Sort.Order.asc("dictionaryId")), pageable.getSort());
 
         assertEquals(List.of(dto), result.getItems());
         assertEquals(2, result.getPage());
         assertEquals(5, result.getSize());
-        assertEquals(11, result.getTotalElements());
-        assertEquals(3, result.getTotalPages());
+        assertTrue(result.isHasNext());
+    }
+
+    @Test
+    void getListings_LastSlice_HasNoNext() {
+        // Arrange
+        when(dictionaryStatsRepository.findSlice(any(), any(Pageable.class)))
+                .thenReturn(new SliceImpl<>(List.of(), PageRequest.of(0, 20), false));
+
+        // Act
+        SliceResponse<DictionaryListingResponseDTO> result =
+                dictionaryStatsService.getListings(new ListingFilter(List.of("EN-TR", "de-fr")), 0, 20);
+
+        // Assert
+        assertTrue(result.getItems().isEmpty());
+        assertFalse(result.isHasNext());
     }
 
     @Test
     void getPopularListings_MostImportedFirst() {
         // Arrange
-        when(dictionaryStatsRepository.findByIsListedTrue(any(Pageable.class))).thenReturn(Page.empty());
+        when(dictionaryStatsRepository.findSlice(any(), any(Pageable.class))).thenReturn(new SliceImpl<>(List.of()));
 
         // Act
-        dictionaryStatsService.getPopularListings(0, 20);
+        dictionaryStatsService.getPopularListings(new ListingFilter(List.of("EN-TR")), 0, 20);
 
         // Assert
-        ArgumentCaptor<Pageable> captor = ArgumentCaptor.forClass(Pageable.class);
-        verify(dictionaryStatsRepository).findByIsListedTrue(captor.capture());
         assertEquals(Sort.by(Sort.Order.desc("importCount"), Sort.Order.desc("publishedAt"), Sort.Order.asc("dictionaryId")),
-                captor.getValue().getSort());
+                capturedPageable().getSort());
     }
 
     @Test
-    void getListingsByLanguage_QueriesUppercaseCodes() {
-        // Arrange — stored codes are uppercase; a client sending "en" must still match
-        when(dictionaryStatsRepository.findByIsListedTrueAndFromLangAndToLang(eq("EN"), eq("DE"), any(Pageable.class)))
-                .thenReturn(Page.empty());
-
-        // Act
-        PageResponse<DictionaryListingResponseDTO> result = dictionaryStatsService.getListingsByLanguage("en", "de", 0, 20);
-
-        // Assert
-        verify(dictionaryStatsRepository).findByIsListedTrueAndFromLangAndToLang(eq("EN"), eq("DE"), any(Pageable.class));
-        assertTrue(result.getItems().isEmpty());
-        assertEquals(0, result.getTotalElements());
-    }
-
-    @Test
-    void getListingsByLanguage_TurkishLowercaseI_UppercasedLocaleIndependently() {
-        // Arrange — "tr" must become "TR", never "TR" with a dotted İ under a Turkish default locale
-        when(dictionaryStatsRepository.findByIsListedTrueAndFromLangAndToLang(any(), any(), any(Pageable.class)))
-                .thenReturn(Page.empty());
-        Locale previous = Locale.getDefault();
-        Locale.setDefault(Locale.forLanguageTag("tr"));
-
-        try {
-            // Act
-            dictionaryStatsService.getListingsByLanguage("it", "tr", 0, 20);
-        } finally {
-            Locale.setDefault(previous);
-        }
-
-        // Assert
-        verify(dictionaryStatsRepository).findByIsListedTrueAndFromLangAndToLang(eq("IT"), eq("TR"), any(Pageable.class));
-    }
-
-    @Test
-    void getListingsByPublisher_FiltersOnThePublisherId() {
+    void getListingsByPublisher_NewestFirst() {
         // Arrange
-        when(dictionaryStatsRepository.findByIsListedTrueAndUserId(eq(OWNER), any(Pageable.class))).thenReturn(Page.empty());
+        when(dictionaryStatsRepository.findSlice(any(), any(Pageable.class))).thenReturn(new SliceImpl<>(List.of()));
 
         // Act
-        dictionaryStatsService.getListingsByPublisher(OWNER, 0, 20);
+        dictionaryStatsService.getListingsByPublisher(OWNER, 1, 20);
 
         // Assert
-        verify(dictionaryStatsRepository).findByIsListedTrueAndUserId(eq(OWNER), any(Pageable.class));
+        Pageable pageable = capturedPageable();
+        assertEquals(1, pageable.getPageNumber());
+        assertEquals(Sort.by(Sort.Order.desc("publishedAt"), Sort.Order.asc("dictionaryId")), pageable.getSort());
+    }
+
+    // ---- lang_pair (P4-11): set from the languages on every write, without direction ----
+
+    @Test
+    void publishListing_NewDictionary_LangPairIsAlphabeticalWhateverTheDirection() {
+        // Arrange — TR→DE and DE→TR must land on the same pair
+        when(dictionaryStatsRepository.findById(DICTIONARY_ID)).thenReturn(Optional.empty());
+        DictionaryVisibilityEvent event = publicEvent("Mutfak", T2);
+        event.setFromLang("tr");
+        event.setToLang("de");
+
+        // Act
+        dictionaryStatsService.publishListing(event);
+
+        // Assert
+        DictionaryStats saved = capturedSave();
+        assertEquals("TR", saved.getFromLang());
+        assertEquals("DE", saved.getToLang());
+        assertEquals("DE-TR", saved.getLangPair());
+    }
+
+    @Test
+    void updateListing_LanguageChanged_LangPairFollows() {
+        // Arrange — EN→DE becomes EN→FR
+        when(dictionaryStatsRepository.findById(DICTIONARY_ID)).thenReturn(Optional.of(listing("Old", T1)));
+
+        // Act
+        dictionaryStatsService.updateListing(updatedEvent("Renamed", "fr", T2));
+
+        // Assert
+        assertEquals("EN-FR", capturedSave().getLangPair());
+    }
+
+    @Test
+    void hideListing_NoRow_HiddenRowHasLangPair() {
+        // Arrange — the column is NOT NULL, hidden rows included
+        when(dictionaryStatsRepository.findById(DICTIONARY_ID)).thenReturn(Optional.empty());
+
+        // Act
+        dictionaryStatsService.hideListing(privateEvent(T2));
+
+        // Assert
+        assertEquals("DE-EN", capturedSave().getLangPair());
+    }
+
+    @Test
+    void reconcile_MissingListing_IsCreatedWithLangPair() {
+        // Arrange
+        when(dictionaryStatsRepository.findAll()).thenReturn(List.of());
+
+        // Act
+        dictionaryStatsService.reconcile(snapshot(T3, entry(DICTIONARY_ID, "Travel", T2)));
+
+        // Assert
+        assertEquals("DE-EN", capturedSaveAll().get(0).getLangPair());
     }
 
     // ---- publishListing (dictionary.visibility.public) ----
@@ -652,6 +687,12 @@ class DictionaryStatsServiceImplTest {
     }
 
     // ---- helpers ----
+
+    private Pageable capturedPageable() {
+        ArgumentCaptor<Pageable> captor = ArgumentCaptor.forClass(Pageable.class);
+        verify(dictionaryStatsRepository).findSlice(any(), captor.capture());
+        return captor.getValue();
+    }
 
     private DictionaryStats capturedSave() {
         ArgumentCaptor<DictionaryStats> captor = ArgumentCaptor.forClass(DictionaryStats.class);

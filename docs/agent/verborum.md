@@ -183,6 +183,7 @@ Column-level detail, constraints and quirks (the cross-service user key is `keyc
 - dictionary_id      VARCHAR(255) PK   ← ms_dictionary's id; no DB FK (other service's database)
 - fk_user_id         VARCHAR(255)      ← owner's JWT subject (ms_user's keycloak_id)
 - name, from_lang, to_lang VARCHAR(255) ← copies, kept current by events + nightly snapshot
+- lang_pair          VARCHAR(255)      ← both codes alphabetical (DE-TR for either direction); derived, P4-11
 - is_listed          BOOLEAN, default true ← false = went private; row kept as a stale-event guard
 - import_count       INT, default 0
 - published_at       timestamptz       ← from the event, not the insert
@@ -242,25 +243,25 @@ the whole dictionary payload. The tag in the path is normalised the same way as 
 | GET | `/words/user/{userId}` | — | `List<WordResponseDTO>` |
 | GET | `/words/batch?ids=id1,id2` | — | `List<WordResponseDTO>` (empty list for no matches) |
 
-### ms_marketplace — MarketplaceController (`/marketplace/dictionaries`, P4-06)
+### ms_marketplace — MarketplaceController (`/marketplace/dictionaries`, P4-06, P4-11)
 Read-only browse, any authenticated caller. Every endpoint returns only **listed** dictionaries and
 takes `page` (zero-based, default 0, ≥ 0) and `size` (default 20, 1–100); anything else is a 400.
 
 | Method | Path | Returns |
 |---|---|---|
-| GET | `/marketplace/dictionaries` | `PageResponse<DictionaryListingResponseDTO>` — newest first |
-| GET | `/marketplace/dictionaries/popular` | same — most imported first, newest first among equals |
-| GET | `/marketplace/dictionaries/language?from=EN&to=DE` | same — one language pair, newest first; codes case-insensitive, validated (400 on unsupported or missing) |
-| GET | `/marketplace/dictionaries/publisher/{publisherId}` | same — one publisher's listings, newest first; unknown id → empty page |
+| GET | `/marketplace/dictionaries?pair=EN-TR&pair=FR-DE` | `SliceResponse<DictionaryListingResponseDTO>` — newest first. `pair` optional, repeatable or comma-separated, max 10; **direction ignored** (`EN-TR` → EN→TR and TR→EN); any case; 400 on an unsupported code, the same code twice or a malformed pair |
+| GET | `/marketplace/dictionaries/popular?pair=...` | same — most imported first, newest first among equals; same filters |
+| GET | `/marketplace/dictionaries/publisher/{publisherId}` | same — one publisher's listings, newest first; unknown id → empty slice |
 
 ```
-PageResponse                { items, page, size, totalElements, totalPages }
+SliceResponse                { items, page, size, hasNext }
 DictionaryListingResponseDTO { dictionaryId, publisherId, name, fromLang, toLang, importCount, publishedAt }
 ```
-`PageResponse` is Verborum's own paging envelope, not Spring's serialized `Page` (unstable shape).
+`SliceResponse` is Verborum's own paging envelope for infinite scroll — no totals, so no count query
+(P4-11 replaced `PageResponse`). `GET /language?from=&to=` was removed at P4-11; use `pair`.
 `publisherId` is the owner's JWT subject — the value for the publisher endpoint; it grants no access
-(ownership always comes from the caller's token). No display name yet (BL-04). Language codes come
-back uppercase.
+(ownership always comes from the caller's token). No display name yet (P4-13). Language codes come
+back uppercase. Tag (P4-12) and publisher-name (P4-13) filters are planned.
 
 | Method | Path | Returns |
 |---|---|---|

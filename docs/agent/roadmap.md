@@ -1192,6 +1192,59 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
   - **Clients:** the integration doc now says `level` is `null` on others' words — keep your own
     progress for imported words locally.
 
+### Marketplace search (added 2026-10-03)
+Users only learn some languages, so browse must filter. Agreed design, decisions and end state are in
+`docs/status/marketplace-search-plan-2026-10-03.pdf`. Filters are optional; values of one filter are
+ORed, different filters ANDed; both sorts (newest, popular) take them all. No GraphQL — it would add
+an API stack without making a query cheaper. Ordered by cross-service dependency: P4-11 needs nothing
+else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
+
+- [x] `P4-11` **Language-pair filter, slices, browse indexes** (ms_marketplace only)
+  - `GET /marketplace/dictionaries` and `/popular` take `pair=EN-TR` (repeatable, or comma-separated;
+    max 10). **Direction is ignored**: `EN-TR` returns EN→TR and TR→EN. Validated by `@LanguagePair`
+    on each list element (two different supported codes, any case) → 400.
+  - `lang_pair` column (`2026/10/04-01`): both codes in alphabetical order, derived on every write
+    by `LanguagePairUtils`, backfilled with `COLLATE "C"` so SQL and Java order alike. The filter is
+    one `lang_pair IN (...)`.
+  - **`SliceResponse {items, page, size, hasNext}` replaces `PageResponse`** on every browse endpoint
+    — infinite scroll, so no `COUNT(*)` per request. Spring Data JPA 3.2 has no count-free page for a
+    Specification, so `DictionaryStatsSliceRepository` (custom fragment) fetches size + 1 rows.
+  - Filters are `DictionaryStatsSpecifications` combined per request; the publisher endpoint uses the
+    same path. `isListed()` renders a literal so the partial indexes apply.
+  - Indexes (`2026/10/04-02`): partial `WHERE is_listed` on `(published_at DESC, dictionary_id)`,
+    `(import_count DESC, published_at DESC, dictionary_id)` and `(lang_pair)`. The single-column sort
+    indexes and `(from_lang, to_lang)` were dropped.
+  - **Removed:** `GET /marketplace/dictionaries/language` (now 404).
+  - Done 2026-10-04. Suite 96/96. **Verified live** on the local DB with a fresh build on :8097
+    (listeners off): `pair=EN-TR&pair=fr-de` returned all four directions and not a hidden EN→FR row;
+    `/popular` ordered by imports; duplicate pairs collapse; `size=2` paged with `hasNext`; `EN-XX`,
+    `EN-EN` → 400; `/language` → 404; no token → 401. Hibernate renders `where ds1_0.is_listed and
+    ds1_0.lang_pair in (...)`, and `EXPLAIN` uses `idx_dictionary_stats_listed_newest` /
+    `_popular` with no sort node. Backfill checked on the three existing dev rows. Test rows removed.
+  - **Restart any running ms_marketplace after pulling this:** `lang_pair` is NOT NULL, so an
+    instance on the old code fails every listing write (those messages go to the DLQ).
+- [ ] `P4-12` **Tag filter** (ms_dictionary + ms_marketplace) — depends on P4-11
+  - ms_dictionary: `tags` on `dictionary.visibility.public`, `dictionary.updated` and snapshot
+    entries (full state, rule 2). A tag add/remove on a **public** dictionary bumps the dictionary's
+    `updatedAt` and raises `dictionary.updated` — without the bump the marketplace drops the event as
+    stale (rule 4).
+  - ms_marketplace: `tags text[]` + GIN index (partial `WHERE is_listed`); every consumer replaces the
+    array and reconciliation compares it; `tag=` filter, **any** match (`&&`), normalised like
+    ms_dictionary (trim + lowercase, `Locale.ROOT`); `tags` on the listing DTO.
+  - Agent: `spring-boot-architect` (event change across two services).
+- [ ] `P4-13` **Publisher display names: filter and on listings** (ms_user + ms_marketplace; absorbs `BL-04`) — depends on P4-11
+  - Display name, not Keycloak username (can be an email for SSO users). Not unique; that is fine.
+    Clients require a display name and the marketplace T&C before marketplace use; ms_user keeps it
+    optional for users who never use the marketplace.
+  - ms_user: new `user.profile.updated` `{keycloakId, displayName, updatedAt, eventTimestamp}` when the
+    name is set, changed or cleared, after commit. No profile snapshot for now.
+  - ms_marketplace: `publishers (keycloak_id PK, display_name, source_updated_at)`, `pg_trgm` + trigram
+    index; stale-event guard; `user.deleted` removes the row. `publisher=` filter: case-insensitive
+    substring (`ann`/`nna` → "Anna Bauer"), min 3 chars, `%`/`_` escaped. **Listings whose publisher
+    has no display name are hidden from every browse endpoint.** `publisherName` on listings via one
+    batched lookup per page.
+  - Agent: `spring-boot-architect`.
+
 ---
 
 ## Phase 5 — API Gateway
@@ -1278,7 +1331,7 @@ if tasks are reordered, so they are safe to reference in commits and conversatio
   - **Message drafted 2026-09-27** in `docs/integration/marketplace-client-guide.md` §0 — it now also
     covers the P4-09 validation 400s, P4-10 public read, the marketplace and the web CORS gap. Still
     open until it has actually been sent to the client teams.
-- [ ] `BL-04` **Publisher display names on marketplace listings** (added 2026-09-27 at P4-06)
+- [ ] `BL-04` **Publisher display names on marketplace listings** (added 2026-09-27 at P4-06) — **moved to `P4-13` on 2026-10-03**
   - Listings carry `publisherId` only; users will want "by Anna". The name lives in ms_user, so per
     rule 5 the marketplace stores it (`publisher_name`) and keeps it current from an ms_user event —
     e.g. `user.profile.updated` carrying `keycloakId` + `displayName` — which does not exist yet

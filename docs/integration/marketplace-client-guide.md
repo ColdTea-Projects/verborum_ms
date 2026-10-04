@@ -6,7 +6,8 @@ to be followed literally. Where this file and the code in the backend repo disag
 and this file is the bug — say so rather than working around it.
 
 **Backend state this describes:** roadmap Phase 4 complete, verified against a running stack on
-**2026-09-27** (tasks P4-01 … P4-10). Nothing here is planned-only unless it says so.
+**2026-09-27** (tasks P4-01 … P4-10), plus the language-pair filter and slice paging of **P4-11**
+(2026-10-04). Nothing here is planned-only unless it says so.
 
 **Read first, and keep open:**
 - `docs/integration/frontend-backend-integration.md` — the normative contract (envelope, error shape,
@@ -21,7 +22,7 @@ Send this as-is — to the humans owning each client repo, and paste it into eac
 Claude context. It collects every backend change since the clients last synced, most of which will
 otherwise surface as unexplained 401 / 400 / 403 / 404 responses.
 
-> **Verborum backend — changes you must adapt to (as of 2026-09-27)**
+> **Verborum backend — changes you must adapt to (as of 2026-10-04)**
 >
 > 1. **ms_dictionary (`:8085`) requires a token on every call — since 2026-07-23.** Send
 >    `Authorization: Bearer <access token>` on dictionaries, words, tags and batch calls, or you get
@@ -41,8 +42,8 @@ otherwise surface as unexplained 401 / 400 / 403 / 404 responses.
 >    you can never write to someone else's dictionary (**403**). On words from someone else's
 >    dictionary, `level` is always **`null`** — it is the owner's progress, not yours.
 > 5. **The marketplace is live (`ms_marketplace`, `:8087`).** Browse public dictionaries, filter by
->    language pair or publisher, and import them into your vault. See
->    `docs/integration/marketplace-client-guide.md` in the backend repo.
+>    language pairs or publisher, and import them into your vault. Browse pages carry `hasNext`
+>    (infinite scroll), not totals. See `docs/integration/marketplace-client-guide.md` in the backend repo.
 > 6. **Word save/update messages changed.** `POST`/`PUT /words` now reply "Saved/Updated successfully
 >    into dictionary `<dictionaryId>`" instead of listing the words. Do not parse `message` — it is for
 >    humans and logs.
@@ -131,20 +132,36 @@ There is no anonymous marketplace. Token acquisition, refresh and storage are ex
 
 | Endpoint | Returns | Order |
 |---|---|---|
-| `GET /marketplace/dictionaries` | all listings | newest first |
-| `GET /marketplace/dictionaries/popular` | all listings | most imported first; newest first among equals |
-| `GET /marketplace/dictionaries/language?from=EN&to=DE` | one language pair | newest first |
+| `GET /marketplace/dictionaries?pair=EN-TR&pair=FR-DE` | listings, optionally filtered | newest first |
+| `GET /marketplace/dictionaries/popular?pair=...` | listings, same filters | most imported first; newest first among equals |
 | `GET /marketplace/dictionaries/publisher/{publisherId}` | one publisher's listings | newest first |
 
-**Paging parameters** on all four: `page` (zero-based, default `0`, must be ≥ 0) and `size`
+**Paging parameters** on all three: `page` (zero-based, default `0`, must be ≥ 0) and `size`
 (default `20`, 1–100). Out-of-range → **400**. The order is stable (ties are broken by
 `dictionaryId`), so paging does not repeat or skip items *unless* listings are added or removed while
 the user scrolls — acceptable for browsing; de-duplicate by `dictionaryId` when appending pages.
 
-**Language filter:** `from` and `to` are both **required**; codes are case-insensitive (`de` works);
-an unsupported or missing code → **400**. Listings always come back with **uppercase** codes.
+**Language-pair filter (`pair`):** optional; leave it out for every language.
+- One pair is two codes joined by a hyphen: `EN-TR`. Any case (`en-tr` works).
+- **Direction does not matter.** `pair=EN-TR` returns English→Turkish **and** Turkish→English
+  dictionaries; `pair=TR-EN` returns exactly the same.
+- Several pairs: repeat the parameter (`pair=EN-TR&pair=FR-DE`) or comma-separate them
+  (`pair=EN-TR,FR-DE`). The result is every listing in **any** of the pairs — here EN→TR, TR→EN,
+  FR→DE and DE→FR, nothing else.
+- At most **10** pairs. An unsupported code, the same code twice (`EN-EN`) or a malformed value
+  (`ENTR`, `EN-`) → **400**.
+- Recommended default when the marketplace opens: the pairs of the user's own dictionaries, e.g. a
+  user with DE→TR and EN→TR dictionaries sends `pair=DE-TR&pair=EN-TR`. Let them edit the filter.
+- Listings always come back with **uppercase** codes and their real direction in `fromLang`/`toLang`.
+
+`GET /marketplace/dictionaries/language?from=&to=` **was removed on 2026-10-04** (it now returns
+404) — use `pair`.
 
 **Publisher filter:** an unknown `publisherId` returns an **empty page**, not a 404.
+
+**Planned, not built yet:** a tag filter (`tag=`, any match) and a publisher display-name filter with
+`publisherName` on every listing (roadmap P4-12, P4-13). Listings whose publisher has no display name
+will then stop appearing — require a display name before a user publishes to the marketplace.
 
 Only **listed** (public) dictionaries are ever returned. You will never see a private or deleted one
 here.
@@ -166,8 +183,7 @@ here.
   ],
   "page": 0,
   "size": 20,
-  "totalElements": 57,
-  "totalPages": 3
+  "hasNext": true
 }
 ```
 
@@ -175,15 +191,16 @@ here.
 |---|---|
 | `items` | the listings on this page (may be empty) |
 | `page` / `size` | echo of what you asked for (defaults applied) |
-| `totalElements` / `totalPages` | across all pages; `hasMore = page + 1 < totalPages` |
+| `hasNext` | whether another page exists — request `page + 1` only while it is `true`. There are no totals: the marketplace is infinite scroll, and a count would cost the server a second query on every filter change |
 | `dictionaryId` | the dictionary's id in ms_dictionary — use it to import and to read it |
 | `publisherId` | the owner's `sub`. Pass it to the publisher endpoint for "more from this publisher"; compare it with your own `sub` to detect your own listings. **Not a display name** — do not show the raw UUID to users |
 | `name`, `fromLang`, `toLang` | copies of the dictionary's fields, kept current by the backend within seconds |
 | `importCount` | number of **distinct users** who imported it (a user importing twice counts once) |
 | `publishedAt` | when it (most recently) became public, ISO-8601 UTC. Making it private and public again resets it |
 
-This `PageResponse` shape is Verborum's own contract, not Spring's `Page` — map exactly these five
-fields and ignore unknown ones (fields may be added, never removed or renamed).
+This `SliceResponse` shape is Verborum's own contract, not Spring's `Slice` — map exactly these four
+fields and ignore unknown ones (fields may be added, never removed or renamed). It replaced
+`PageResponse` (`totalElements`, `totalPages`) on 2026-10-04.
 
 ### 4.3 Import (ms_marketplace)
 
@@ -237,9 +254,12 @@ whenever `GET /users/{userId}` returns 404, before offering the marketplace.
 
 ### 5.1 Browse screen
 1. `GET /marketplace/dictionaries?page=0&size=20` (or `/popular`) → render `items`.
-2. On scroll near the end and `page + 1 < totalPages` → request `page + 1`, append, de-duplicate by
+2. On scroll near the end and `hasNext` → request `page + 1`, append, de-duplicate by
    `dictionaryId`.
-3. Language-pair filter → `/language?from=..&to=..` (debounced); reset to page 0 on change.
+3. Language-pair filter → `?pair=..&pair=..` on the same endpoint. Pre-fill it from the user's own
+   dictionaries. Re-query on every change of the chips, reset to page 0, and **cancel the request
+   still in flight** (`collectLatest`/`flatMapLatest`, `switchMap`) so a slow, older response can never
+   overwrite a newer one.
 4. Tap a publisher → `/publisher/{publisherId}` ("More from this publisher").
 5. For each item where `publisherId == mySub`: show "Yours" and no import action.
 6. Optional preview before importing: `GET /dictionaries/dictionary/{id}` and
@@ -290,7 +310,7 @@ their dictionary (403).
 Error body (all services):
 ```json
 { "status": 400, "error": "HandlerMethodValidationException",
-  "errorDetail": "from: unsupported language code", "path": "/marketplace/dictionaries/language",
+  "errorDetail": "pair: must be two different supported language codes, e.g. EN-TR", "path": "/marketplace/dictionaries",
   "timestamp": "…" }
 ```
 
@@ -311,8 +331,8 @@ Branch on the **status code**, not on `message`/`errorDetail` text — texts are
 ### 7.1 Android (native Kotlin, `verborum_android`)
 - Reuse the existing authenticated HTTP stack (OkHttp `Authenticator` for refresh-once-on-401). Add
   ms_marketplace as another base URL in the same configuration that holds ms_dictionary / ms_user.
-- Paging: map `PageResponse` to Paging 3 (`PagingSource` keyed by page number; `nextKey = page + 1`
-  while `page + 1 < totalPages`).
+- Paging: map `SliceResponse` to Paging 3 (`PagingSource` keyed by page number; `nextKey = page + 1`
+  while `hasNext`, else `null`).
 - Local persistence for vault/imported content goes in its **own** tables, separate from owned
   dictionaries, so the sync engine can never pick them up for upload.
 - The Android client is the reference implementation for the login edge cases (email verification,
@@ -352,7 +372,7 @@ TOKEN=$(curl -s -X POST http://localhost:8180/realms/verborum/protocol/openid-co
   | sed -E 's/.*"access_token":"([^"]+)".*/\1/')
 
 curl -s -H "Authorization: Bearer $TOKEN" "http://localhost:8087/marketplace/dictionaries?size=5"
-curl -s -H "Authorization: Bearer $TOKEN" "http://localhost:8087/marketplace/dictionaries/language?from=de&to=en"
+curl -s -H "Authorization: Bearer $TOKEN" "http://localhost:8087/marketplace/dictionaries?pair=de-en&pair=EN-TR"
 curl -s -X POST -H "Authorization: Bearer $TOKEN" \
   "http://localhost:8087/marketplace/dictionaries/<dictionaryId>/import"
 ```

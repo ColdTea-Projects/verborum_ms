@@ -1,7 +1,8 @@
 package de.coldtea.verborum.msmarketplace.dictionarystats.service;
 
-import de.coldtea.verborum.msmarketplace.common.response.PageResponse;
+import de.coldtea.verborum.msmarketplace.common.response.SliceResponse;
 import de.coldtea.verborum.msmarketplace.dictionarystats.dto.DictionaryListingResponseDTO;
+import de.coldtea.verborum.msmarketplace.dictionarystats.dto.ListingFilter;
 import de.coldtea.verborum.msmarketplace.common.event.DictionaryDeletedEvent;
 import de.coldtea.verborum.msmarketplace.common.event.DictionarySnapshotEvent;
 import de.coldtea.verborum.msmarketplace.common.event.DictionaryUpdatedEvent;
@@ -19,19 +20,16 @@ import de.coldtea.verborum.msmarketplace.common.event.DictionaryVisibilityEvent;
  */
 public interface DictionaryStatsService {
 
-    // ---- Browse (P4-06). Listed rows only, paginated; any authenticated caller may read ----
+    // ---- Browse (P4-06, filters and slices P4-11). Listed rows only; any authenticated caller may read ----
 
-    /** Newest first. */
-    PageResponse<DictionaryListingResponseDTO> getListings(int page, int size);
+    /** Newest first, narrowed by whichever filters are set. */
+    SliceResponse<DictionaryListingResponseDTO> getListings(ListingFilter filter, int page, int size);
 
-    /** Most imported first, newest first among equals. */
-    PageResponse<DictionaryListingResponseDTO> getPopularListings(int page, int size);
-
-    /** One language pair, newest first. Codes in any case; they are stored uppercase. */
-    PageResponse<DictionaryListingResponseDTO> getListingsByLanguage(String fromLang, String toLang, int page, int size);
+    /** Most imported first, newest first among equals, narrowed by whichever filters are set. */
+    SliceResponse<DictionaryListingResponseDTO> getPopularListings(ListingFilter filter, int page, int size);
 
     /** One publisher's listings, newest first — "more from this publisher". */
-    PageResponse<DictionaryListingResponseDTO> getListingsByPublisher(String publisherId, int page, int size);
+    SliceResponse<DictionaryListingResponseDTO> getListingsByPublisher(String publisherId, int page, int size);
 
     // ---- Event-driven projection (P4-03..P4-05) ----
 
