@@ -1,0 +1,72 @@
+{
+  "databaseChangeLog": [
+    {
+      "changeSet": {
+        "id": "20261004-01-marketplace-members",
+        "author": "claude (P4-16)",
+        "comment": "Which users are marketplace members, as this service last heard from ms_user's user.profile.updated (P4-16). Needed for two things: recognising the join/leave transition (joining shares all the user's dictionaries, leaving makes them all private), and the rule that a member who has dictionaries keeps at least one shared. A copy, not a call to ms_user (rule 5). keycloak_id is the JWT subject = dictionaries.fk_user_id; no FK (cross-service id, and a member may have no dictionaries). source_updated_at is ms_user's profile updatedAt, the rule-4 ordering key: an event not newer than it is dropped, so a redelivered or overtaken join/leave cannot flip visibility again.",
+        "objectQuotingStrategy": "QUOTE_ONLY_RESERVED_WORDS",
+        "changes": [
+          {
+            "createTable": {
+              "tableName": "marketplace_members",
+              "columns": [
+                {
+                  "column": {
+                    "name": "keycloak_id",
+                    "type": "VARCHAR(255)",
+                    "constraints": {
+                      "nullable": false,
+                      "primaryKey": true,
+                      "primaryKeyName": "pk_marketplace_members"
+                    }
+                  }
+                },
+                {
+                  "column": {
+                    "name": "is_member",
+                    "type": "BOOLEAN",
+                    "constraints": {
+                      "nullable": false
+                    }
+                  }
+                },
+                {
+                  "column": {
+                    "name": "source_updated_at",
+                    "type": "TIMESTAMP WITH TIME ZONE",
+                    "constraints": {
+                      "nullable": false
+                    }
+                  }
+                },
+                {
+                  "column": {
+                    "name": "creation_dt",
+                    "type": "TIMESTAMP WITH TIME ZONE",
+                    "constraints": {
+                      "nullable": false
+                    }
+                  }
+                },
+                {
+                  "column": {
+                    "name": "update_dt",
+                    "type": "TIMESTAMP WITH TIME ZONE"
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        "rollback": [
+          {
+            "dropTable": {
+              "tableName": "marketplace_members"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

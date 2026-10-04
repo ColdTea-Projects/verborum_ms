@@ -46,6 +46,16 @@ Full CRUD for **Dictionaries** and **Words** — the core vocabulary store.
   `dictionary.updated`. The bump is load-bearing: the marketplace drops events not newer than what it
   holds (rule 4), and a tag write alone never touches `dictionaries.update_dt`. Re-adds, absent
   deletes and private dictionaries send nothing.
+- **Consumes `user.profile.updated` (P4-16)** on `dictionary.user.profile.updated` →
+  `MarketplaceMemberService.applyProfileUpdate`. Keeps `marketplace_members` (keycloakId, isMember,
+  sourceUpdatedAt — rule 4) and acts only on a **transition**: joining → `setVisibilityOfAll(true)`,
+  leaving → `setVisibilityOfAll(false)`, each changed dictionary saved and announced with
+  `dictionary.visibility.*`. The membership row is saved before unsharing, so the sharing rule never
+  blocks a leave. Events without `marketplaceAgreementAccepted` are ignored.
+- **Sharing rule (P4-16):** a member who has dictionaries keeps at least one public —
+  `requireMemberKeepsOneShared` on a save that hides a public dictionary or creates a private one, and
+  on deleting a public one, checked on the result (re-saving an already-private dictionary and deleting
+  a private one take nothing shared away and are not checked); `SharingRequiredException` → 400. Deleting the last dictionary outright is allowed.
 - `dictionary.snapshot` (P4-03) — every public dictionary in one message, sent by
   `common/scheduler/DictionarySnapshotScheduler` on `dictionary.snapshot.cron`
   (`DICTIONARY_SNAPSHOT_CRON`, nightly 03:00 by default; `@EnableScheduling` in `SchedulingConfig`).

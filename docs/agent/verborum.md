@@ -230,6 +230,12 @@ A read model, not a source of truth. Browse must filter `is_listed = true`. `rat
 Note: DELETE `/dictionaries/{dictionaryId}` also deletes all words of that dictionary (no DB-level FK)
 and all its tags (DB-level FK cascade).
 
+**Marketplace sharing (P4-16):** joining the marketplace makes all of the user's dictionaries public,
+leaving makes them all private (driven by `user.profile.updated`). A member who has dictionaries must
+keep at least one public: making the last one private, deleting the last public one while private ones
+remain, or creating a private one while none is public → **400** `SharingRequiredException`. Deleting
+the user's last dictionary is allowed.
+
 ### ms_dictionary — DictionaryTagController (`/dictionaries/{dictionaryId}/tags`)
 | Method | Path | Body | Returns |
 |---|---|---|---|
@@ -268,8 +274,9 @@ Owner only: every call acts on the token subject's own profile (P3-05).
 
 Profile rules (P4-14), both PUTs, 400 `InvalidProfileException`: accepting needs a non-blank
 `displayName` and a `marketplaceAgreementVersion`; while accepted, the name cannot be removed — withdraw
-(`false`) first, or in the same request. `displayName` ≤ 255, version ≤ 50. Withdrawing hides the user's
-listings and blocks new imports of them; only deleting the account deletes them. Any unique-constraint
+(`false`) first, or in the same request. `displayName` ≤ 255, version ≤ 50. Withdrawing makes all
+of the user's dictionaries private and joining makes them all public (ms_dictionary, P4-16); only
+deleting the account deletes them. Any unique-constraint
 violation in ms_user is a 409 with a fixed message (P4-15), never a 500.
 
 ### ms_marketplace — MarketplaceController (`/marketplace/dictionaries`, P4-06, P4-11..P4-15)
@@ -328,7 +335,7 @@ This is the single source of truth — every client's language enum must be a su
 | `dictionary.updated` | ms_dictionary | ms_marketplace (`marketplace.dictionary.updated`) | A public dictionary's `name`/`fromLang`/`toLang` changed and it stayed public, or a tag was actually added to/removed from it (P4-12; bumps its `updatedAt`) |
 | `dictionary.snapshot` | ms_dictionary | ms_marketplace (`marketplace.dictionary.snapshot`) | Schedule, nightly by default (`DICTIONARY_SNAPSHOT_CRON`) — every public dictionary in one message |
 | `user.deleted` | ms_user | ms_dictionary (`dictionary.user.deleted`), ms_marketplace (`marketplace.user.deleted`) | User account deleted |
-| `user.profile.updated` | ms_user | ms_marketplace (`marketplace.user.profile.updated`) | A user's display name was set, changed or cleared (P4-13), or the marketplace agreement accepted or withdrawn (P4-14). `{keycloakId, displayName, marketplaceAgreementAccepted, updatedAt, eventTimestamp}`; `displayName: null` = no name now |
+| `user.profile.updated` | ms_user | ms_marketplace (`marketplace.user.profile.updated`), ms_dictionary (`dictionary.user.profile.updated`, P4-16: joining shares all the user's dictionaries, leaving makes them all private) | A user's display name was set, changed or cleared (P4-13), or the marketplace agreement accepted or withdrawn (P4-14). `{keycloakId, displayName, marketplaceAgreementAccepted, updatedAt, eventTimestamp}`; `displayName: null` = no name now |
 | `dictionary.imported` | ms_marketplace | ms_user | User imports a public dictionary |
 | `word.created` | ms_dictionary | ms_autofil (V2) | New word added |
 

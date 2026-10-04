@@ -64,7 +64,8 @@ Durable: true
 | `dictionary.deleted` | ms_dictionary | `marketplace.dictionary.deleted` | Dictionary deleted |
 | `user.deleted` | ms_user | `dictionary.user.deleted` | Cascade cleanup in ms_dictionary |
 | `user.deleted` | ms_user | `marketplace.user.deleted` | Cascade cleanup in ms_marketplace |
-| `user.profile.updated` | ms_user | `marketplace.user.profile.updated` | Publisher display name for listings and the name filter (P4-13) |
+| `user.profile.updated` | ms_user | `marketplace.user.profile.updated` | Publisher display name and membership for listings, the name filter and the Forum gate (P4-13..P4-15) |
+| `user.profile.updated` | ms_user | `dictionary.user.profile.updated` | Join shares / leave unshares all the user's dictionaries (P4-16) |
 | `dictionary.imported` | ms_marketplace | `user.dictionary.imported` | Add to user vault |
 | `word.created` | ms_dictionary | `autofil.word.created` (V2) | Feed Autofil suggestions |
 

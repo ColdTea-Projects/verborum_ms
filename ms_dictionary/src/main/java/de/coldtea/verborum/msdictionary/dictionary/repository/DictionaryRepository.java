@@ -21,4 +21,10 @@ public interface DictionaryRepository extends JpaRepository<Dictionary, String> 
 
     // The dictionary.snapshot query (P4-03), backed by idx_dictionaries_is_public
     List<Dictionary> findByIsPublicTrue();
+
+    // The sharing rule (P4-16): the owner's other dictionaries, all and public ones, excluding the one
+    // being changed — so the check is on the result of the change
+    long countByUserIdAndDictionaryIdNot(String userId, String dictionaryId);
+
+    long countByUserIdAndIsPublicTrueAndDictionaryIdNot(String userId, String dictionaryId);
 }

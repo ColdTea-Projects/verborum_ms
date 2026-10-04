@@ -78,7 +78,8 @@ unchanged (`creation_dt`/`update_dt`/`imported_at`).
 - **Publishes `user.profile.updated`** (P4-13, P4-14) from `saveUser` and `updateProfileInfo` when
   the display name or the marketplace agreement flag actually changes. Payload
   `{keycloakId, displayName, marketplaceAgreementAccepted, updatedAt, eventTimestamp}`; ms_marketplace shows the name on listings
-  and **hides the listings of a user without one, or who has not accepted / has withdrawn**. The old name is copied out *before*
+  and **hides the listings of a user without one, or who has not accepted / has withdrawn**; ms_dictionary
+  (P4-16) makes all of the user's dictionaries public on joining and private on leaving. The old name is copied out *before*
   `saveAndFlush`, which merges onto the managed instance `findById` returned — comparing after the save
   would always see "no change" (same trap as ms_dictionary's `dictionary.updated`; a test simulates it).
   A new profile without a name, or a re-save of the same name, sends nothing.
@@ -137,7 +138,9 @@ unchanged (`creation_dt`/`update_dt`/`imported_at`).
 - **One invariant, checked on the resulting profile in both write paths:** accepted ⇒ non-blank
   `displayName`. Accepting also needs a version in the request (unless already accepted). Breaking
   either is `InvalidProfileException` → 400.
-- Withdrawing clears only the flag; version and `accepted_at` stay as the record. A new version (or an
+- Withdrawing clears only the flag here; version and `accepted_at` stay as the record. (The
+  consequence elsewhere: ms_dictionary makes all the user's dictionaries private on leaving and public
+  on joining, P4-16.) A new version (or an
   acceptance after a withdrawal) stamps a new `accepted_at`.
 - **`PUT /users/` never clears by omission:** a missing `displayName` keeps the stored one (`""`
   removes it), and the agreement fields are not part of that request at all — `UserMapper.toUser`

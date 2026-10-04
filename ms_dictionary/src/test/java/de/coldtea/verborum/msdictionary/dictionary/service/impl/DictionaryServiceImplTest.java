@@ -9,6 +9,8 @@ import de.coldtea.verborum.msdictionary.dictionary.entity.Dictionary;
 import de.coldtea.verborum.msdictionary.dictionary.repository.DictionaryRepository;
 import de.coldtea.verborum.msdictionary.tag.entity.DictionaryTag;
 import de.coldtea.verborum.msdictionary.tag.repository.DictionaryTagRepository;
+import de.coldtea.verborum.msdictionary.marketplacemember.repository.MarketplaceMemberRepository;
+import de.coldtea.verborum.msdictionary.common.exception.SharingRequiredException;
 import de.coldtea.verborum.msdictionary.word.repository.WordRepository;
 
 import de.coldtea.verborum.msdictionary.common.event.DictionaryDeletedEvent;
@@ -60,6 +62,10 @@ class DictionaryServiceImplTest {
 
     @Mock
     private DictionaryTagRepository dictionaryTagRepository;
+
+    // A non-member unless a test says otherwise (existsBy... returns false), so the sharing rule is off
+    @Mock
+    private MarketplaceMemberRepository marketplaceMemberRepository;
 
     @Mock
     private ApplicationEventPublisher eventPublisher;
@@ -948,6 +954,193 @@ class DictionaryServiceImplTest {
 
     private static DictionaryTag tag(String dictionaryId, String tag) {
         return DictionaryTag.builder().tagId(dictionaryId + "-" + tag).dictionaryId(dictionaryId).tag(tag).build();
+    }
+
+    // ---- P4-16: joining/leaving shares/unshares everything; members keep one shared ----
+
+    @Test
+    void setVisibilityOfAll_Join_PublishesEveryPrivateDictionaryAndSkipsPublicOnes() {
+        // Arrange
+        Dictionary privateOne = dictionary("dict1", false);
+        Dictionary alreadyPublic = dictionary("dict2", true);
+        when(dictionaryRepository.findByUserId(OWNER)).thenReturn(List.of(privateOne, alreadyPublic));
+        when(dictionaryRepository.saveAndFlush(privateOne)).thenReturn(privateOne);
+
+        // Act
+        int changed = dictionaryService.setVisibilityOfAll(OWNER, true);
+
+        // Assert — one visibility.public, carrying the listing payload; the public one is untouched
+        assertEquals(1, changed);
+        assertTrue(privateOne.getIsPublic());
+        verify(dictionaryRepository, never()).saveAndFlush(alreadyPublic);
+        OutboundEvent outbound = capturedEvent();
+        assertEquals(ROUTING_KEY_DICTIONARY_VISIBILITY_PUBLIC, outbound.routingKey());
+        assertEquals("dict1", ((DictionaryVisibilityEvent) outbound.payload()).getDictionaryId());
+    }
+
+    @Test
+    void setVisibilityOfAll_Leave_MakesEveryPublicDictionaryPrivate() {
+        // Arrange
+        Dictionary first = dictionary("dict1", true);
+        Dictionary second = dictionary("dict2", true);
+        when(dictionaryRepository.findByUserId(OWNER)).thenReturn(List.of(first, second));
+        when(dictionaryRepository.saveAndFlush(any(Dictionary.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        int changed = dictionaryService.setVisibilityOfAll(OWNER, false);
+
+        // Assert
+        assertEquals(2, changed);
+        assertFalse(first.getIsPublic());
+        assertFalse(second.getIsPublic());
+        ArgumentCaptor<OutboundEvent> captor = ArgumentCaptor.forClass(OutboundEvent.class);
+        verify(eventPublisher, times(2)).publishEvent(captor.capture());
+        assertTrue(captor.getAllValues().stream()
+                .allMatch(event -> ROUTING_KEY_DICTIONARY_VISIBILITY_PRIVATE.equals(event.routingKey())));
+    }
+
+    @Test
+    void saveDictionary_MemberHidesTheirLastSharedDictionary_Is400() {
+        // Arrange — dict1 is public and the only shared one
+        givenAMember();
+        DictionaryRequestDTO requestDTO = requestDTO("dict1");
+        requestDTO.setIsPublic(false);
+        when(dictionaryRepository.findById("dict1")).thenReturn(Optional.of(dictionary("dict1", true)));
+        when(dictionaryRepository.countByUserIdAndIsPublicTrueAndDictionaryIdNot(OWNER, "dict1")).thenReturn(0L);
+
+        // Act & Assert
+        assertThrows(SharingRequiredException.class, () -> dictionaryService.saveDictionary(requestDTO, OWNER));
+        verify(dictionaryRepository, never()).saveAndFlush(any());
+        verifyNoInteractions(eventPublisher);
+    }
+
+    @Test
+    void saveDictionary_MemberHidesOneOfSeveralShared_IsAllowed() {
+        // Arrange
+        givenAMember();
+        DictionaryRequestDTO requestDTO = requestDTO("dict1");
+        requestDTO.setIsPublic(false);
+        Dictionary saved = dictionary("dict1", false);
+        when(dictionaryRepository.findById("dict1")).thenReturn(Optional.of(dictionary("dict1", true)));
+        when(dictionaryRepository.countByUserIdAndIsPublicTrueAndDictionaryIdNot(OWNER, "dict1")).thenReturn(1L);
+        when(dictionaryMapper.toDictionary(requestDTO)).thenReturn(saved);
+        when(dictionaryRepository.saveAndFlush(saved)).thenReturn(saved);
+
+        // Act
+        dictionaryService.saveDictionary(requestDTO, OWNER);
+
+        // Assert
+        verify(dictionaryRepository).saveAndFlush(saved);
+    }
+
+    @Test
+    void saveDictionary_MemberWithNothingSharedCreatesAPrivateOne_Is400() {
+        // Arrange — they would have dictionaries but none shared
+        givenAMember();
+        DictionaryRequestDTO requestDTO = requestDTO("new");
+        requestDTO.setIsPublic(false);
+        when(dictionaryRepository.findById("new")).thenReturn(Optional.empty());
+        when(dictionaryRepository.countByUserIdAndIsPublicTrueAndDictionaryIdNot(OWNER, "new")).thenReturn(0L);
+
+        // Act & Assert
+        assertThrows(SharingRequiredException.class, () -> dictionaryService.saveDictionary(requestDTO, OWNER));
+    }
+
+    @Test
+    void saveDictionary_NonMemberHidesTheirLastShared_IsAllowed() {
+        // Arrange — the rule is for members only
+        DictionaryRequestDTO requestDTO = requestDTO("dict1");
+        requestDTO.setIsPublic(false);
+        Dictionary saved = dictionary("dict1", false);
+        when(dictionaryRepository.findById("dict1")).thenReturn(Optional.of(dictionary("dict1", true)));
+        when(dictionaryMapper.toDictionary(requestDTO)).thenReturn(saved);
+        when(dictionaryRepository.saveAndFlush(saved)).thenReturn(saved);
+
+        // Act
+        dictionaryService.saveDictionary(requestDTO, OWNER);
+
+        // Assert
+        verify(dictionaryRepository).saveAndFlush(saved);
+        verify(dictionaryRepository, never()).countByUserIdAndIsPublicTrueAndDictionaryIdNot(any(), any());
+    }
+
+    @Test
+    void deleteDictionary_MemberDeletesTheirOnlyDictionary_IsAllowed() {
+        // Arrange — afterwards they have none, which is fine
+        givenAMember();
+        when(dictionaryRepository.findById("dict1")).thenReturn(Optional.of(dictionary("dict1", true)));
+        when(dictionaryRepository.countByUserIdAndDictionaryIdNot(OWNER, "dict1")).thenReturn(0L);
+        when(dictionaryRepository.countByUserIdAndIsPublicTrueAndDictionaryIdNot(OWNER, "dict1")).thenReturn(0L);
+
+        // Act
+        dictionaryService.deleteDictionary("dict1", OWNER);
+
+        // Assert
+        verify(dictionaryRepository).deleteById("dict1");
+    }
+
+    @Test
+    void deleteDictionary_MemberDeletesLastSharedWhilePrivateOnesRemain_Is400() {
+        // Arrange — the rest would all be hidden
+        givenAMember();
+        when(dictionaryRepository.findById("dict1")).thenReturn(Optional.of(dictionary("dict1", true)));
+        when(dictionaryRepository.countByUserIdAndDictionaryIdNot(OWNER, "dict1")).thenReturn(2L);
+        when(dictionaryRepository.countByUserIdAndIsPublicTrueAndDictionaryIdNot(OWNER, "dict1")).thenReturn(0L);
+
+        // Act & Assert
+        assertThrows(SharingRequiredException.class, () -> dictionaryService.deleteDictionary("dict1", OWNER));
+        verify(dictionaryRepository, never()).deleteById(any());
+        verifyNoInteractions(wordRepository);
+    }
+
+    @Test
+    void deleteDictionary_MemberDeletesAPrivateOne_IsNotChecked() {
+        // Arrange — deleting a private dictionary cannot reduce what is shared
+        givenAMember();
+        when(dictionaryRepository.findById("dict1")).thenReturn(Optional.of(dictionary("dict1", false)));
+
+        // Act
+        dictionaryService.deleteDictionary("dict1", OWNER);
+
+        // Assert
+        verify(dictionaryRepository).deleteById("dict1");
+        verify(dictionaryRepository, never()).countByUserIdAndIsPublicTrueAndDictionaryIdNot(any(), any());
+    }
+
+    @Test
+    void deleteAllByUserId_AlsoRemovesTheMembershipCopy() {
+        // Arrange
+        when(dictionaryRepository.findByUserId("kc-1")).thenReturn(List.of());
+
+        // Act
+        dictionaryService.deleteAllByUserId("kc-1");
+
+        // Assert
+        verify(marketplaceMemberRepository).deleteById("kc-1");
+    }
+
+    @Test
+    void saveDictionary_MemberRenamesAnAlreadyPrivateDictionary_IsNotChecked() {
+        // Arrange — staying private takes nothing shared away, even if nothing else is shared
+        givenAMember();
+        DictionaryRequestDTO requestDTO = requestDTO("dict1");
+        requestDTO.setIsPublic(false);
+        Dictionary saved = dictionary("dict1", false);
+        saved.setName("Renamed");
+        when(dictionaryRepository.findById("dict1")).thenReturn(Optional.of(dictionary("dict1", false)));
+        when(dictionaryMapper.toDictionary(requestDTO)).thenReturn(saved);
+        when(dictionaryRepository.saveAndFlush(saved)).thenReturn(saved);
+
+        // Act
+        dictionaryService.saveDictionary(requestDTO, OWNER);
+
+        // Assert
+        verify(dictionaryRepository).saveAndFlush(saved);
+        verify(dictionaryRepository, never()).countByUserIdAndIsPublicTrueAndDictionaryIdNot(any(), any());
+    }
+
+    private void givenAMember() {
+        when(marketplaceMemberRepository.existsByKeycloakIdAndIsMemberTrue(OWNER)).thenReturn(true);
     }
 }
 

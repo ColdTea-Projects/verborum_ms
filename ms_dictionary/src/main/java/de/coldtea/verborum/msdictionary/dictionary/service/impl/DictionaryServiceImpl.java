@@ -8,12 +8,14 @@ import de.coldtea.verborum.msdictionary.common.event.DictionaryVisibilityEvent;
 import de.coldtea.verborum.msdictionary.common.event.OutboundEvent;
 import de.coldtea.verborum.msdictionary.common.exception.ForbiddenOperationException;
 import de.coldtea.verborum.msdictionary.common.exception.RecordNotFoundException;
+import de.coldtea.verborum.msdictionary.common.exception.SharingRequiredException;
 import de.coldtea.verborum.msdictionary.common.mapper.DictionaryMapper;
 import de.coldtea.verborum.msdictionary.dictionary.dto.DictionaryRequestDTO;
 import de.coldtea.verborum.msdictionary.dictionary.dto.DictionaryResponseDTO;
 import de.coldtea.verborum.msdictionary.dictionary.entity.Dictionary;
 import de.coldtea.verborum.msdictionary.dictionary.repository.DictionaryRepository;
 import de.coldtea.verborum.msdictionary.dictionary.service.DictionaryService;
+import de.coldtea.verborum.msdictionary.marketplacemember.repository.MarketplaceMemberRepository;
 import de.coldtea.verborum.msdictionary.tag.entity.DictionaryTag;
 import de.coldtea.verborum.msdictionary.tag.repository.DictionaryTagRepository;
 import de.coldtea.verborum.msdictionary.word.repository.WordRepository;
@@ -34,6 +36,7 @@ import static de.coldtea.verborum.msdictionary.common.config.RabbitMQConfig.ROUT
 import static de.coldtea.verborum.msdictionary.common.config.RabbitMQConfig.ROUTING_KEY_DICTIONARY_VISIBILITY_PRIVATE;
 import static de.coldtea.verborum.msdictionary.common.config.RabbitMQConfig.ROUTING_KEY_DICTIONARY_VISIBILITY_PUBLIC;
 import static de.coldtea.verborum.msdictionary.common.constants.ErrorMessageConstants.DICTIONARY_WAS_NOT_FOUND_ID;
+import static de.coldtea.verborum.msdictionary.common.constants.ErrorMessageConstants.MEMBER_MUST_KEEP_ONE_SHARED;
 import static de.coldtea.verborum.msdictionary.common.constants.ErrorMessageConstants.NOT_THE_OWNER;
 import static de.coldtea.verborum.msdictionary.common.utils.DictionaryAccessUtils.isReadableBy;
 
@@ -47,6 +50,9 @@ public class DictionaryServiceImpl implements DictionaryService {
 
     // Tags ride on the listing events (P4-12) — read here, written by DictionaryTagServiceImpl
     private final DictionaryTagRepository dictionaryTagRepository;
+
+    // Marketplace membership (P4-16) — read for the sharing rule; written by MarketplaceMemberService
+    private final MarketplaceMemberRepository marketplaceMemberRepository;
 
     private final DictionaryMapper dictionaryMapper;
 
@@ -71,6 +77,17 @@ public class DictionaryServiceImpl implements DictionaryService {
         // authenticated caller could POST someone else's dictionaryId and take the row over
         if (existing.isPresent() && !ownerId.equals(existing.get().getUserId())) {
             throw new ForbiddenOperationException(NOT_THE_OWNER);
+        }
+
+        // P4-16: a member who has dictionaries keeps at least one shared. Only a change that takes
+        // something away is checked — hiding a public dictionary, or creating a private one. Re-saving a
+        // dictionary that is already private (a rename, say) changes nothing that is shared, so it is
+        // not refused; deleteDictionary draws the same line
+        boolean hidesOrAddsPrivate = existing
+                .map(dictionary -> Boolean.TRUE.equals(dictionary.getIsPublic()))
+                .orElse(true);
+        if (hidesOrAddsPrivate && !Boolean.TRUE.equals(dictionaryRequestDTO.getIsPublic())) {
+            requireMemberKeepsOneShared(ownerId, dictionaryRequestDTO.getDictionaryId(), true);
         }
 
         // Read the current visibility before saving over it — a dictionary that is absent has
@@ -250,13 +267,59 @@ public class DictionaryServiceImpl implements DictionaryService {
         // P3-08: ids are guessable and were the whole authorisation story here — before this, any
         // authenticated caller could delete any dictionary by id. Checked before anything is
         // touched; an unknown id stays a silent 200 rather than revealing which ids exist
-        dictionaryRepository.findById(dictionaryId)
-                .filter(existing -> !ownerId.equals(existing.getUserId()))
-                .ifPresent(existing -> {
+        Optional<Dictionary> existing = dictionaryRepository.findById(dictionaryId);
+        existing.filter(dictionary -> !ownerId.equals(dictionary.getUserId()))
+                .ifPresent(dictionary -> {
                     throw new ForbiddenOperationException(NOT_THE_OWNER);
                 });
 
+        // P4-16: deleting a member's last shared dictionary is refused while private ones remain.
+        // Deleting a private one takes nothing shared away, so it is not checked
+        existing.filter(dictionary -> Boolean.TRUE.equals(dictionary.getIsPublic()))
+                .ifPresent(dictionary -> requireMemberKeepsOneShared(ownerId, dictionaryId, false));
+
         deleteDictionaryInternal(dictionaryId);
+    }
+
+    /**
+     * The sharing rule (P4-16), on the result of a change to one dictionary that leaves it not public
+     * (made private, created private, or deleted): a member must not end up with dictionaries but none
+     * shared. Deleting the user's last dictionary is fine — they then have none.
+     *
+     * @param remains whether the dictionary still exists after the change (false for a delete)
+     */
+    private void requireMemberKeepsOneShared(String ownerId, String dictionaryId, boolean remains) {
+        if (!marketplaceMemberRepository.existsByKeycloakIdAndIsMemberTrue(ownerId)) {
+            return;
+        }
+
+        boolean hasDictionariesAfter = remains || dictionaryRepository.countByUserIdAndDictionaryIdNot(ownerId, dictionaryId) > 0;
+        boolean hasSharedAfter = dictionaryRepository.countByUserIdAndIsPublicTrueAndDictionaryIdNot(ownerId, dictionaryId) > 0;
+
+        if (hasDictionariesAfter && !hasSharedAfter) {
+            throw new SharingRequiredException(MEMBER_MUST_KEEP_ONE_SHARED);
+        }
+    }
+
+    /**
+     * Joining or leaving the marketplace (P4-16). Each dictionary that changes goes through the same
+     * path as a user's own toggle: saved (so its updatedAt — the marketplace's ordering key — moves on)
+     * and announced with `dictionary.visibility.*`, which the marketplace turns into a listing or hides.
+     */
+    @Transactional
+    @Override
+    public int setVisibilityOfAll(String userId, boolean isPublic) {
+        int changed = 0;
+        for (Dictionary dictionary : dictionaryRepository.findByUserId(userId)) {
+            boolean wasPublic = Boolean.TRUE.equals(dictionary.getIsPublic());
+            if (wasPublic == isPublic) {
+                continue;
+            }
+            dictionary.setIsPublic(isPublic);
+            publishVisibilityChange(dictionaryRepository.saveAndFlush(dictionary), wasPublic);
+            changed++;
+        }
+        return changed;
     }
 
     /**
@@ -303,6 +366,9 @@ public class DictionaryServiceImpl implements DictionaryService {
     @Transactional
     @Override
     public void deleteAllByUserId(String userId) {
+        // The membership copy (P4-16) goes too; deleteById is a no-op when there is none
+        marketplaceMemberRepository.deleteById(userId);
+
         List<String> dictionaryIds = dictionaryRepository.findByUserId(userId).stream()
                 .map(Dictionary::getDictionaryId)
                 .toList();

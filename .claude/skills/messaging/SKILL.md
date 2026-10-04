@@ -44,7 +44,7 @@ One durable **topic** exchange for everything: `verborum.events`. Keys are `{dom
 | `dictionary.snapshot` | ms_dictionary | `marketplace.dictionary.snapshot` (live) | nightly schedule — reconciliation (rule 6) |
 | `word.created` | ms_dictionary | ms_autofil (V2) | new word added |
 | `user.deleted` | ms_user | `dictionary.user.deleted`, `marketplace.user.deleted` (live) | account deleted |
-| `user.profile.updated` | ms_user | `marketplace.user.profile.updated` (live) | display name set, changed or cleared |
+| `user.profile.updated` | ms_user | `marketplace.user.profile.updated`, `dictionary.user.profile.updated` (live) | display name or marketplace agreement changed |
 | `dictionary.imported` | ms_marketplace | `user.dictionary.imported` (live) | listed dictionary imported (every successful call) |
 
 Both built services declare the exchange and the dead-letter infrastructure; declarations are

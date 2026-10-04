@@ -99,6 +99,16 @@ public class GlobalExceptionHandler {
         );
     }
 
+    /**
+     * The sharing rule (P4-16) — 400 with our own message, safe to return. WARN: a client mistake.
+     */
+    @ExceptionHandler(SharingRequiredException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ResponseEntity<ErrorResponse> handleSharingRequiredException(SharingRequiredException ex, WebRequest request) {
+        log.warn("{}: {}", SharingRequiredException.class.getCanonicalName(), ex.getMessage());
+        return buildErrorResponse(HttpStatus.BAD_REQUEST, SharingRequiredException.class.getSimpleName(), ex.getMessage(), request);
+    }
+
     @ExceptionHandler(ForbiddenOperationException.class)
     @ResponseStatus(HttpStatus.FORBIDDEN)
     public ResponseEntity<ErrorResponse> handleForbiddenOperationException(ForbiddenOperationException ex, WebRequest request) {

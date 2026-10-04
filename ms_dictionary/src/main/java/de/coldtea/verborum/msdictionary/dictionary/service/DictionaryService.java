@@ -35,4 +35,14 @@ public interface DictionaryService {
      * No ownership check: the caller has already done it.
      */
     void publishTagChange(String dictionaryId);
+
+    /**
+     * Joining or leaving the marketplace (P4-16): makes every dictionary of the user public or private,
+     * publishing `dictionary.visibility.*` for each one that actually changes. Event-driven — no
+     * ownership check and no sharing rule; the caller has already recorded the new membership.
+     *
+     * @param userId the JWT subject (`fk_user_id`)
+     * @return how many dictionaries changed
+     */
+    int setVisibilityOfAll(String userId, boolean isPublic);
 }

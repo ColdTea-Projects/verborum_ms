@@ -1,6 +1,8 @@
 package de.coldtea.verborum.msdictionary.common.listener;
 
 import de.coldtea.verborum.msdictionary.common.event.UserDeletedEvent;
+import de.coldtea.verborum.msdictionary.common.event.UserProfileUpdatedEvent;
+import de.coldtea.verborum.msdictionary.marketplacemember.service.MarketplaceMemberService;
 import de.coldtea.verborum.msdictionary.dictionary.service.DictionaryService;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -21,6 +23,9 @@ class UserEventListenerTest {
 
     @Mock
     private DictionaryService dictionaryService;
+
+    @Mock
+    private MarketplaceMemberService marketplaceMemberService;
 
     @InjectMocks
     private UserEventListener userEventListener;
@@ -56,5 +61,30 @@ class UserEventListenerTest {
 
         // Act & Assert — swallowing would ack a half-finished cascade
         assertThrows(RuntimeException.class, () -> userEventListener.handleUserDeleted(event()));
+    }
+
+    // ---- user.profile.updated (P4-16) ----
+
+    @Test
+    void handleUserProfileUpdated_Delegates() {
+        // Arrange
+        UserProfileUpdatedEvent event = UserProfileUpdatedEvent.builder()
+                .keycloakId(KEYCLOAK_ID).marketplaceAgreementAccepted(true).updatedAt(OffsetDateTime.now()).build();
+
+        // Act
+        userEventListener.handleUserProfileUpdated(event);
+
+        // Assert
+        verify(marketplaceMemberService).applyProfileUpdate(event);
+    }
+
+    @Test
+    void handleUserProfileUpdated_RethrowsSoTheMessageIsDeadLettered() {
+        // Arrange
+        UserProfileUpdatedEvent event = UserProfileUpdatedEvent.builder().keycloakId(KEYCLOAK_ID).build();
+        doThrow(new RuntimeException("db down")).when(marketplaceMemberService).applyProfileUpdate(event);
+
+        // Act & Assert
+        assertThrows(RuntimeException.class, () -> userEventListener.handleUserProfileUpdated(event));
     }
 }

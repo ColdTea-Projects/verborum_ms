@@ -1382,9 +1382,60 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
   - Suites: ms_user 80/80, ms_marketplace 147/147. **Verified live** with testuser + testadmin: duplicate
     profile → 409, taken email → 409; browse before joining → 403; admin joins and shares, user joins,
     sees and imports it; admin leaves → it vanishes and import by id → 404; user leaves → browse and
-    import 403. Test data removed, DLQ empty.
+    import 403. Test data removed. **Correction:** the DLQ looked empty at cleanup, but the test's
+    `dictionary.imported` was consumed late by an IDE-run ms_user (mid DevTools restart) after cleanup had
+    deleted the test profile, and was dead-lettered; found and removed during P4-16. Lesson: let a test's
+    events drain before deleting its profiles.
   - Docs: marketplace client guide (§0, §1, §4, §5, §6, §7, §9, §10), client-login guide,
     `verborum.md`, both service `CLAUDE.md` files.
+
+- [x] `P4-16` **Joining the Forum shares all the user's dictionaries** (ms_user + ms_dictionary) — depends on P4-15
+  (added 2026-10-04)
+  - **Rule (owner):** accepting the marketplace terms means sharing — at that moment **all** of the
+    user's dictionaries become public, and they can hide individual ones later. Every re-join repeats
+    it: all of them are shared again, including ones hidden earlier.
+  - **Approach B (decided):** the backend does it, not the client. ms_dictionary consumes
+    `user.profile.updated`; on a **not accepted → accepted** transition it sets `isPublic = true` on all
+    of that user's dictionaries in one transaction and publishes the usual `dictionary.visibility.public`
+    events, so the listings appear within about a second. Needs the transition to be recognisable:
+    ms_dictionary keeps the last membership it saw per user (also needed for the rule below), or the
+    event carries the previous value.
+  - **Leaving the Forum makes all the user's dictionaries private** (owner, 2026-10-04): on an
+    accepted → not accepted transition ms_dictionary sets `isPublic = false` on all of them and publishes
+    `dictionary.visibility.private` — the mirror of joining. Users who imported them lose access.
+  - **A member who has dictionaries keeps at least one shared** (owner, 2026-10-04). One rule, checked on
+    the *result* of every change that takes something shared away in ms_dictionary — hiding a public
+    dictionary, creating a private one, deleting a public one (re-saving an already-private dictionary
+    is not checked) (400 otherwise; the clients block it
+    too, the backend is the safety net): a member may not end up with dictionaries but none public. So
+    making the last shared one private is refused; deleting the user's last dictionary is allowed (they
+    then have none); deleting the last shared one while private ones remain is refused; a member with no
+    shared dictionary creating a private one is refused. Joining with zero dictionaries is allowed.
+    ms_dictionary knows who is a member from the consumed event (its own copy, rule 5).
+  - **Not changed:** new dictionaries are not auto-public; the client sends `isPublic` (owner decision).
+  - Agent: `spring-boot-architect` (a new cross-service consumer in ms_dictionary).
+  - Done 2026-10-04.
+    - ms_dictionary consumes `user.profile.updated` on `dictionary.user.profile.updated` (durable, DLX) →
+      `UserEventListener.handleUserProfileUpdated` → `MarketplaceMemberService.applyProfileUpdate`. New
+      `marketplace_members` table (`2026/10/04-01`, ms_dictionary): the last membership heard per user,
+      rule-4 guarded by ms_user's `updatedAt`; events without the flag (pre-P4-14) are ignored. On a
+      transition it calls `DictionaryService.setVisibilityOfAll`, which flips each dictionary that
+      differs through `saveAndFlush` (bumping `updatedAt`) and publishes `dictionary.visibility.*` —
+      the marketplace listens to those, so listings appear or vanish within a second. The membership is
+      saved before unsharing, so leaving is never refused by the sharing rule. A member with no
+      transition (rename, redelivery) changes no dictionary.
+    - Sharing rule: `requireMemberKeepsOneShared` in `DictionaryServiceImpl`, on `saveDictionary` when the
+      result is not public and on `deleteDictionary` of a public one → `SharingRequiredException` (400,
+      handled). `user.deleted` also removes the membership row.
+    - Suites: ms_dictionary 140/140 (22 new). **Verified live** (testuser + testadmin): 3 private
+      dictionaries → join → all public and listed; hide two → ok, hide the last → 400; delete the last
+      shared while two private remain → 400; leave → all private, Forum empty; re-join → all 3 public
+      again; delete all three one by one → the last allowed; zero dictionaries → create private 400,
+      create public 201. Test data removed.
+    - **Clients must re-fetch their dictionaries after a join or leave** before the next upload: the
+      server changed `isPublic`, and a sync pushing the stale local value would undo it (documented in
+      the marketplace client guide). The whole sharing model for clients is in
+      `docs/integration/dictionary-sharing-client-guide.md`.
 ---
 
 ## Phase 5 — API Gateway

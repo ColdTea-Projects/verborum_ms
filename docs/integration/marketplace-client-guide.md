@@ -10,8 +10,12 @@ and this file is the bug — say so rather than working around it.
 **Backend state this describes:** roadmap Phase 4 complete and verified against a running stack —
 P4-01 … P4-10 on 2026-09-27; the language-pair filter and slice paging (P4-11), the tag filter
 (P4-12), publisher display names (P4-13) and the profile endpoints with the marketplace agreement
-(P4-14) on 2026-10-04, and the Forum gate with clean conflict answers (P4-15) the same day. Nothing
-here is planned-only unless it says so.
+(P4-14) on 2026-10-04, the Forum gate with clean conflict answers (P4-15) and "joining shares
+everything" (P4-16) the same day. Nothing here is planned-only unless it says so.
+
+**Sharing, hiding and deleting dictionaries** — joining/leaving, the per-dictionary toggle, the
+"keep one shared" rule and the sync caveat — are explained end to end in
+`docs/integration/dictionary-sharing-client-guide.md`.
 
 **Read first, and keep open:**
 - `docs/integration/frontend-backend-integration.md` — the normative contract (envelope, error shape,
@@ -63,10 +67,15 @@ otherwise surface as unexplained 401 / 400 / 403 / 404 responses.
 >    are infinite scroll: they carry `hasNext`, not totals. **The Forum is for members only:** browsing
 >    and importing need a display name and accepted marketplace terms, otherwise **403**; and a user's
 >    public dictionaries appear only while that user is a member (§4).
-> 8. **Word save/update messages changed.** `POST`/`PUT /words` now reply "Saved/Updated successfully
+> 8. **Joining the Forum shares all of the user's dictionaries; leaving makes them all private** —
+>    the server changes `isPublic` itself. **Re-fetch the user's dictionaries after a join or leave
+>    before your next upload**, or your sync will push the old `isPublic` back. A member who has
+>    dictionaries must keep at least one shared: making the last shared one private (or deleting it
+>    while private ones remain) is **400** `SharingRequiredException`.
+> 9. **Word save/update messages changed.** `POST`/`PUT /words` now reply "Saved/Updated successfully
 >    into dictionary `<dictionaryId>`" instead of listing the words. Do not parse `message` — it is for
 >    humans and logs.
-> 9. **Web app only:** the backend sends **no CORS headers yet** (they arrive with the API gateway,
+> 10. **Web app only:** the backend sends **no CORS headers yet** (they arrive with the API gateway,
 >    backend Phase 5). A browser app on its own origin cannot call the services directly — use a
 >    same-origin dev proxy for now (§8.3 of the marketplace guide).
 >
@@ -79,9 +88,10 @@ otherwise surface as unexplained 401 / 400 / 403 / 404 responses.
 - **Membership is opt-in.** A user joins by having a **display name** and **accepting the marketplace
   terms** on their profile (§4). Only members can browse and import (**403** otherwise), and only
   members' dictionaries are listed.
-- A member shares one of their own dictionaries by making it **public** (`isPublic: true` on
-  `PUT /dictionaries/`). Within about a second it appears in the Forum as a **listing**, shown with
-  their display name.
+- **Joining shares everything.** At the moment a user joins, **all** of their dictionaries are made
+  public by the server and appear in the Forum within about a second, under their display name. They
+  can hide individual ones afterwards (`isPublic: false` on `PUT /dictionaries/`), but a member who has
+  dictionaries must keep **at least one** shared. Every re-join shares all of them again.
 - Other users **browse** listings (newest, most popular, filtered by language pairs, tags or publisher
   name) and **import** one. Importing adds a **reference** to the dictionary to their **vault**
   (ms_user). It does **not** copy the dictionary.
@@ -90,10 +100,10 @@ otherwise surface as unexplained 401 / 400 / 403 / 404 responses.
   words, the importer sees that next time they fetch.
 - If the owner makes it private again or deletes it, it **disappears** for importers too: the listing
   vanishes and reads return 404. The vault entry stays behind (§6.7).
-- If the owner **withdraws** from the marketplace, all their listings leave the Forum and can no
-  longer be imported (404); nothing is deleted, and re-joining brings them back. Users who imported
-  them earlier keep reading them while they stay public. Dictionaries are only deleted with the
-  account.
+- **Leaving makes everything private.** When a member leaves, the server makes **all** of their
+  dictionaries private: they leave the Forum, can no longer be imported, and users who imported them
+  **lose access**. Nothing is deleted; re-joining shares all of them again. Dictionaries are only
+  deleted with the account.
 
 There is no rating, no view count, and no "make my own editable copy" (§10).
 
@@ -163,8 +173,8 @@ There is no anonymous Forum. Token acquisition, refresh and storage are exactly 
 |---|---|---|
 | **No profile** | **404** | create the profile (§4.3) — happens once per account, after first login |
 | **Profile, not a member** | `marketplaceAgreementAccepted: false` | own dictionaries work as always; the Forum shows a "Join" screen (name + terms). Forum calls answer **403** |
-| **Member** | `true`, `displayName` set | full Forum; their public dictionaries are listed under their name |
-| **Withdrawn** | `false`, version still set | like "not a member"; their listings are hidden and not importable, nothing deleted; can re-join |
+| **Member** | `true`, `displayName` set | full Forum; their public dictionaries are listed under their name; at least one stays shared |
+| **Withdrawn** | `false`, version still set | like "not a member"; all their dictionaries are private, nothing deleted; can re-join |
 
 Only a **member** can use the Forum and has listings in it. The backend guarantees a member always has
 a display name.
@@ -245,12 +255,12 @@ the name; `null`/absent leaves it alone. Read the result back with `GET /users/m
 
 | You send | Result |
 |---|---|
-| `true` + version, and a name is set (now or already) | **joined.** The backend records the version and the acceptance time |
+| `true` + version, and a name is set (now or already) | **joined.** The backend records the version and the acceptance time, and **makes all of the user's dictionaries public** |
 | `true` without a version, user not a member yet | 400 `marketplaceAgreementVersion is required to accept the marketplace agreement` |
 | `true` + version, but no name anywhere | 400 `displayName cannot be empty while the marketplace agreement is accepted; …` |
 | `"displayName": ""` while a member | 400 — the same message. **A member cannot remove their name**; withdraw first |
 | `{"marketplaceAgreementAccepted": false, "displayName": ""}` | allowed — withdraw and remove the name in one request |
-| `false` | **withdrawn.** Listings hidden within seconds; the last accepted version and time are kept as the record; nothing is deleted |
+| `false` | **withdrawn.** **All of the user's dictionaries become private** within seconds — out of the Forum, and importers lose access; the last accepted version and time are kept as the record; nothing is deleted |
 | `true` + a **new** version while a member | the new version and a new acceptance time are recorded; stays a member |
 | a new `displayName` while a member | renamed; the Forum shows the new name within seconds |
 | `{}` | nothing changes (201) |
@@ -276,8 +286,17 @@ member → 400). Prefer `profile-info` for anything on the profile page.
 - **Membership reaches the Forum by event, within about a second.** Right after a successful join,
   a Forum call can still see the old state and answer 403 for a moment. After joining, wait for the
   201 and retry a 403 once after ~1 s before showing an error.
-- **Sharing is not gated by the server.** A non-member *can* set `isPublic: true` on a dictionary; it
-  is then readable by id but **not listed** in the Forum. Offer "Share to Forum" only to members (§6.4).
+- **Joining and leaving change `isPublic` on the server** (all dictionaries public / all private).
+  The app's local copies still hold the old values: **re-fetch the user's dictionaries
+  (`GET /dictionaries/{sub}`) after a successful join or leave, and before the next upload**, and take
+  `isPublic` from the server. Otherwise the next sync pushes the stale value and silently un-shares a
+  dictionary (or re-shares one after leaving).
+- **A member who has dictionaries keeps at least one shared** (ms_dictionary, 400
+  `SharingRequiredException`): making the last shared one private; deleting the last shared one while
+  private ones remain; creating a private dictionary while none is shared. Deleting the user's last
+  dictionary outright is allowed, and joining with no dictionaries is fine. Block these in the UI too.
+- **A non-member can still set `isPublic: true`** on a dictionary; it is then readable by id but **not
+  listed** in the Forum.
 
 ---
 
@@ -430,13 +449,16 @@ locale-independent conversion (`Locale.ROOT` / invariant culture) — Turkish lo
 ### 6.2 Profile page
 - **Show:** email (read-only), display name, and the membership state from §4.1.
 - **Join the Forum** (not a member): one screen with a display-name field (pre-filled from `/me`, or
-  from the ID token's name) and the terms text with an "I agree" control. On submit send
+  from the ID token's name), the terms text with an "I agree" control, and a clear statement that
+  **all of their dictionaries will be shared** (they can hide some later). On submit send
   `{"displayName": "<name>", "marketplaceAgreementAccepted": true, "marketplaceAgreementVersion": "<your terms version>"}`
-  in **one** request, then `GET /users/me`. Disable submit while the name is blank.
+  in **one** request, then `GET /users/me` and **re-fetch the user's dictionaries** (§4.6). Disable
+  submit while the name is blank.
 - **Rename** (member or not): `{"displayName": "<new name>"}`. Block an empty name in the UI while a
   member, and explain why ("leave the Forum first") — the server would answer 400 anyway.
-- **Leave the Forum** (member): confirm first — "your shared dictionaries will no longer appear in the
-  Forum; nothing is deleted" — then `{"marketplaceAgreementAccepted": false}`. If the user also wants
+- **Leave the Forum** (member): confirm first — "all your dictionaries will become private; people who
+  imported them will lose access; nothing is deleted" — then `{"marketplaceAgreementAccepted": false}`,
+  then **re-fetch the user's dictionaries** (§4.6). If the user also wants
   their name gone, send `{"marketplaceAgreementAccepted": false, "displayName": ""}`.
 - **Accept updated terms** (member, old version): `{"marketplaceAgreementAccepted": true, "marketplaceAgreementVersion": "<new>"}`.
 - On **400 `InvalidProfileException`**, show `errorDetail` as a validation message next to the
@@ -450,17 +472,20 @@ locale-independent conversion (`Locale.ROOT` / invariant culture) — Turkish lo
   right after joining, retry once after ~1 s first.
 
 ### 6.4 Sharing your own dictionaries (members)
-- **Share:** `PUT /dictionaries/` with `isPublic: true` (same body as any update, `userId` = your
-  `sub`). It appears in the Forum within about a second, under your display name.
+- **On joining, everything is already shared** (§4.4). The per-dictionary toggle is for what comes
+  after: `PUT /dictionaries/` with `isPublic` (same body as any update, `userId` = your `sub`).
+- **Hiding:** allowed while at least one other dictionary stays shared. Disable the toggle on the last
+  shared one and explain why ("leave the Forum to make everything private"); the server answers 400
+  `SharingRequiredException` otherwise. The same rule blocks deleting the last shared dictionary while
+  private ones remain (deleting the last dictionary of all is fine).
+- **New dictionaries of a member:** you choose `isPublic`. If the member has no shared dictionary yet
+  (e.g. they joined with none), the new one must be public — 400 otherwise.
 - **Tags** make it findable: `POST /dictionaries/{id}/tags`. Changes reach the listing within seconds.
 - **Rename / change languages while shared:** the listing follows within seconds.
 - **Unshare:** `isPublic: false` → it leaves the Forum and **everyone who imported it loses access**.
   Warn the user first if `importCount > 0` (from the listing).
-- Show the "Share to Forum" action **only to members**. For a non-member, offer "Join the Forum"
-  instead (§6.2): a public dictionary of a non-member is not listed (§4.6).
-- Leaving the Forum (§6.2) hides all of a user's listings and blocks new imports, but does **not**
-  unshare them: they stay `isPublic: true`, and users who already imported them keep reading them. To
-  cut those users off too, unshare the dictionaries.
+- For a non-member, offer "Join the Forum" (§6.2) instead of per-dictionary sharing — a public
+  dictionary of a non-member is not listed (§4.6).
 
 ### 6.5 Browse screen
 1. `GET /marketplace/dictionaries?pair=…&page=0&size=20` (or `/popular`) → render `items`, each with
@@ -524,6 +549,7 @@ Error body (all services):
 | 400 | `InvalidProfileException` | a profile rule (§4.4) — `errorDetail` is user-readable |
 | 400 | `HandlerMethodValidationException`, `MethodArgumentNotValidException`, `MissingServletRequestParameterException`, `MethodArgumentTypeMismatchException` | bad parameter or body field — `errorDetail` names it. A client bug: log it |
 | 400 | `SelfImportException` | importing your own dictionary |
+| 400 | `SharingRequiredException` | a member would be left with dictionaries but none shared (§4.6) — `errorDetail` is user-readable |
 | 401 | — | token missing, expired or wrong issuer (login guide §7) |
 | 403 | `ForbiddenOperationException` | not a Forum member (§4.6) — or a write on something that is not yours (e.g. `keycloakId` ≠ your `sub`) |
 | 404 | `RecordNotFoundException`, `NoResourceFoundException` | no profile yet (`/users/me`), unknown/unavailable dictionary or listing, or a wrong URL |
@@ -595,10 +621,10 @@ curl -s -H "$H" "http://localhost:8087/marketplace/dictionaries?pair=de-en&pair=
 curl -s -X POST -H "$H" "http://localhost:8087/marketplace/dictionaries/<dictionaryId>/import"
 ```
 
-Full round trip: as `testadmin`, create a profile, join the Forum and share a dictionary
-(`PUT /dictionaries/` with `isPublic: true`); as `testuser`, create a profile, join, browse and import
-it. A shared dictionary of a user who has not joined does **not** show up, and browsing before joining
-is a 403 — both are the rules, not bugs.
+Full round trip: as `testadmin`, create a dictionary, create a profile and join the Forum — the
+dictionary is shared by the join; as `testuser`, create a profile, join, browse and import it.
+Browsing before joining is a 403, and a public dictionary of a user who has not joined does **not**
+show up — both are the rules, not bugs.
 
 ---
 

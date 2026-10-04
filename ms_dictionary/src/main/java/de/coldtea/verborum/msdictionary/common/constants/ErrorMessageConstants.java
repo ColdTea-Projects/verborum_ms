@@ -5,6 +5,9 @@ public final class ErrorMessageConstants {
 
     //Security (P3-05) — kept vague on purpose: the message must not reveal whether the
     //resource exists or who owns it
+    // P4-16: a marketplace member who has dictionaries keeps at least one shared
+    public static final String MEMBER_MUST_KEEP_ONE_SHARED =
+            "A marketplace member must keep at least one dictionary shared; leave the marketplace to make all of them private";
     public static final String NOT_THE_OWNER = "This resource does not belong to the authenticated user";
     // Returned instead of an unhandled exception's own message, which would leak internals
     public static final String INTERNAL_SERVER_ERROR = "Internal server error";

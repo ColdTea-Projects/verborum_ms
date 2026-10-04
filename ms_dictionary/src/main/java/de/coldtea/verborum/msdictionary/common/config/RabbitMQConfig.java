@@ -42,8 +42,11 @@ public class RabbitMQConfig {
     public static final String ROUTING_KEY_DICTIONARY_SNAPSHOT = "dictionary.snapshot";
     public static final String ROUTING_KEY_WORD_CREATED = "word.created";
     public static final String ROUTING_KEY_USER_DELETED = "user.deleted";
+    // P4-16: joining / leaving the marketplace shares / unshares all the user's dictionaries
+    public static final String ROUTING_KEY_USER_PROFILE_UPDATED = "user.profile.updated";
 
     public static final String QUEUE_USER_DELETED = "dictionary.user.deleted";
+    public static final String QUEUE_USER_PROFILE_UPDATED = "dictionary.user.profile.updated";
 
     @Bean
     public TopicExchange verborumExchange() {
@@ -51,7 +54,7 @@ public class RabbitMQConfig {
     }
 
     /**
-     * ms_dictionary's only consumer queue: cascade-delete a removed user's dictionaries and words.
+     * Cascade-delete a removed user's dictionaries and words.
      * <p>
      * `x-dead-letter-exchange` is all it needs — the DLX is a fanout, so a message that keeps
      * failing reaches the DLQ whatever its routing key.
@@ -77,6 +80,22 @@ public class RabbitMQConfig {
      * message would be dropped as unroutable instead of landing in the DLQ. Fanout ignores the
      * routing key, so a consumer queue only has to name the DLX to be safe.
      */
+    /** P4-16: membership changes — joining shares all of a user's dictionaries, leaving unshares them. */
+    @Bean
+    public Queue userProfileUpdatedQueue() {
+        return QueueBuilder.durable(QUEUE_USER_PROFILE_UPDATED)
+                .withArgument("x-dead-letter-exchange", DEAD_LETTER_EXCHANGE)
+                .build();
+    }
+
+    @Bean
+    public Binding userProfileUpdatedBinding(Queue userProfileUpdatedQueue, TopicExchange verborumExchange) {
+        return BindingBuilder
+                .bind(userProfileUpdatedQueue)
+                .to(verborumExchange)
+                .with(ROUTING_KEY_USER_PROFILE_UPDATED);
+    }
+
     @Bean
     public FanoutExchange deadLetterExchange() {
         return new FanoutExchange(DEAD_LETTER_EXCHANGE, true, false);

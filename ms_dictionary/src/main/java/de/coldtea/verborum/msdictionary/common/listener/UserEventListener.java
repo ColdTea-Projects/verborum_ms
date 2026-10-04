@@ -1,13 +1,16 @@
 package de.coldtea.verborum.msdictionary.common.listener;
 
 import de.coldtea.verborum.msdictionary.common.event.UserDeletedEvent;
+import de.coldtea.verborum.msdictionary.common.event.UserProfileUpdatedEvent;
 import de.coldtea.verborum.msdictionary.dictionary.service.DictionaryService;
+import de.coldtea.verborum.msdictionary.marketplacemember.service.MarketplaceMemberService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.stereotype.Component;
 
 import static de.coldtea.verborum.msdictionary.common.config.RabbitMQConfig.QUEUE_USER_DELETED;
+import static de.coldtea.verborum.msdictionary.common.config.RabbitMQConfig.QUEUE_USER_PROFILE_UPDATED;
 
 /**
  * Consumes events published by ms_user.
@@ -18,6 +21,8 @@ import static de.coldtea.verborum.msdictionary.common.config.RabbitMQConfig.QUEU
 public class UserEventListener {
 
     private final DictionaryService dictionaryService;
+
+    private final MarketplaceMemberService marketplaceMemberService;
 
     /**
      * Deletes every dictionary and word belonging to a deleted user.
@@ -40,6 +45,23 @@ public class UserEventListener {
             // acknowledged as handled — a half-cascaded user deletion must not disappear silently
             log.error("Failed to process user.deleted event for keycloakId: {}",
                     event.getKeycloakId(), e);
+            throw e;
+        }
+    }
+
+    /**
+     * Joining or leaving the marketplace (P4-16): shares or unshares all of the user's dictionaries.
+     * Keyed on `keycloakId`, like user.deleted.
+     */
+    @RabbitListener(queues = QUEUE_USER_PROFILE_UPDATED)
+    public void handleUserProfileUpdated(UserProfileUpdatedEvent event) {
+        log.info("Received user.profile.updated event for keycloakId: {}", event.getKeycloakId());
+        try {
+            marketplaceMemberService.applyProfileUpdate(event);
+        } catch (Exception e) {
+            // Re-thrown so the message is retried and finally dead-lettered — a join that shared nothing
+            // must not be acknowledged as handled
+            log.error("Failed to process user.profile.updated event for keycloakId: {}", event.getKeycloakId(), e);
             throw e;
         }
     }

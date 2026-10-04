@@ -2,6 +2,7 @@ package de.coldtea.verborum.msdictionary.dictionary.controller;
 
 import de.coldtea.verborum.msdictionary.common.config.SecurityConfig;
 import de.coldtea.verborum.msdictionary.common.exception.ForbiddenOperationException;
+import de.coldtea.verborum.msdictionary.common.exception.SharingRequiredException;
 import de.coldtea.verborum.msdictionary.common.exception.GlobalExceptionHandler;
 import de.coldtea.verborum.msdictionary.common.exception.RecordNotFoundException;
 import de.coldtea.verborum.msdictionary.dictionary.dto.DictionaryResponseDTO;
@@ -187,5 +188,19 @@ class DictionaryControllerWebTest {
         mockMvc.perform(get("/dictionaries/" + SUB).with(jwt().jwt(j -> j.subject(SUB))))
                 .andExpect(status().isInternalServerError())
                 .andExpect(jsonPath("$.errorDetail").value("Internal server error"));
+    }
+
+    @Test
+    void sharingRuleBroken_MapsTo400WithTheRule() throws Exception {
+        // P4-16: a member hiding their last shared dictionary
+        when(dictionaryService.saveDictionary(any(), anyString()))
+                .thenThrow(new SharingRequiredException("A marketplace member must keep at least one dictionary shared; leave the marketplace to make all of them private"));
+
+        mockMvc.perform(put("/dictionaries/")
+                        .with(jwt().jwt(j -> j.subject(SUB)))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body(SUB)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("SharingRequiredException"));
     }
 }
