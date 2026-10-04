@@ -12,3 +12,6 @@ Thumbs.db
 .env
 # Local-only Spring overrides (e.g. KEYCLOAK_ADMIN_CLIENT_SECRET)
 application-local.properties
+
+# Python bytecode (scripts/dev-seed)
+__pycache__/
