@@ -2,12 +2,14 @@ package de.coldtea.verborum.msmarketplace.dictionaryimport.service.impl;
 
 import de.coldtea.verborum.msmarketplace.common.event.DictionaryImportedEvent;
 import de.coldtea.verborum.msmarketplace.common.event.OutboundEvent;
+import de.coldtea.verborum.msmarketplace.common.exception.ForbiddenOperationException;
 import de.coldtea.verborum.msmarketplace.common.exception.RecordNotFoundException;
 import de.coldtea.verborum.msmarketplace.common.exception.SelfImportException;
 import de.coldtea.verborum.msmarketplace.dictionaryimport.entity.DictionaryImport;
 import de.coldtea.verborum.msmarketplace.dictionaryimport.repository.DictionaryImportRepository;
 import de.coldtea.verborum.msmarketplace.dictionarystats.entity.DictionaryStats;
 import de.coldtea.verborum.msmarketplace.dictionarystats.repository.DictionaryStatsRepository;
+import de.coldtea.verborum.msmarketplace.publisher.service.PublisherService;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -42,12 +44,18 @@ class DictionaryImportServiceImplTest {
     @Mock
     private ApplicationEventPublisher eventPublisher;
 
+    @Mock
+    private PublisherService publisherService;
+
     @InjectMocks
     private DictionaryImportServiceImpl dictionaryImportService;
 
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
+        // Both are members unless a test says otherwise; requireMember is a no-op mock
+        when(publisherService.isMember(PUBLISHER)).thenReturn(true);
+        when(publisherService.isMember(IMPORTER)).thenReturn(true);
     }
 
     private static DictionaryStats listing(boolean listed) {
@@ -137,5 +145,30 @@ class DictionaryImportServiceImplTest {
         assertThrows(SelfImportException.class, () -> dictionaryImportService.importDictionary(DICTIONARY_ID, PUBLISHER));
         verifyNoInteractions(dictionaryImportRepository, eventPublisher);
         verify(dictionaryStatsRepository, never()).incrementImportCount(anyString());
+    }
+
+    // ---- the Forum gate and non-member publishers ----
+
+    @Test
+    void importDictionary_ImporterNotAMember_IsForbiddenAndChangesNothing() {
+        // Arrange
+        doThrow(new ForbiddenOperationException("join first")).when(publisherService).requireMember(IMPORTER);
+
+        // Act & Assert
+        assertThrows(ForbiddenOperationException.class, () -> dictionaryImportService.importDictionary(DICTIONARY_ID, IMPORTER));
+        verifyNoInteractions(dictionaryStatsRepository, dictionaryImportRepository, eventPublisher);
+    }
+
+    @Test
+    void importDictionary_PublisherLeftTheMarketplace_Is404AndChangesNothing() {
+        // Arrange — the listing is still public but hidden from browse; a remembered id must not get round it
+        when(dictionaryStatsRepository.findById(DICTIONARY_ID)).thenReturn(Optional.of(listing(true)));
+        when(publisherService.isMember(PUBLISHER)).thenReturn(false);
+
+        // Act & Assert
+        assertThrows(RecordNotFoundException.class, () -> dictionaryImportService.importDictionary(DICTIONARY_ID, IMPORTER));
+        verify(dictionaryImportRepository, never()).saveAndFlush(any());
+        verify(dictionaryStatsRepository, never()).incrementImportCount(anyString());
+        verifyNoInteractions(eventPublisher);
     }
 }

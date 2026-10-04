@@ -9,6 +9,7 @@ import de.coldtea.verborum.msmarketplace.dictionaryimport.repository.DictionaryI
 import de.coldtea.verborum.msmarketplace.dictionaryimport.service.DictionaryImportService;
 import de.coldtea.verborum.msmarketplace.dictionarystats.entity.DictionaryStats;
 import de.coldtea.verborum.msmarketplace.dictionarystats.repository.DictionaryStatsRepository;
+import de.coldtea.verborum.msmarketplace.publisher.service.PublisherService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
@@ -29,16 +30,25 @@ public class DictionaryImportServiceImpl implements DictionaryImportService {
 
     private final DictionaryStatsRepository dictionaryStatsRepository;
 
+    // Membership of the importer (the Forum gate) and of the listing's publisher
+    private final PublisherService publisherService;
+
     // Not RabbitTemplate: OutboundEventPublisher sends after this transaction commits (rule 1)
     private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     @Override
     public void importDictionary(String dictionaryId, String importerId) {
+        // The Forum gate: only members browse and import — 403 before anything else is looked at
+        publisherService.requireMember(importerId);
+
         // Hidden is the same as absent: a private or deleted dictionary must not be importable, and
-        // saying "exists but hidden" would leak that it exists
+        // saying "exists but hidden" would leak that it exists. So is a listing whose publisher is no
+        // longer a member (left the marketplace, or never joined): browse no longer shows it, and an
+        // import by a remembered id must not get around that
         DictionaryStats listing = dictionaryStatsRepository.findById(dictionaryId)
                 .filter(stats -> Boolean.TRUE.equals(stats.getIsListed()))
+                .filter(stats -> publisherService.isMember(stats.getUserId()))
                 .orElseThrow(() -> new RecordNotFoundException(LISTING_WAS_NOT_FOUND_ID + dictionaryId));
 
         if (importerId.equals(listing.getUserId())) {

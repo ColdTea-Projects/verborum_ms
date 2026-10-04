@@ -104,6 +104,12 @@ request time — decided 2026-07-23, see roadmap `P4-03`.
   repeatable, max 10): **any** match through `hasAnyTag` → Hibernate `arrayOverlaps` → `tags && ?`.
   `publisher=nna` (P4-13, 3–255 chars): case-insensitive substring of the display name, through
   `LikePatternUtils.toContainsPattern` (escapes `%`, `_`, `\`) and `hasActivePublisher(pattern)`.
+- **The Forum gate (P4-15):** browse and import are for members only. `PublisherService.requireMember`
+  (a member = a `publishers` row with a name and `marketplaceAgreementAccepted`) runs first in every
+  browse method and in `importDictionary` → `ForbiddenOperationException` → **403**. Browse methods
+  therefore take the caller's subject. Import also 404s a listing whose publisher is not a member
+  (`isMember`), so leaving the marketplace cannot be bypassed with a remembered `dictionaryId`.
+  Membership is this service's event-fed copy, so it lags a join by about a second.
 - **`hasActivePublisher` is applied to every browse read, filter or not** — a listing whose publisher has
   no `publishers` row, a null name, or has not accepted the marketplace terms (P4-14) is never returned. `publisherName` on each listing comes from one
   `publisherRepository.findAllById` per page; the mapper ignores the field.

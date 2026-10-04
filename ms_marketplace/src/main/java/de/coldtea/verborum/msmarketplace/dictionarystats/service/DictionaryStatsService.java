@@ -20,17 +20,17 @@ import de.coldtea.verborum.msmarketplace.common.event.DictionaryVisibilityEvent;
  */
 public interface DictionaryStatsService {
 
-    // ---- Browse (P4-06; filters and slices P4-11..P4-13). Listed rows of publishers with a display
-    // name only; any authenticated caller may read ----
+    // ---- Browse (P4-06; filters and slices P4-11..P4-13). Listed rows of member publishers only, for
+    // member callers only: callerId is the token subject, and a non-member gets 403 (the Forum gate) ----
 
     /** Newest first, narrowed by whichever filters are set. */
-    SliceResponse<DictionaryListingResponseDTO> getListings(ListingFilter filter, int page, int size);
+    SliceResponse<DictionaryListingResponseDTO> getListings(ListingFilter filter, int page, int size, String callerId);
 
     /** Most imported first, newest first among equals, narrowed by whichever filters are set. */
-    SliceResponse<DictionaryListingResponseDTO> getPopularListings(ListingFilter filter, int page, int size);
+    SliceResponse<DictionaryListingResponseDTO> getPopularListings(ListingFilter filter, int page, int size, String callerId);
 
     /** One publisher's listings, newest first — "more from this publisher". */
-    SliceResponse<DictionaryListingResponseDTO> getListingsByPublisher(String publisherId, int page, int size);
+    SliceResponse<DictionaryListingResponseDTO> getListingsByPublisher(String publisherId, int page, int size, String callerId);
 
     // ---- Event-driven projection (P4-03..P4-05) ----
 

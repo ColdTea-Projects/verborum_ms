@@ -10,4 +10,7 @@ public interface UserRepository extends JpaRepository<User, String> {
     // keycloak_id is the cross-service join key (other services' fk_user_id is the JWT subject),
     // so inbound events identify a user this way rather than by ms_user's own user_id.
     Optional<User> findByKeycloakId(String keycloakId);
+
+    // email is UNIQUE: saveUser checks it to answer 409 instead of failing on the constraint
+    Optional<User> findByEmail(String email);
 }

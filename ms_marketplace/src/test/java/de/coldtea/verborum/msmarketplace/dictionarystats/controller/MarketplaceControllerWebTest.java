@@ -1,6 +1,7 @@
 package de.coldtea.verborum.msmarketplace.dictionarystats.controller;
 
 import de.coldtea.verborum.msmarketplace.common.config.SecurityConfig;
+import de.coldtea.verborum.msmarketplace.common.exception.ForbiddenOperationException;
 import de.coldtea.verborum.msmarketplace.common.exception.GlobalExceptionHandler;
 import de.coldtea.verborum.msmarketplace.common.exception.RecordNotFoundException;
 import de.coldtea.verborum.msmarketplace.common.exception.SelfImportException;
@@ -24,6 +25,7 @@ import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -86,7 +88,7 @@ class MarketplaceControllerWebTest {
 
     @Test
     void getListings_DefaultsAndEnvelopeShape() throws Exception {
-        when(dictionaryStatsService.getListings(ListingFilter.NONE, 0, 20)).thenReturn(oneSlice());
+        when(dictionaryStatsService.getListings(ListingFilter.NONE, 0, 20, SUB)).thenReturn(oneSlice());
 
         mockMvc.perform(get("/marketplace/dictionaries").with(jwt().jwt(j -> j.subject(SUB))))
                 .andExpect(status().isOk())
@@ -112,7 +114,7 @@ class MarketplaceControllerWebTest {
 
     @Test
     void getPopularListings_PassesPaging() throws Exception {
-        when(dictionaryStatsService.getPopularListings(ListingFilter.NONE, 1, 50)).thenReturn(oneSlice());
+        when(dictionaryStatsService.getPopularListings(ListingFilter.NONE, 1, 50, SUB)).thenReturn(oneSlice());
 
         mockMvc.perform(get("/marketplace/dictionaries/popular?page=1&size=50").with(jwt().jwt(j -> j.subject(SUB))))
                 .andExpect(status().isOk())
@@ -124,7 +126,7 @@ class MarketplaceControllerWebTest {
     @Test
     void getListings_RepeatedPairs_PassedAsSentInAnyCase() throws Exception {
         // Normalising is the service's job; the controller hands over what was validated
-        when(dictionaryStatsService.getListings(new ListingFilter(List.of("en-tr", "FR-DE"), null, null), 0, 20)).thenReturn(oneSlice());
+        when(dictionaryStatsService.getListings(new ListingFilter(List.of("en-tr", "FR-DE"), null, null), 0, 20, SUB)).thenReturn(oneSlice());
 
         mockMvc.perform(get("/marketplace/dictionaries?pair=en-tr&pair=FR-DE").with(jwt().jwt(j -> j.subject(SUB))))
                 .andExpect(status().isOk())
@@ -133,7 +135,7 @@ class MarketplaceControllerWebTest {
 
     @Test
     void getListings_CommaSeparatedPairs_AlsoAccepted() throws Exception {
-        when(dictionaryStatsService.getListings(new ListingFilter(List.of("EN-TR", "FR-DE"), null, null), 0, 20)).thenReturn(oneSlice());
+        when(dictionaryStatsService.getListings(new ListingFilter(List.of("EN-TR", "FR-DE"), null, null), 0, 20, SUB)).thenReturn(oneSlice());
 
         mockMvc.perform(get("/marketplace/dictionaries?pair=EN-TR,FR-DE").with(jwt().jwt(j -> j.subject(SUB))))
                 .andExpect(status().isOk())
@@ -142,7 +144,7 @@ class MarketplaceControllerWebTest {
 
     @Test
     void getPopularListings_PairFilter_Passed() throws Exception {
-        when(dictionaryStatsService.getPopularListings(new ListingFilter(List.of("DE-TR"), null, null), 0, 20)).thenReturn(oneSlice());
+        when(dictionaryStatsService.getPopularListings(new ListingFilter(List.of("DE-TR"), null, null), 0, 20, SUB)).thenReturn(oneSlice());
 
         mockMvc.perform(get("/marketplace/dictionaries/popular?pair=DE-TR").with(jwt().jwt(j -> j.subject(SUB))))
                 .andExpect(status().isOk())
@@ -156,7 +158,7 @@ class MarketplaceControllerWebTest {
                 .andExpect(jsonPath("$.error").value("HandlerMethodValidationException"))
                 .andExpect(jsonPath("$.errorDetail").value("pair: must be two different supported language codes, e.g. EN-TR"));
 
-        verify(dictionaryStatsService, never()).getListings(any(), anyInt(), anyInt());
+        verify(dictionaryStatsService, never()).getListings(any(), anyInt(), anyInt(), anyString());
     }
 
     @Test
@@ -165,7 +167,7 @@ class MarketplaceControllerWebTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("HandlerMethodValidationException"));
 
-        verify(dictionaryStatsService, never()).getPopularListings(any(), anyInt(), anyInt());
+        verify(dictionaryStatsService, never()).getPopularListings(any(), anyInt(), anyInt(), anyString());
     }
 
     @Test
@@ -184,14 +186,14 @@ class MarketplaceControllerWebTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorDetail").value("pair: at most 10 language pairs"));
 
-        verify(dictionaryStatsService, never()).getListings(any(), anyInt(), anyInt());
+        verify(dictionaryStatsService, never()).getListings(any(), anyInt(), anyInt(), anyString());
     }
 
     // ---- tag filter (P4-12) ----
 
     @Test
     void getListings_TagsAndPairs_PassedTogether() throws Exception {
-        when(dictionaryStatsService.getListings(new ListingFilter(List.of("EN-TR"), List.of("Food", "travel"), null), 0, 20))
+        when(dictionaryStatsService.getListings(new ListingFilter(List.of("EN-TR"), List.of("Food", "travel"), null), 0, 20, SUB))
                 .thenReturn(oneSlice());
 
         mockMvc.perform(get("/marketplace/dictionaries?pair=EN-TR&tag=Food&tag=travel").with(jwt().jwt(j -> j.subject(SUB))))
@@ -201,7 +203,7 @@ class MarketplaceControllerWebTest {
 
     @Test
     void getPopularListings_TagFilter_Passed() throws Exception {
-        when(dictionaryStatsService.getPopularListings(new ListingFilter(null, List.of("food"), null), 0, 20)).thenReturn(oneSlice());
+        when(dictionaryStatsService.getPopularListings(new ListingFilter(null, List.of("food"), null), 0, 20, SUB)).thenReturn(oneSlice());
 
         mockMvc.perform(get("/marketplace/dictionaries/popular?tag=food").with(jwt().jwt(j -> j.subject(SUB))))
                 .andExpect(status().isOk())
@@ -216,7 +218,7 @@ class MarketplaceControllerWebTest {
                 .andExpect(jsonPath("$.error").value("HandlerMethodValidationException"))
                 .andExpect(jsonPath("$.errorDetail").value("tag: must not be blank"));
 
-        verify(dictionaryStatsService, never()).getListings(any(), anyInt(), anyInt());
+        verify(dictionaryStatsService, never()).getListings(any(), anyInt(), anyInt(), anyString());
     }
 
     @Test
@@ -237,14 +239,14 @@ class MarketplaceControllerWebTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorDetail").value("tag: at most 10 tags"));
 
-        verify(dictionaryStatsService, never()).getPopularListings(any(), anyInt(), anyInt());
+        verify(dictionaryStatsService, never()).getPopularListings(any(), anyInt(), anyInt(), anyString());
     }
 
     // ---- publisher-name filter (P4-13) ----
 
     @Test
     void getListings_PublisherNameWithOtherFilters_PassedAsSent() throws Exception {
-        when(dictionaryStatsService.getListings(new ListingFilter(List.of("EN-TR"), List.of("food"), "nna"), 0, 20))
+        when(dictionaryStatsService.getListings(new ListingFilter(List.of("EN-TR"), List.of("food"), "nna"), 0, 20, SUB))
                 .thenReturn(oneSlice());
 
         mockMvc.perform(get("/marketplace/dictionaries?pair=EN-TR&tag=food&publisher=nna").with(jwt().jwt(j -> j.subject(SUB))))
@@ -254,7 +256,7 @@ class MarketplaceControllerWebTest {
 
     @Test
     void getPopularListings_PublisherName_Passed() throws Exception {
-        when(dictionaryStatsService.getPopularListings(new ListingFilter(null, null, "Anna B"), 0, 20)).thenReturn(oneSlice());
+        when(dictionaryStatsService.getPopularListings(new ListingFilter(null, null, "Anna B"), 0, 20, SUB)).thenReturn(oneSlice());
 
         mockMvc.perform(get("/marketplace/dictionaries/popular").param("publisher", "Anna B").with(jwt().jwt(j -> j.subject(SUB))))
                 .andExpect(status().isOk());
@@ -266,7 +268,7 @@ class MarketplaceControllerWebTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorDetail").value("publisher: must be between 3 and 255 characters"));
 
-        verify(dictionaryStatsService, never()).getListings(any(), anyInt(), anyInt());
+        verify(dictionaryStatsService, never()).getListings(any(), anyInt(), anyInt(), anyString());
     }
 
     @Test
@@ -348,10 +350,31 @@ class MarketplaceControllerWebTest {
     @Test
     void getListingsByPublisher_PassesThePathIdNotTheCaller() throws Exception {
         // Browsing someone else's listings is the point — the caller's own subject must not be substituted
-        when(dictionaryStatsService.getListingsByPublisher(PUBLISHER, 0, 20)).thenReturn(oneSlice());
+        when(dictionaryStatsService.getListingsByPublisher(PUBLISHER, 0, 20, SUB)).thenReturn(oneSlice());
 
         mockMvc.perform(get("/marketplace/dictionaries/publisher/" + PUBLISHER).with(jwt().jwt(j -> j.subject(SUB))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items[0].publisherId").value(PUBLISHER));
+    }
+
+    // ---- the Forum gate ----
+
+    @Test
+    void getListings_CallerIsNotAMember_Is403() throws Exception {
+        when(dictionaryStatsService.getListings(any(), anyInt(), anyInt(), anyString()))
+                .thenThrow(new ForbiddenOperationException("Join the marketplace first: set a display name and accept the marketplace terms in your profile"));
+
+        mockMvc.perform(get("/marketplace/dictionaries").with(jwt().jwt(j -> j.subject(SUB))))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error").value("ForbiddenOperationException"));
+    }
+
+    @Test
+    void importDictionary_CallerIsNotAMember_Is403() throws Exception {
+        doThrow(new ForbiddenOperationException("Join the marketplace first"))
+                .when(dictionaryImportService).importDictionary("dict1", SUB);
+
+        mockMvc.perform(post("/marketplace/dictionaries/dict1/import").with(jwt().jwt(j -> j.subject(SUB))))
+                .andExpect(status().isForbidden());
     }
 }

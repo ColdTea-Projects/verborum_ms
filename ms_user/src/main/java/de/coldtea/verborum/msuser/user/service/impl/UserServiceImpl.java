@@ -6,6 +6,7 @@ import de.coldtea.verborum.msuser.common.event.UserDeletedEvent;
 import de.coldtea.verborum.msuser.common.event.UserProfileUpdatedEvent;
 import de.coldtea.verborum.msuser.common.exception.ForbiddenOperationException;
 import de.coldtea.verborum.msuser.common.exception.InvalidProfileException;
+import de.coldtea.verborum.msuser.common.exception.ProfileConflictException;
 import de.coldtea.verborum.msuser.common.exception.RecordNotFoundException;
 import de.coldtea.verborum.msuser.common.mapper.UserMapper;
 import de.coldtea.verborum.msuser.user.dto.ProfileInfoRequestDTO;
@@ -27,7 +28,9 @@ import static de.coldtea.verborum.msuser.common.config.RabbitMQConfig.ROUTING_KE
 import static de.coldtea.verborum.msuser.common.config.RabbitMQConfig.ROUTING_KEY_USER_PROFILE_UPDATED;
 import static de.coldtea.verborum.msuser.common.constants.ErrorMessageConstants.AGREEMENT_VERSION_REQUIRED;
 import static de.coldtea.verborum.msuser.common.constants.ErrorMessageConstants.DISPLAY_NAME_REQUIRED_WHILE_AGREEMENT_ACCEPTED;
+import static de.coldtea.verborum.msuser.common.constants.ErrorMessageConstants.EMAIL_ALREADY_IN_USE;
 import static de.coldtea.verborum.msuser.common.constants.ErrorMessageConstants.NOT_THE_OWNER;
+import static de.coldtea.verborum.msuser.common.constants.ErrorMessageConstants.PROFILE_ALREADY_EXISTS;
 import static de.coldtea.verborum.msuser.common.constants.ErrorMessageConstants.USER_WAS_NOT_FOUND_ID;
 import static de.coldtea.verborum.msuser.common.constants.ErrorMessageConstants.USER_WAS_NOT_FOUND_KEYCLOAK_ID;
 
@@ -60,6 +63,8 @@ public class UserServiceImpl implements UserService {
         Optional<User> existing = userRepository.findById(userRequestDTO.getUserId());
         existing.ifPresent(user -> requireOwnProfile(user, callerKeycloakId));
 
+        requireNoConflictingProfile(userRequestDTO, existing.isPresent());
+
         // Copied out now, not read from `existing` after the save: saveAndFlush merges the new values
         // onto that same managed instance, so afterwards it would always equal what was just saved
         ProfileState previous = existing.map(ProfileState::of).orElse(ProfileState.NONE);
@@ -84,6 +89,24 @@ public class UserServiceImpl implements UserService {
         publishProfileChange(savedUser, previous);
 
         return userMapper.toUserResponseDTO(savedUser);
+    }
+
+    /**
+     * The two unique columns, checked up front so a duplicate is a 409 that says what to do rather than
+     * a constraint violation (which used to surface as a 500). An account has one profile: a client
+     * that lost its `userId` (e.g. after a reinstall) must load it with `GET /users/me`, not create a
+     * second. The constraint handler still catches the race between this check and the insert.
+     */
+    private void requireNoConflictingProfile(UserRequestDTO userRequestDTO, boolean isUpdate) {
+        if (!isUpdate && userRepository.findByKeycloakId(userRequestDTO.getKeycloakId()).isPresent()) {
+            throw new ProfileConflictException(PROFILE_ALREADY_EXISTS);
+        }
+
+        userRepository.findByEmail(userRequestDTO.getEmail())
+                .filter(other -> !other.getUserId().equals(userRequestDTO.getUserId()))
+                .ifPresent(other -> {
+                    throw new ProfileConflictException(EMAIL_ALREADY_IN_USE);
+                });
     }
 
     /**

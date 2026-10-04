@@ -14,6 +14,9 @@ public final class ErrorMessageConstants {
     //Import (P4-07)
     public static final String LISTING_WAS_NOT_FOUND_ID = "Listing was not found. ID: ";
     public static final String CANNOT_IMPORT_OWN_DICTIONARY = "A dictionary cannot be imported by its own publisher";
+    // The Forum gate (403): browse and import are for marketplace members only
+    public static final String MARKETPLACE_MEMBERSHIP_REQUIRED =
+            "Join the marketplace first: set a display name and accept the marketplace terms in your profile";
 
     //OutboundEventPublisher — log message ({} placeholder)
     public static final String EVENT_PUBLISH_FAILED =

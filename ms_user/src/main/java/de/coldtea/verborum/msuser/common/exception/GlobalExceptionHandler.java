@@ -3,6 +3,7 @@ package de.coldtea.verborum.msuser.common.exception;
 import de.coldtea.verborum.msuser.common.response.ErrorResponse;
 import de.coldtea.verborum.msuser.common.utils.ResponseUtils;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -13,6 +14,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
+import static de.coldtea.verborum.msuser.common.constants.ErrorMessageConstants.DATA_CONFLICT;
 import static de.coldtea.verborum.msuser.common.constants.ErrorMessageConstants.INTERNAL_SERVER_ERROR;
 
 import java.time.OffsetDateTime;
@@ -55,6 +57,29 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleHttpMessageNotReadableException(HttpMessageNotReadableException ex, WebRequest request) {
         log.error(HttpMessageNotReadableException.class.getCanonicalName(), ex);
         return buildErrorResponse(HttpStatus.BAD_REQUEST, HttpMessageNotReadableException.class.getSimpleName(), ex.getMessage(), request);
+    }
+
+    /**
+     * A duplicate profile or email, caught by the service before saving — 409 with our own message.
+     */
+    @ExceptionHandler(ProfileConflictException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public ResponseEntity<ErrorResponse> handleProfileConflictException(ProfileConflictException ex, WebRequest request) {
+        log.warn("{}: {}", ProfileConflictException.class.getCanonicalName(), ex.getMessage());
+        return buildErrorResponse(HttpStatus.CONFLICT, ProfileConflictException.class.getSimpleName(), ex.getMessage(), request);
+    }
+
+    /**
+     * The backstop for the same conflicts when two requests race past the service's check: a unique
+     * or other constraint rejected the write. 409, not 500 — and a fixed message, never
+     * `ex.getMessage()`, which names the table, column and constraint.
+     */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public ResponseEntity<ErrorResponse> handleDataIntegrityViolationException(DataIntegrityViolationException ex,
+                                                                               WebRequest request) {
+        log.warn("{}: {}", DataIntegrityViolationException.class.getCanonicalName(), ex.getMostSpecificCause().getMessage());
+        return buildErrorResponse(HttpStatus.CONFLICT, DataIntegrityViolationException.class.getSimpleName(), DATA_CONFLICT, request);
     }
 
     /**

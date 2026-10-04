@@ -15,6 +15,11 @@ public final class ErrorMessageConstants {
             "displayName cannot be empty while the marketplace agreement is accepted; withdraw from the marketplace first";
     public static final String AGREEMENT_VERSION_REQUIRED =
             "marketplaceAgreementVersion is required to accept the marketplace agreement";
+    // Duplicate profile data (409). Checked before saving; the constraint handler is the backstop for a race
+    public static final String PROFILE_ALREADY_EXISTS =
+            "This account already has a profile; load it with GET /users/me instead of creating another";
+    public static final String EMAIL_ALREADY_IN_USE = "This email is already used by another profile";
+    public static final String DATA_CONFLICT = "The request conflicts with existing data";
     public static final String NOT_THE_OWNER = "This resource does not belong to the authenticated user";
     // Returned instead of an unhandled exception's own message, which would leak internals
     public static final String INTERNAL_SERVER_ERROR = "Internal server error";

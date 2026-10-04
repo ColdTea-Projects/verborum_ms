@@ -45,8 +45,9 @@ import static de.coldtea.verborum.msmarketplace.common.utils.SecurityUtils.getCu
 
 /**
  * Marketplace browse (P4-06). Read-only and served entirely from the local read model — never a call
- * to ms_dictionary (rule 5). Any authenticated caller may browse: every listed dictionary is public,
- * so there is no ownership filter. Import (P4-07) is the one write.
+ * to ms_dictionary (rule 5). Browse and import are for marketplace members only (the Forum gate: a
+ * display name and accepted terms, else 403); every listed dictionary is public, so there is no
+ * ownership filter. Import (P4-07) is the one write.
  * <p>
  * Parameter constraints (@Min/@Max, @Size, @NotBlank, @LanguagePair — on list elements too) are
  * enforced by Spring MVC's built-in method validation — no class-level @Validated, which would switch
@@ -91,7 +92,7 @@ public class MarketplaceController {
             @RequestParam(defaultValue = PAGE_DEFAULT) @Min(value = 0, message = PAGE_NEGATIVE) int page,
             @RequestParam(defaultValue = PAGE_SIZE_DEFAULT)
             @Min(value = 1, message = PAGE_SIZE_OUT_OF_RANGE) @Max(value = PAGE_SIZE_MAX, message = PAGE_SIZE_OUT_OF_RANGE) int size) {
-        return new ResponseEntity<>(dictionaryStatsService.getListings(new ListingFilter(pair, tag, publisher), page, size), HttpStatus.OK);
+        return new ResponseEntity<>(dictionaryStatsService.getListings(new ListingFilter(pair, tag, publisher), page, size, getCurrentUserId()), HttpStatus.OK);
     }
 
     /** Most imported first, with the same filters as {@link #getListings}. */
@@ -107,7 +108,7 @@ public class MarketplaceController {
             @RequestParam(defaultValue = PAGE_DEFAULT) @Min(value = 0, message = PAGE_NEGATIVE) int page,
             @RequestParam(defaultValue = PAGE_SIZE_DEFAULT)
             @Min(value = 1, message = PAGE_SIZE_OUT_OF_RANGE) @Max(value = PAGE_SIZE_MAX, message = PAGE_SIZE_OUT_OF_RANGE) int size) {
-        return new ResponseEntity<>(dictionaryStatsService.getPopularListings(new ListingFilter(pair, tag, publisher), page, size), HttpStatus.OK);
+        return new ResponseEntity<>(dictionaryStatsService.getPopularListings(new ListingFilter(pair, tag, publisher), page, size, getCurrentUserId()), HttpStatus.OK);
     }
 
     /**
@@ -120,6 +121,6 @@ public class MarketplaceController {
             @RequestParam(defaultValue = PAGE_DEFAULT) @Min(value = 0, message = PAGE_NEGATIVE) int page,
             @RequestParam(defaultValue = PAGE_SIZE_DEFAULT)
             @Min(value = 1, message = PAGE_SIZE_OUT_OF_RANGE) @Max(value = PAGE_SIZE_MAX, message = PAGE_SIZE_OUT_OF_RANGE) int size) {
-        return new ResponseEntity<>(dictionaryStatsService.getListingsByPublisher(publisherId, page, size), HttpStatus.OK);
+        return new ResponseEntity<>(dictionaryStatsService.getListingsByPublisher(publisherId, page, size, getCurrentUserId()), HttpStatus.OK);
     }
 }

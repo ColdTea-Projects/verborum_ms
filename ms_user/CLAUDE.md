@@ -143,6 +143,13 @@ unchanged (`creation_dt`/`update_dt`/`imported_at`).
   removes it), and the agreement fields are not part of that request at all — `UserMapper.toUser`
   ignores them and the service copies them from the stored row.
 
+## Conflicts (P4-15)
+- `saveUser` checks the two unique columns before saving: a new profile for a `keycloakId` that already
+  has one, or an email used by another profile → `ProfileConflictException` → **409** with a message
+  telling the client to load the profile with `GET /users/me`. `GlobalExceptionHandler` also maps
+  `DataIntegrityViolationException` to **409** with a fixed message (never the constraint text) — the
+  backstop for a race past the check. Before P4-15 both were 500s.
+
 ## Validation
 - `displayName` is optional but at most 255 characters (`@Size`, P4-13) — the column is `VARCHAR(255)`,
   so before the limit a longer name was a 500.

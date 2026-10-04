@@ -1,6 +1,7 @@
 package de.coldtea.verborum.msmarketplace.publisher.service.impl;
 
 import de.coldtea.verborum.msmarketplace.common.event.UserProfileUpdatedEvent;
+import de.coldtea.verborum.msmarketplace.common.exception.ForbiddenOperationException;
 import de.coldtea.verborum.msmarketplace.publisher.entity.Publisher;
 import de.coldtea.verborum.msmarketplace.publisher.repository.PublisherRepository;
 import de.coldtea.verborum.msmarketplace.publisher.service.PublisherService;
@@ -10,6 +11,8 @@ import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
 import java.util.Objects;
+
+import static de.coldtea.verborum.msmarketplace.common.constants.ErrorMessageConstants.MARKETPLACE_MEMBERSHIP_REQUIRED;
 
 @Service
 @RequiredArgsConstructor
@@ -50,6 +53,23 @@ public class PublisherServiceImpl implements PublisherService {
                                 .marketplaceAgreementAccepted(Boolean.TRUE.equals(event.getMarketplaceAgreementAccepted()))
                                 .sourceUpdatedAt(sourceUpdatedAt)
                                 .build()));
+    }
+
+    @Override
+    public boolean isMember(String keycloakId) {
+        return publisherRepository.existsByKeycloakIdAndDisplayNameIsNotNullAndMarketplaceAgreementAcceptedTrue(keycloakId);
+    }
+
+    /**
+     * Membership is read from this service's own copy of the profile (rule 5 — no call to ms_user). It
+     * arrives by event, so for a second or so after joining the user is not a member here yet; the
+     * clients are told to expect that.
+     */
+    @Override
+    public void requireMember(String keycloakId) {
+        if (!isMember(keycloakId)) {
+            throw new ForbiddenOperationException(MARKETPLACE_MEMBERSHIP_REQUIRED);
+        }
     }
 
     /**

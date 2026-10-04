@@ -17,6 +17,7 @@ import de.coldtea.verborum.msmarketplace.dictionarystats.repository.DictionarySt
 import de.coldtea.verborum.msmarketplace.dictionarystats.service.DictionaryStatsService;
 import de.coldtea.verborum.msmarketplace.publisher.entity.Publisher;
 import de.coldtea.verborum.msmarketplace.publisher.repository.PublisherRepository;
+import de.coldtea.verborum.msmarketplace.publisher.service.PublisherService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -76,18 +77,24 @@ public class DictionaryStatsServiceImpl implements DictionaryStatsService {
     // Display names (P4-13): read for browse, removed on user.deleted. Written by PublisherService
     private final PublisherRepository publisherRepository;
 
+    // The Forum gate: browse is for members only (403 otherwise)
+    private final PublisherService publisherService;
+
     @Override
-    public SliceResponse<DictionaryListingResponseDTO> getListings(ListingFilter filter, int page, int size) {
+    public SliceResponse<DictionaryListingResponseDTO> getListings(ListingFilter filter, int page, int size, String callerId) {
+        publisherService.requireMember(callerId);
         return browse(toSpecification(filter), PageRequest.of(page, size, NEWEST_FIRST));
     }
 
     @Override
-    public SliceResponse<DictionaryListingResponseDTO> getPopularListings(ListingFilter filter, int page, int size) {
+    public SliceResponse<DictionaryListingResponseDTO> getPopularListings(ListingFilter filter, int page, int size, String callerId) {
+        publisherService.requireMember(callerId);
         return browse(toSpecification(filter), PageRequest.of(page, size, MOST_IMPORTED_FIRST));
     }
 
     @Override
-    public SliceResponse<DictionaryListingResponseDTO> getListingsByPublisher(String publisherId, int page, int size) {
+    public SliceResponse<DictionaryListingResponseDTO> getListingsByPublisher(String publisherId, int page, int size, String callerId) {
+        publisherService.requireMember(callerId);
         // A publisher without a display name or accepted terms has no visible listings here either
         // (P4-13, P4-14)
         return browse(isListed().and(hasActivePublisher(null)).and(isPublishedBy(publisherId)),

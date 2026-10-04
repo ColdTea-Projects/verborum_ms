@@ -1,6 +1,7 @@
 package de.coldtea.verborum.msmarketplace.publisher.service.impl;
 
 import de.coldtea.verborum.msmarketplace.common.event.UserProfileUpdatedEvent;
+import de.coldtea.verborum.msmarketplace.common.exception.ForbiddenOperationException;
 import de.coldtea.verborum.msmarketplace.publisher.entity.Publisher;
 import de.coldtea.verborum.msmarketplace.publisher.repository.PublisherRepository;
 
@@ -18,6 +19,7 @@ import java.util.Optional;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
@@ -224,6 +226,29 @@ class PublisherServiceImplTest {
         // Assert
         verify(publisherRepository, never()).saveAndFlush(any());
         assertTrue(held.getMarketplaceAgreementAccepted());
+    }
+
+    // ---- membership: the Forum gate ----
+
+    @Test
+    void requireMember_Member_Passes() {
+        // Arrange
+        when(publisherRepository.existsByKeycloakIdAndDisplayNameIsNotNullAndMarketplaceAgreementAcceptedTrue(KEYCLOAK_ID))
+                .thenReturn(true);
+
+        // Act & Assert — no exception
+        publisherService.requireMember(KEYCLOAK_ID);
+        assertTrue(publisherService.isMember(KEYCLOAK_ID));
+    }
+
+    @Test
+    void requireMember_NotAMember_IsForbidden() {
+        // Arrange — no row, no name or not accepted all look the same to the query
+        when(publisherRepository.existsByKeycloakIdAndDisplayNameIsNotNullAndMarketplaceAgreementAcceptedTrue(KEYCLOAK_ID))
+                .thenReturn(false);
+
+        // Act & Assert
+        assertThrows(ForbiddenOperationException.class, () -> publisherService.requireMember(KEYCLOAK_ID));
     }
 
     private Publisher capturedSave() {

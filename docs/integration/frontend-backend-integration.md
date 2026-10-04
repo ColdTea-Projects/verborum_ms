@@ -126,7 +126,7 @@ backend (BE task P3-05).
 
 **ms_user — BE Phase 2:** `POST/PUT /users/`, `GET/DELETE /users/{userId}`, and since 2026-10-04
 `GET /users/me` + `PUT /users/me/profile-info` (profile page, marketplace agreement — marketplace guide
-§4.5), vault:
+§4), vault:
 `GET/POST /users/{userId}/vault`, `DELETE /users/{userId}/vault/{dictionaryId}`.
 
 **ms_marketplace — live since BE Phase 4 (2026-09-27):** `GET /marketplace/dictionaries`

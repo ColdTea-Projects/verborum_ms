@@ -4,6 +4,7 @@ import de.coldtea.verborum.msuser.common.config.SecurityConfig;
 import de.coldtea.verborum.msuser.common.exception.ForbiddenOperationException;
 import de.coldtea.verborum.msuser.common.exception.GlobalExceptionHandler;
 import de.coldtea.verborum.msuser.common.exception.InvalidProfileException;
+import de.coldtea.verborum.msuser.common.exception.ProfileConflictException;
 import de.coldtea.verborum.msuser.common.exception.RecordNotFoundException;
 import de.coldtea.verborum.msuser.user.dto.ProfileInfoRequestDTO;
 import de.coldtea.verborum.msuser.user.dto.ProfileResponseDTO;
@@ -15,6 +16,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.web.servlet.MockMvc;
@@ -223,5 +225,34 @@ class UserControllerWebTest {
                         .content("{}"))
                 .andExpect(status().isUnauthorized());
         verifyNoInteractions(userService);
+    }
+
+    // ---- duplicate profile data → 409 ----
+
+    @Test
+    void createUser_DuplicateProfile_Is409WithTheReason() throws Exception {
+        when(userService.saveUser(any(), anyString()))
+                .thenThrow(new ProfileConflictException("This account already has a profile; load it with GET /users/me instead of creating another"));
+
+        mockMvc.perform(post("/users/")
+                        .with(jwt().jwt(j -> j.subject(KEYCLOAK_ID)))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body(KEYCLOAK_ID)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error").value("ProfileConflictException"));
+    }
+
+    @Test
+    void createUser_ConstraintRace_Is409AndDoesNotLeakTheConstraint() throws Exception {
+        // The backstop: a unique constraint fired after the service's own check passed
+        when(userService.saveUser(any(), anyString())).thenThrow(new DataIntegrityViolationException(
+                "duplicate key value violates unique constraint \"users_keycloak_id_key\""));
+
+        mockMvc.perform(post("/users/")
+                        .with(jwt().jwt(j -> j.subject(KEYCLOAK_ID)))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body(KEYCLOAK_ID)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.errorDetail").value("The request conflicts with existing data"));
     }
 }

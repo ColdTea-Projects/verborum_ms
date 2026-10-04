@@ -5,4 +5,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 // Names for a page of listings come from the inherited findAllById — one query per page
 public interface PublisherRepository extends JpaRepository<Publisher, String> {
+
+    // A marketplace member: named and terms accepted — the same test browse applies to listings
+    // (DictionaryStatsSpecifications.hasActivePublisher), here for one user by primary key
+    boolean existsByKeycloakIdAndDisplayNameIsNotNullAndMarketplaceAgreementAcceptedTrue(String keycloakId);
 }

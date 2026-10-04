@@ -103,8 +103,11 @@ POST /users/            (ms_user, requires the bearer token)
 **After every login, call `GET /users/me`** (since 2026-10-04): it returns
 `{id, email, displayName, marketplaceAgreementAccepted, marketplaceAgreementVersion}` for the token's
 own user — no stored id needed — and builds the profile page. **404 means there is no profile yet:**
-create it with the `POST /users/` above, then call `/me` again. Change the name or the marketplace
-agreement with `PUT /users/me/profile-info` (marketplace guide §0).
+create it with the `POST /users/` above, then call `/me` again. Never `POST` when `/me` answered 200:
+a second profile for the same account is **409** `ProfileConflictException` (also for an email another
+profile uses). Change the name or the marketplace
+agreement with `PUT /users/me/profile-info` — the profile page is specified in
+`marketplace-client-guide.md` §4 and §6.1–§6.2.
 
 Safe rule: call it whenever `GET /users/me` (or `GET /users/{userId}`) returns 404. `email` must be unique — one profile
 per email is a product rule enforced in the database.

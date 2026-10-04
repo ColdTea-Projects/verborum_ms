@@ -6,6 +6,7 @@ import de.coldtea.verborum.msuser.common.event.UserDeletedEvent;
 import de.coldtea.verborum.msuser.common.event.UserProfileUpdatedEvent;
 import de.coldtea.verborum.msuser.common.exception.ForbiddenOperationException;
 import de.coldtea.verborum.msuser.common.exception.InvalidProfileException;
+import de.coldtea.verborum.msuser.common.exception.ProfileConflictException;
 import de.coldtea.verborum.msuser.common.exception.RecordNotFoundException;
 import de.coldtea.verborum.msuser.common.mapper.UserMapper;
 import de.coldtea.verborum.msuser.user.dto.ProfileInfoRequestDTO;
@@ -681,5 +682,57 @@ class UserServiceImplTest {
         user.setMarketplaceAgreementAccepted(false);
         user.setUpdatedAt(updatedAt);
         return user;
+    }
+
+    // ---- duplicate profile data → 409 ----
+
+    @Test
+    void saveUser_SecondProfileForTheSameAccount_Is409() {
+        // Arrange — e.g. a reinstall that lost its userId and generated a new one
+        UserRequestDTO requestDTO = requestDTO(CALLER_KC_ID);
+        requestDTO.setUserId("new-user-id");
+        when(userRepository.findById("new-user-id")).thenReturn(Optional.empty());
+        when(userRepository.findByKeycloakId(CALLER_KC_ID)).thenReturn(Optional.of(user("Anna", UPDATED_AT)));
+
+        // Act & Assert
+        assertThrows(ProfileConflictException.class, () -> userService.saveUser(requestDTO, CALLER_KC_ID));
+        verify(userRepository, never()).saveAndFlush(any());
+        verifyNoInteractions(eventPublisher);
+    }
+
+    @Test
+    void saveUser_EmailUsedByAnotherProfile_Is409() {
+        // Arrange
+        UserRequestDTO requestDTO = requestDTO(CALLER_KC_ID);
+        requestDTO.setUserId("user-1");
+        requestDTO.setEmail("taken@example.com");
+        User other = user("Someone", UPDATED_AT);
+        other.setUserId("someone-else");
+        when(userRepository.findById("user-1")).thenReturn(Optional.empty());
+        when(userRepository.findByEmail("taken@example.com")).thenReturn(Optional.of(other));
+
+        // Act & Assert
+        assertThrows(ProfileConflictException.class, () -> userService.saveUser(requestDTO, CALLER_KC_ID));
+        verify(userRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void saveUser_UpdateKeepingItsOwnEmail_IsNoConflict() {
+        // Arrange — the email belongs to the very profile being saved
+        UserRequestDTO requestDTO = requestDTO(CALLER_KC_ID);
+        requestDTO.setUserId("user-1");
+        requestDTO.setEmail("anna@example.com");
+        User existing = user("Anna", UPDATED_AT);
+        when(userRepository.findById("user-1")).thenReturn(Optional.of(existing));
+        when(userRepository.findByEmail("anna@example.com")).thenReturn(Optional.of(existing));
+        User incoming = user("Anna", UPDATED_AT);
+        when(userMapper.toUser(requestDTO)).thenReturn(incoming);
+        when(userRepository.saveAndFlush(incoming)).thenReturn(incoming);
+
+        // Act
+        userService.saveUser(requestDTO, CALLER_KC_ID);
+
+        // Assert
+        verify(userRepository).saveAndFlush(incoming);
     }
 }

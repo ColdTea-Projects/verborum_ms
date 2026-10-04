@@ -15,6 +15,8 @@ import de.coldtea.verborum.msmarketplace.dictionarystats.entity.DictionaryStats;
 import de.coldtea.verborum.msmarketplace.dictionarystats.repository.DictionaryStatsRepository;
 import de.coldtea.verborum.msmarketplace.publisher.entity.Publisher;
 import de.coldtea.verborum.msmarketplace.publisher.repository.PublisherRepository;
+import de.coldtea.verborum.msmarketplace.publisher.service.PublisherService;
+import de.coldtea.verborum.msmarketplace.common.exception.ForbiddenOperationException;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -34,6 +36,7 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -43,6 +46,8 @@ class DictionaryStatsServiceImplTest {
 
     private static final String DICTIONARY_ID = "dict1";
     private static final String OWNER = "kc-1";
+    // The browsing user — a member unless a test says otherwise (requireMember is a no-op mock)
+    private static final String CALLER = "kc-caller";
 
     private static final OffsetDateTime T1 = OffsetDateTime.of(2026, 9, 27, 10, 0, 0, 0, ZoneOffset.UTC);
     private static final OffsetDateTime T2 = T1.plusMinutes(5);
@@ -59,6 +64,9 @@ class DictionaryStatsServiceImplTest {
 
     @Mock
     private PublisherRepository publisherRepository;
+
+    @Mock
+    private PublisherService publisherService;
 
     @InjectMocks
     private DictionaryStatsServiceImpl dictionaryStatsService;
@@ -82,7 +90,7 @@ class DictionaryStatsServiceImplTest {
         when(dictionaryStatsMapper.toDictionaryListingResponseDTO(listing)).thenReturn(dto);
 
         // Act
-        SliceResponse<DictionaryListingResponseDTO> result = dictionaryStatsService.getListings(ListingFilter.NONE, 2, 5);
+        SliceResponse<DictionaryListingResponseDTO> result = dictionaryStatsService.getListings(ListingFilter.NONE, 2, 5, CALLER);
 
         // Assert
         Pageable pageable = capturedPageable();
@@ -104,7 +112,7 @@ class DictionaryStatsServiceImplTest {
 
         // Act
         SliceResponse<DictionaryListingResponseDTO> result =
-                dictionaryStatsService.getListings(new ListingFilter(List.of("EN-TR", "de-fr"), null, null), 0, 20);
+                dictionaryStatsService.getListings(new ListingFilter(List.of("EN-TR", "de-fr"), null, null), 0, 20, CALLER);
 
         // Assert
         assertTrue(result.getItems().isEmpty());
@@ -117,7 +125,7 @@ class DictionaryStatsServiceImplTest {
         when(dictionaryStatsRepository.findSlice(any(), any(Pageable.class))).thenReturn(new SliceImpl<>(List.of()));
 
         // Act
-        dictionaryStatsService.getPopularListings(new ListingFilter(List.of("EN-TR"), null, null), 0, 20);
+        dictionaryStatsService.getPopularListings(new ListingFilter(List.of("EN-TR"), null, null), 0, 20, CALLER);
 
         // Assert
         assertEquals(Sort.by(Sort.Order.desc("importCount"), Sort.Order.desc("publishedAt"), Sort.Order.asc("dictionaryId")),
@@ -130,12 +138,47 @@ class DictionaryStatsServiceImplTest {
         when(dictionaryStatsRepository.findSlice(any(), any(Pageable.class))).thenReturn(new SliceImpl<>(List.of()));
 
         // Act
-        dictionaryStatsService.getListingsByPublisher(OWNER, 1, 20);
+        dictionaryStatsService.getListingsByPublisher(OWNER, 1, 20, CALLER);
 
         // Assert
         Pageable pageable = capturedPageable();
         assertEquals(1, pageable.getPageNumber());
         assertEquals(Sort.by(Sort.Order.desc("publishedAt"), Sort.Order.asc("dictionaryId")), pageable.getSort());
+    }
+
+    // ---- the Forum gate: browse is for members only ----
+
+    @Test
+    void getListings_CallerNotAMember_IsForbiddenAndQueriesNothing() {
+        // Arrange
+        doThrow(new ForbiddenOperationException("join first")).when(publisherService).requireMember(CALLER);
+
+        // Act & Assert
+        assertThrows(ForbiddenOperationException.class,
+                () -> dictionaryStatsService.getListings(ListingFilter.NONE, 0, 20, CALLER));
+        verify(dictionaryStatsRepository, never()).findSlice(any(), any());
+    }
+
+    @Test
+    void getPopularListings_CallerNotAMember_IsForbidden() {
+        // Arrange
+        doThrow(new ForbiddenOperationException("join first")).when(publisherService).requireMember(CALLER);
+
+        // Act & Assert
+        assertThrows(ForbiddenOperationException.class,
+                () -> dictionaryStatsService.getPopularListings(ListingFilter.NONE, 0, 20, CALLER));
+        verify(dictionaryStatsRepository, never()).findSlice(any(), any());
+    }
+
+    @Test
+    void getListingsByPublisher_CallerNotAMember_IsForbidden() {
+        // Arrange
+        doThrow(new ForbiddenOperationException("join first")).when(publisherService).requireMember(CALLER);
+
+        // Act & Assert
+        assertThrows(ForbiddenOperationException.class,
+                () -> dictionaryStatsService.getListingsByPublisher(OWNER, 0, 20, CALLER));
+        verify(dictionaryStatsRepository, never()).findSlice(any(), any());
     }
 
     // ---- publisher names (P4-13) ----
@@ -156,7 +199,7 @@ class DictionaryStatsServiceImplTest {
 
         // Act
         SliceResponse<DictionaryListingResponseDTO> result =
-                dictionaryStatsService.getListings(new ListingFilter(null, null, "nna"), 0, 20);
+                dictionaryStatsService.getListings(new ListingFilter(null, null, "nna"), 0, 20, CALLER);
 
         // Assert
         assertEquals("Anna Bauer", result.getItems().get(0).getPublisherName());
@@ -171,7 +214,7 @@ class DictionaryStatsServiceImplTest {
         when(publisherRepository.findAllById(List.of())).thenReturn(List.of());
 
         // Act
-        SliceResponse<DictionaryListingResponseDTO> result = dictionaryStatsService.getListingsByPublisher(OWNER, 0, 20);
+        SliceResponse<DictionaryListingResponseDTO> result = dictionaryStatsService.getListingsByPublisher(OWNER, 0, 20, CALLER);
 
         // Assert
         assertTrue(result.getItems().isEmpty());
@@ -241,7 +284,7 @@ class DictionaryStatsServiceImplTest {
         when(dictionaryStatsRepository.findSlice(any(), any(Pageable.class))).thenReturn(new SliceImpl<>(List.of()));
 
         // Act
-        dictionaryStatsService.getListings(new ListingFilter(null, List.of(" Food", "TRAVEL"), null), 0, 20);
+        dictionaryStatsService.getListings(new ListingFilter(null, List.of(" Food", "TRAVEL"), null), 0, 20, CALLER);
 
         // Assert
         assertEquals(Sort.by(Sort.Order.desc("publishedAt"), Sort.Order.asc("dictionaryId")), capturedPageable().getSort());

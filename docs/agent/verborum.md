@@ -259,7 +259,7 @@ Owner only: every call acts on the token subject's own profile (P3-05).
 
 | Method | Path | Body | Returns |
 |---|---|---|---|
-| POST | `/users/` | `UserRequestDTO` `{userId, keycloakId, email, displayName?}` | `Response` 201 — create after first login |
+| POST | `/users/` | `UserRequestDTO` `{userId, keycloakId, email, displayName?}` | `Response` 201 — create after first login. **409** `ProfileConflictException` for a second profile of the same account or an email another profile uses (P4-15) |
 | PUT | `/users/` | same | `Response` 201 — full profile. An omitted `displayName` is **kept**, not cleared (P4-14); the agreement is never changed here |
 | GET | `/users/me` | — | `ProfileResponseDTO` `{id, email, displayName, marketplaceAgreementAccepted, marketplaceAgreementVersion}` — by token subject, for the profile page after login; **404 = no profile yet**, create it with POST (P4-14) |
 | PUT | `/users/me/profile-info` | `{displayName?, marketplaceAgreementAccepted?, marketplaceAgreementVersion?}` | `Response` 201 — partial: absent fields unchanged; `""` removes the name (P4-14) |
@@ -269,10 +269,11 @@ Owner only: every call acts on the token subject's own profile (P3-05).
 Profile rules (P4-14), both PUTs, 400 `InvalidProfileException`: accepting needs a non-blank
 `displayName` and a `marketplaceAgreementVersion`; while accepted, the name cannot be removed — withdraw
 (`false`) first, or in the same request. `displayName` ≤ 255, version ≤ 50. Withdrawing hides the user's
-listings; only deleting the account deletes them.
+listings and blocks new imports of them; only deleting the account deletes them. Any unique-constraint
+violation in ms_user is a 409 with a fixed message (P4-15), never a 500.
 
-### ms_marketplace — MarketplaceController (`/marketplace/dictionaries`, P4-06, P4-11)
-Read-only browse, any authenticated caller. Every endpoint returns only **listed** dictionaries and
+### ms_marketplace — MarketplaceController (`/marketplace/dictionaries`, P4-06, P4-11..P4-15)
+Read-only browse, Forum members only (display name + accepted terms; 403 otherwise, P4-15). Every endpoint returns only **listed** dictionaries and
 takes `page` (zero-based, default 0, ≥ 0) and `size` (default 20, 1–100); anything else is a 400.
 
 | Method | Path | Returns |
@@ -288,14 +289,15 @@ DictionaryListingResponseDTO { dictionaryId, publisherId, publisherName, name, f
 `SliceResponse` is Verborum's own paging envelope for infinite scroll — no totals, so no count query
 (P4-11 replaced `PageResponse`). `GET /language?from=&to=` was removed at P4-11; use `pair`.
 `publisherId` is the owner's JWT subject — the value for the publisher endpoint; it grants no access
-(ownership always comes from the caller's token). **Every browse endpoint returns only listings whose
-publisher has a display name and has accepted the marketplace terms** (P4-13, P4-14), and
-`publisherName` carries the name. Language codes come back
+(ownership always comes from the caller's token). **The Forum is for members both ways** (P4-13..P4-15):
+the caller must have a display name and accepted terms — otherwise **403** on every browse endpoint and
+on import — and only listings whose publisher is a member are returned or importable (a non-member's
+listing is a 404 on import). `publisherName` carries the name. Language codes come back
 uppercase; `tags` lowercase and sorted (`[]` when untagged).
 
 | Method | Path | Returns |
 |---|---|---|
-| POST | `/marketplace/dictionaries/{dictionaryId}/import` | `Response` (201) — P4-07. 404 if unknown, private or deleted; 400 (`SelfImportException`) for your own. Idempotent: a repeat is 201 again and counts nothing |
+| POST | `/marketplace/dictionaries/{dictionaryId}/import` | `Response` (201) — P4-07. 403 if the caller is not a Forum member (P4-15); 404 if unknown, private or deleted, or its publisher is not a member (P4-15); 400 (`SelfImportException`) for your own. Idempotent: a repeat is 201 again and counts nothing |
 
 Import records `(dictionary, importer)` once in `dictionary_imports`, increments `import_count` only
 on a first import (unique importers), and publishes `dictionary.imported` on every successful call.

@@ -1365,6 +1365,26 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
       clear name in one request → 201, `/me` shows `displayName: null`. Test data removed, DLQ empty.
     - **Consequence (intended):** every existing listing is hidden until its publisher accepts the
       terms — `publishers` rows created before this default to not accepted.
+
+- [x] `P4-15` **Forum gate, non-member import refusal, profile conflicts → 409** (ms_marketplace + ms_user) — depends on P4-14
+  (added and done 2026-10-04, from the gaps found while rewriting the client guide)
+  1. **Forum gate:** every browse endpoint and import now require the caller to be a marketplace member
+     (display name + accepted terms) → 403 `ForbiddenOperationException` otherwise. Checked against
+     ms_marketplace's own `publishers` copy (`PublisherService.requireMember`, derived
+     `existsByKeycloakIdAndDisplayNameIsNotNullAndMarketplaceAgreementAcceptedTrue`), so it lags a join
+     by the event's ~1 s — the client guide says to retry a 403 once right after joining.
+  2. **Import of a non-member's listing → 404:** before, leaving the marketplace hid listings from
+     browse but an import by a known `dictionaryId` still succeeded. Users who imported earlier keep
+     reading those dictionaries while they stay public (unchanged, documented).
+  3. **ms_user conflicts → 409:** a second profile for the same `keycloakId` or an email used by another
+     profile is `ProfileConflictException` (409, explains to load `/users/me`); any
+     `DataIntegrityViolationException` is a 409 with a fixed message as the race backstop. Both were 500s.
+  - Suites: ms_user 80/80, ms_marketplace 147/147. **Verified live** with testuser + testadmin: duplicate
+    profile → 409, taken email → 409; browse before joining → 403; admin joins and shares, user joins,
+    sees and imports it; admin leaves → it vanishes and import by id → 404; user leaves → browse and
+    import 403. Test data removed, DLQ empty.
+  - Docs: marketplace client guide (§0, §1, §4, §5, §6, §7, §9, §10), client-login guide,
+    `verborum.md`, both service `CLAUDE.md` files.
 ---
 
 ## Phase 5 — API Gateway

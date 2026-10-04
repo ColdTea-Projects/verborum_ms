@@ -10,8 +10,11 @@ public interface DictionaryImportService {
      * is idempotent too, and the re-send repairs a vault entry whose first event was lost).
      *
      * @param importerId the caller's id, taken from the JWT — never from the request (P3-05)
+     * @throws de.coldtea.verborum.msmarketplace.common.exception.ForbiddenOperationException the
+     *         importer is not a marketplace member — 403 (the Forum gate)
      * @throws de.coldtea.verborum.msmarketplace.common.exception.RecordNotFoundException unknown or
-     *         hidden listing (a private or deleted dictionary is not importable) — 404
+     *         hidden listing (a private or deleted dictionary, or one whose publisher is not a member, is
+     *         not importable) — 404
      * @throws de.coldtea.verborum.msmarketplace.common.exception.SelfImportException the caller is
      *         the publisher — 400
      */
