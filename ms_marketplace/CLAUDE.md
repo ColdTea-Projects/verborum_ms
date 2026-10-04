@@ -40,7 +40,9 @@ request time — decided 2026-07-23, see roadmap `P4-03`.
     create (Hibernate ignores column defaults). Migration `2026/09/27-02-changelog.json`.
   - `rating` / `viewCount` are deliberately absent until designed.
 - `Publisher` (`publishers`, P4-13) — `keycloakId` (PK, the JWT subject = `fk_user_id`), `displayName`
-  (nullable, trimmed; blank stored as null), `sourceUpdatedAt` (ms_user's `updatedAt`, rule 4). Own
+  (nullable, trimmed; blank stored as null), `marketplaceAgreementAccepted` (P4-14, NOT NULL, set
+  explicitly; null in an event = pre-P4-14, keep held; new row without it = false), `sourceUpdatedAt`
+  (ms_user's `updatedAt`, rule 4). Migrations `2026/10/04-04` and `-05`. Own
   package `publisher/`. Migration `2026/10/04-04-changelog.json` — also installs `pg_trgm` and the GIN
   trigram index on `lower(display_name)`. No row or a null name = that user's listings are hidden. A
   cleared name keeps the row (stale-event guard). No backfill: names set before P4-13 arrive only when
@@ -101,9 +103,9 @@ request time — decided 2026-07-23, see roadmap `P4-03`.
   write path that sets the languages (keep it that way; the column is NOT NULL). `tag=food` (P4-12,
   repeatable, max 10): **any** match through `hasAnyTag` → Hibernate `arrayOverlaps` → `tags && ?`.
   `publisher=nna` (P4-13, 3–255 chars): case-insensitive substring of the display name, through
-  `LikePatternUtils.toContainsPattern` (escapes `%`, `_`, `\`) and `hasNamedPublisher(pattern)`.
-- **`hasNamedPublisher` is applied to every browse read, filter or not** — a listing whose publisher has
-  no `publishers` row or a null name is never returned. `publisherName` on each listing comes from one
+  `LikePatternUtils.toContainsPattern` (escapes `%`, `_`, `\`) and `hasActivePublisher(pattern)`.
+- **`hasActivePublisher` is applied to every browse read, filter or not** — a listing whose publisher has
+  no `publishers` row, a null name, or has not accepted the marketplace terms (P4-14) is never returned. `publisherName` on each listing comes from one
   `publisherRepository.findAllById` per page; the mapper ignores the field.
 - Returns `common/response/SliceResponse` `{items, page, size, hasNext}` — infinite scroll, no count
   query. Reuse it for any future paged read. Browse goes through `findSlice` (the

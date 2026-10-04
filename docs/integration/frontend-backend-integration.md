@@ -124,7 +124,9 @@ backend (BE task P3-05).
 | `DELETE /words/{wordId}` · `DELETE /words/dictionary/{dictionaryId}` | Deletes |
 | `GET /words/dictionary/{id}` · `GET /words/user/{userId}` · `GET /words/batch?ids=…` | Reads |
 
-**ms_user — BE Phase 2:** `POST/PUT /users/`, `GET/DELETE /users/{userId}`, vault:
+**ms_user — BE Phase 2:** `POST/PUT /users/`, `GET/DELETE /users/{userId}`, and since 2026-10-04
+`GET /users/me` + `PUT /users/me/profile-info` (profile page, marketplace agreement — marketplace guide
+§4.5), vault:
 `GET/POST /users/{userId}/vault`, `DELETE /users/{userId}/vault/{dictionaryId}`.
 
 **ms_marketplace — live since BE Phase 4 (2026-09-27):** `GET /marketplace/dictionaries`

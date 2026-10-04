@@ -43,7 +43,7 @@ import static de.coldtea.verborum.msmarketplace.common.utils.LikePatternUtils.to
 import static de.coldtea.verborum.msmarketplace.common.utils.ResponseUtils.toSliceResponse;
 import static de.coldtea.verborum.msmarketplace.dictionarystats.repository.DictionaryStatsSpecifications.hasAnyTag;
 import static de.coldtea.verborum.msmarketplace.dictionarystats.repository.DictionaryStatsSpecifications.hasLangPairIn;
-import static de.coldtea.verborum.msmarketplace.dictionarystats.repository.DictionaryStatsSpecifications.hasNamedPublisher;
+import static de.coldtea.verborum.msmarketplace.dictionarystats.repository.DictionaryStatsSpecifications.hasActivePublisher;
 import static de.coldtea.verborum.msmarketplace.dictionarystats.repository.DictionaryStatsSpecifications.isListed;
 import static de.coldtea.verborum.msmarketplace.dictionarystats.repository.DictionaryStatsSpecifications.isPublishedBy;
 
@@ -88,8 +88,9 @@ public class DictionaryStatsServiceImpl implements DictionaryStatsService {
 
     @Override
     public SliceResponse<DictionaryListingResponseDTO> getListingsByPublisher(String publisherId, int page, int size) {
-        // A publisher without a display name has no visible listings here either (P4-13)
-        return browse(isListed().and(hasNamedPublisher(null)).and(isPublishedBy(publisherId)),
+        // A publisher without a display name or accepted terms has no visible listings here either
+        // (P4-13, P4-14)
+        return browse(isListed().and(hasActivePublisher(null)).and(isPublishedBy(publisherId)),
                 PageRequest.of(page, size, NEWEST_FIRST));
     }
 
@@ -308,10 +309,11 @@ public class DictionaryStatsServiceImpl implements DictionaryStatsService {
      * collapse in the set. Tags likewise go through the same normalisation as stored ones.
      */
     private static Specification<DictionaryStats> toSpecification(ListingFilter filter) {
-        // Listed, and published by someone with a display name (P4-13) — matching the name filter if set:
+        // Listed, and published by someone on the marketplace — named (P4-13) and terms accepted (P4-14) —
+        // matching the name filter if set:
         // a case-insensitive substring, so "nna" finds "Anna Bauer"
         Specification<DictionaryStats> specification = isListed()
-                .and(hasNamedPublisher(toContainsPattern(filter.publisherName())));
+                .and(hasActivePublisher(toContainsPattern(filter.publisherName())));
 
         if (filter.pairs() != null && !filter.pairs().isEmpty()) {
             Set<String> langPairs = filter.pairs().stream()

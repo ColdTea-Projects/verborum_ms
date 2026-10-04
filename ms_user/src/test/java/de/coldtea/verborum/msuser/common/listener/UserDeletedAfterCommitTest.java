@@ -66,6 +66,8 @@ class UserDeletedAfterCommitTest {
                 .keycloakId(UUID.randomUUID().toString())
                 .email(userId + "@example.com")
                 .displayName("After commit")
+                // NOT NULL since P4-14, and Hibernate writes null rather than the column default
+                .marketplaceAgreementAccepted(false)
                 .build());
     }
 

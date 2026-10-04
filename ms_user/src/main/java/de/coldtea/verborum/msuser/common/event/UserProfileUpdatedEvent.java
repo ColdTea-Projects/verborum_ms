@@ -8,7 +8,8 @@ import lombok.NoArgsConstructor;
 import java.time.OffsetDateTime;
 
 /**
- * Published on `user.profile.updated` when a user's display name is set, changed or cleared (P4-13).
+ * Published on `user.profile.updated` when a user's display name is set, changed or cleared (P4-13),
+ * or their marketplace agreement is accepted or withdrawn (P4-14).
  * Consumed by ms_marketplace, which shows the name on listings, lets users search by it, and hides the
  * listings of a publisher without one.
  * <p>
@@ -29,6 +30,12 @@ public class UserProfileUpdatedEvent {
     private String keycloakId;
 
     private String displayName;
+
+    /**
+     * Whether the user is on the marketplace (P4-14). ms_marketplace shows their listings only while
+     * this is true and `displayName` is set; withdrawing (false) hides them, nothing is deleted.
+     */
+    private Boolean marketplaceAgreementAccepted;
 
     private OffsetDateTime updatedAt;
 

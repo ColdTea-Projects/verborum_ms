@@ -57,6 +57,17 @@ public class GlobalExceptionHandler {
         return buildErrorResponse(HttpStatus.BAD_REQUEST, HttpMessageNotReadableException.class.getSimpleName(), ex.getMessage(), request);
     }
 
+    /**
+     * A profile rule was broken (P4-14) — 400 with the rule's own message, which is one of our
+     * constants and safe to return. WARN: a client mistake, not a fault.
+     */
+    @ExceptionHandler(InvalidProfileException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ResponseEntity<ErrorResponse> handleInvalidProfileException(InvalidProfileException ex, WebRequest request) {
+        log.warn("{}: {}", InvalidProfileException.class.getCanonicalName(), ex.getMessage());
+        return buildErrorResponse(HttpStatus.BAD_REQUEST, InvalidProfileException.class.getSimpleName(), ex.getMessage(), request);
+    }
+
     @ExceptionHandler(ForbiddenOperationException.class)
     @ResponseStatus(HttpStatus.FORBIDDEN)
     public ResponseEntity<ErrorResponse> handleForbiddenOperationException(ForbiddenOperationException ex, WebRequest request) {

@@ -16,7 +16,9 @@ import java.time.ZoneOffset;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -143,6 +145,85 @@ class PublisherServiceImplTest {
 
         // Assert
         assertEquals(T2, capturedSave().getSourceUpdatedAt());
+    }
+
+    // ---- marketplace agreement (P4-14) ----
+
+    @Test
+    void updateDisplayName_NewPublisherWhoAccepted_IsActive() {
+        // Arrange
+        when(publisherRepository.findById(KEYCLOAK_ID)).thenReturn(Optional.empty());
+        UserProfileUpdatedEvent event = event("Anna", T1);
+        event.setMarketplaceAgreementAccepted(true);
+
+        // Act
+        publisherService.updateDisplayName(event);
+
+        // Assert
+        assertTrue(capturedSave().getMarketplaceAgreementAccepted());
+    }
+
+    @Test
+    void updateDisplayName_NewPublisherWithoutTheFlag_IsNotAccepted() {
+        // Arrange — a pre-P4-14 event; the marketplace is opt-in, so unknown means not accepted
+        when(publisherRepository.findById(KEYCLOAK_ID)).thenReturn(Optional.empty());
+
+        // Act
+        publisherService.updateDisplayName(event("Anna", T1));
+
+        // Assert
+        assertFalse(capturedSave().getMarketplaceAgreementAccepted());
+    }
+
+    @Test
+    void updateDisplayName_NewerWithdrawal_HidesThePublisher() {
+        // Arrange
+        Publisher held = publisher("Anna", T1);
+        held.setMarketplaceAgreementAccepted(true);
+        when(publisherRepository.findById(KEYCLOAK_ID)).thenReturn(Optional.of(held));
+        UserProfileUpdatedEvent event = event("Anna", T2);
+        event.setMarketplaceAgreementAccepted(false);
+
+        // Act
+        publisherService.updateDisplayName(event);
+
+        // Assert — the name stays; only the flag goes, and nothing is deleted
+        Publisher saved = capturedSave();
+        assertFalse(saved.getMarketplaceAgreementAccepted());
+        assertEquals("Anna", saved.getDisplayName());
+    }
+
+    @Test
+    void updateDisplayName_NewerEventWithoutTheFlag_KeepsTheHeldAgreement() {
+        // Arrange — a pre-P4-14 message (e.g. a DLQ replay) must not withdraw anyone
+        Publisher held = publisher("Anna", T1);
+        held.setMarketplaceAgreementAccepted(true);
+        when(publisherRepository.findById(KEYCLOAK_ID)).thenReturn(Optional.of(held));
+
+        // Act
+        publisherService.updateDisplayName(event("Anna Bauer", T2));
+
+        // Assert
+        Publisher saved = capturedSave();
+        assertTrue(saved.getMarketplaceAgreementAccepted());
+        assertEquals("Anna Bauer", saved.getDisplayName());
+    }
+
+    @Test
+    void updateDisplayName_OlderWithdrawal_IsDropped() {
+        // Arrange — a withdrawal overtaken by a later re-acceptance must not hide the listings (rule 4)
+        Publisher held = publisher("Anna", T2);
+        held.setMarketplaceAgreementAccepted(true);
+        when(publisherRepository.findById(KEYCLOAK_ID)).thenReturn(Optional.of(held));
+        UserProfileUpdatedEvent event = event("Anna", T1);
+        event.setMarketplaceAgreementAccepted(false);
+
+        // Act
+        publisherService.updateDisplayName(event);
+
+        // Assert
+        verify(publisherRepository, never()).saveAndFlush(any());
+        assertTrue(held.getMarketplaceAgreementAccepted());
     }
 
     private Publisher capturedSave() {

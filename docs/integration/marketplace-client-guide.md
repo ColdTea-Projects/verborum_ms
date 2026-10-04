@@ -7,7 +7,8 @@ and this file is the bug — say so rather than working around it.
 
 **Backend state this describes:** roadmap Phase 4 complete, verified against a running stack on
 **2026-09-27** (tasks P4-01 … P4-10), plus the language-pair filter and slice paging of **P4-11**, the
-tag filter of **P4-12** and the publisher display names of **P4-13** (2026-10-04). Nothing here is planned-only unless it says so.
+tag filter of **P4-12**, the publisher display names of **P4-13** and the marketplace agreement of
+**P4-14** (2026-10-04). Nothing here is planned-only unless it says so.
 
 **Read first, and keep open:**
 - `docs/integration/frontend-backend-integration.md` — the normative contract (envelope, error shape,
@@ -44,7 +45,8 @@ otherwise surface as unexplained 401 / 400 / 403 / 404 responses.
 > 5. **The marketplace is live (`ms_marketplace`, `:8087`).** Browse public dictionaries, filter by
 >    language pairs, tags or publisher name, and import them into your vault. Browse pages carry
 >    `hasNext` (infinite scroll), not totals. **A user's dictionaries only appear once they have a
->    display name** — require one (with the marketplace terms) before marketplace use. See `docs/integration/marketplace-client-guide.md` in the backend repo.
+>    display name and have accepted the marketplace terms** — both recorded by the backend through
+>    `PUT /users/me/profile-info`; read them back with `GET /users/me` after login (§4.5). See `docs/integration/marketplace-client-guide.md` in the backend repo.
 > 6. **Word save/update messages changed.** `POST`/`PUT /words` now reply "Saved/Updated successfully
 >    into dictionary `<dictionaryId>`" instead of listing the words. Do not parse `message` — it is for
 >    humans and logs.
@@ -177,12 +179,10 @@ the user scrolls — acceptable for browsing; de-duplicate by `dictionaryId` whe
 - Display names are not unique; two publishers can both be "Anna". Use `publisherId` to tell them
   apart (e.g. for "More from this publisher").
 
-**A publisher must have a display name.** Every browse endpoint — filtered or not, including
-`/publisher/{publisherId}` — returns only listings whose publisher has set a display name in their
-profile (`POST`/`PUT /users/`, `displayName`). Before a user publishes to the marketplace, have them
-accept the marketplace terms **and** enter a display name. If they later clear it, their listings
-disappear from the marketplace until they set one again. A name change reaches listings within
-seconds. `displayName` is at most 255 characters (400 otherwise).
+**A publisher must be on the marketplace.** Every browse endpoint — filtered or not, including
+`/publisher/{publisherId}` — returns only listings whose publisher has a display name **and** has
+accepted the marketplace terms (§4.5). Withdrawing hides their listings (nothing is deleted); setting
+it again shows them within seconds. A name change reaches listings within seconds too.
 
 Only **listed** (public) dictionaries are ever returned. You will never see a private or deleted one
 here.
@@ -272,6 +272,27 @@ locale-independent conversion (`Locale.ROOT` / invariant culture) — Turkish lo
 `POST /users/` after first login — login guide §3). Without one, the vault update cannot be applied and
 the imported dictionary never appears in the vault. Keep the existing rule: call `POST /users/`
 whenever `GET /users/{userId}` returns 404, before offering the marketplace.
+
+### 4.5 Profile and the marketplace agreement (ms_user, since 2026-10-04)
+
+| Endpoint | Use |
+|---|---|
+| `GET /users/me` | after every login: `{id, email, displayName, marketplaceAgreementAccepted, marketplaceAgreementVersion}`. `id` is the `userId` for the other `/users/{userId}` calls. **404 = no profile yet** → `POST /users/`, then `/me` again |
+| `PUT /users/me/profile-info` | change the name and/or the agreement. Body `{displayName?, marketplaceAgreementAccepted?, marketplaceAgreementVersion?}`; **fields you leave out are not changed**. 201 |
+
+Rules — a break is **400** `InvalidProfileException`, with the rule in `errorDetail`:
+- **Join the marketplace:** send `marketplaceAgreementAccepted: true` with the **version** of the terms
+  text you showed (e.g. `"2026-10-01"`, ≤ 50 chars) and a `displayName` (in the same request, or
+  already set). The backend records the version and the time.
+- **While joined, the name cannot be removed.** `displayName: ""` is 400 — withdraw first, or send
+  `{"marketplaceAgreementAccepted": false, "displayName": ""}` in one request.
+- **Withdraw:** `marketplaceAgreementAccepted: false`. Their dictionaries leave the marketplace; nothing
+  is deleted. Dictionaries are only deleted with the account (`DELETE /users/{userId}`).
+- **New terms version:** send `true` with the new version; the acceptance time is renewed.
+- `displayName` ≤ 255 characters; leading/trailing spaces are trimmed; names need not be unique.
+
+`PUT /users/` (the full profile) still works, but it never changes the agreement, and an omitted
+`displayName` is now **kept**, not cleared. Prefer `profile-info` for the profile page.
 
 ---
 

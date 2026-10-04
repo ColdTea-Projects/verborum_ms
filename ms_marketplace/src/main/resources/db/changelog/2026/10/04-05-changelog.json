@@ -1,0 +1,38 @@
+{
+  "databaseChangeLog": [
+    {
+      "changeSet": {
+        "id": "20261004-05-publishers-marketplace-agreement",
+        "author": "claude (P4-14)",
+        "comment": "Whether the publisher has accepted the marketplace terms (P4-14), copied from ms_user's user.profile.updated. Browse shows a listing only when its publisher has a display name AND has accepted: the marketplace is opt-in, and withdrawing hides the user's listings without deleting anything. DEFAULT false fills existing rows as not accepted, so every current listing is hidden until its publisher accepts the terms - intended. An event without the field (published before P4-14) leaves the held value alone.",
+        "changes": [
+          {
+            "addColumn": {
+              "tableName": "publishers",
+              "columns": [
+                {
+                  "column": {
+                    "name": "marketplace_agreement_accepted",
+                    "type": "BOOLEAN",
+                    "defaultValueBoolean": false,
+                    "constraints": {
+                      "nullable": false
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        "rollback": [
+          {
+            "dropColumn": {
+              "tableName": "publishers",
+              "columnName": "marketplace_agreement_accepted"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,5 +1,7 @@
 package de.coldtea.verborum.msuser.user.service;
 
+import de.coldtea.verborum.msuser.user.dto.ProfileInfoRequestDTO;
+import de.coldtea.verborum.msuser.user.dto.ProfileResponseDTO;
 import de.coldtea.verborum.msuser.user.dto.UserRequestDTO;
 import de.coldtea.verborum.msuser.user.dto.UserResponseDTO;
 
@@ -12,4 +14,14 @@ public interface UserService {
     UserResponseDTO saveUser(UserRequestDTO userDto, String callerKeycloakId);
     UserResponseDTO getUserById(String userId, String callerKeycloakId);
     void deleteUser(String userId, String callerKeycloakId);
+
+    /** The caller's own profile, by token subject (P4-14). 404 when they have none yet. */
+    ProfileResponseDTO getMyProfile(String callerKeycloakId);
+
+    /**
+     * Partial update of the caller's display name and marketplace agreement (P4-14). Absent fields are
+     * left as they are. 400 when the result would have accepted terms without a display name, or an
+     * acceptance without a terms version; 404 when the caller has no profile.
+     */
+    ProfileResponseDTO updateProfileInfo(ProfileInfoRequestDTO profileInfo, String callerKeycloakId);
 }

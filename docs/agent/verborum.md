@@ -171,7 +171,8 @@ measure, class, polite`.
 
 ### User Profile (ms_user — built)
 ```
-- User           (user_id, keycloak_id, email, display_name, creation_dt, update_dt)
+- User           (user_id, keycloak_id, email, display_name, marketplace_agreement_accepted,
+                  marketplace_agreement_version, marketplace_agreement_accepted_at, creation_dt, update_dt)
 - UserStats      (user_id, total_words, total_dictionaries, update_dt)
 - VaultEntry     (vault_entry_id, fk_user_id, fk_dictionary_id, imported_at)  ← imported public dictionaries
 ```
@@ -195,6 +196,7 @@ Column-level detail, constraints and quirks (the cross-service user key is `keyc
 ```
 - keycloak_id        VARCHAR(255) PK   ← the JWT subject = dictionary_stats.fk_user_id; no FK
 - display_name       VARCHAR(255)      ← ms_user's display name, trimmed; null = none → listings hidden
+- marketplace_agreement_accepted BOOLEAN ← P4-14; false = not accepted / withdrawn → listings hidden
 - source_updated_at  timestamptz       ← ms_user's updatedAt; rule-4 stale-event guard
 - creation_dt / update_dt timestamptz
 GIN (lower(display_name) gin_trgm_ops)  ← the case-insensitive substring name filter
@@ -252,6 +254,23 @@ the whole dictionary payload. The tag in the path is normalised the same way as 
 | GET | `/words/user/{userId}` | — | `List<WordResponseDTO>` |
 | GET | `/words/batch?ids=id1,id2` | — | `List<WordResponseDTO>` (empty list for no matches) |
 
+### ms_user — UserController (`/users`)
+Owner only: every call acts on the token subject's own profile (P3-05).
+
+| Method | Path | Body | Returns |
+|---|---|---|---|
+| POST | `/users/` | `UserRequestDTO` `{userId, keycloakId, email, displayName?}` | `Response` 201 — create after first login |
+| PUT | `/users/` | same | `Response` 201 — full profile. An omitted `displayName` is **kept**, not cleared (P4-14); the agreement is never changed here |
+| GET | `/users/me` | — | `ProfileResponseDTO` `{id, email, displayName, marketplaceAgreementAccepted, marketplaceAgreementVersion}` — by token subject, for the profile page after login; **404 = no profile yet**, create it with POST (P4-14) |
+| PUT | `/users/me/profile-info` | `{displayName?, marketplaceAgreementAccepted?, marketplaceAgreementVersion?}` | `Response` 201 — partial: absent fields unchanged; `""` removes the name (P4-14) |
+| GET | `/users/{userId}` | — | `UserResponseDTO` (incl. the two agreement fields) |
+| DELETE | `/users/{userId}` | — | `Response` 200 — deletes everything, publishes `user.deleted` |
+
+Profile rules (P4-14), both PUTs, 400 `InvalidProfileException`: accepting needs a non-blank
+`displayName` and a `marketplaceAgreementVersion`; while accepted, the name cannot be removed — withdraw
+(`false`) first, or in the same request. `displayName` ≤ 255, version ≤ 50. Withdrawing hides the user's
+listings; only deleting the account deletes them.
+
 ### ms_marketplace — MarketplaceController (`/marketplace/dictionaries`, P4-06, P4-11)
 Read-only browse, any authenticated caller. Every endpoint returns only **listed** dictionaries and
 takes `page` (zero-based, default 0, ≥ 0) and `size` (default 20, 1–100); anything else is a 400.
@@ -270,7 +289,8 @@ DictionaryListingResponseDTO { dictionaryId, publisherId, publisherName, name, f
 (P4-11 replaced `PageResponse`). `GET /language?from=&to=` was removed at P4-11; use `pair`.
 `publisherId` is the owner's JWT subject — the value for the publisher endpoint; it grants no access
 (ownership always comes from the caller's token). **Every browse endpoint returns only listings whose
-publisher has a display name** (P4-13), and `publisherName` carries it. Language codes come back
+publisher has a display name and has accepted the marketplace terms** (P4-13, P4-14), and
+`publisherName` carries the name. Language codes come back
 uppercase; `tags` lowercase and sorted (`[]` when untagged).
 
 | Method | Path | Returns |
@@ -306,7 +326,7 @@ This is the single source of truth — every client's language enum must be a su
 | `dictionary.updated` | ms_dictionary | ms_marketplace (`marketplace.dictionary.updated`) | A public dictionary's `name`/`fromLang`/`toLang` changed and it stayed public, or a tag was actually added to/removed from it (P4-12; bumps its `updatedAt`) |
 | `dictionary.snapshot` | ms_dictionary | ms_marketplace (`marketplace.dictionary.snapshot`) | Schedule, nightly by default (`DICTIONARY_SNAPSHOT_CRON`) — every public dictionary in one message |
 | `user.deleted` | ms_user | ms_dictionary (`dictionary.user.deleted`), ms_marketplace (`marketplace.user.deleted`) | User account deleted |
-| `user.profile.updated` | ms_user | ms_marketplace (`marketplace.user.profile.updated`) | A user's display name was set, changed or cleared (P4-13). `{keycloakId, displayName, updatedAt, eventTimestamp}`; `displayName: null` = no name now |
+| `user.profile.updated` | ms_user | ms_marketplace (`marketplace.user.profile.updated`) | A user's display name was set, changed or cleared (P4-13), or the marketplace agreement accepted or withdrawn (P4-14). `{keycloakId, displayName, marketplaceAgreementAccepted, updatedAt, eventTimestamp}`; `displayName: null` = no name now |
 | `dictionary.imported` | ms_marketplace | ms_user | User imports a public dictionary |
 | `word.created` | ms_dictionary | ms_autofil (V2) | New word added |
 

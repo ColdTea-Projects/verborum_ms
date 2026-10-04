@@ -10,6 +10,11 @@ public final class ErrorMessageConstants {
     public static final String USER_WAS_NOT_FOUND_KEYCLOAK_ID = "User was not found. Keycloak ID: ";
 
     //Security (P3-05) — vague on purpose: must not reveal whether the profile exists or who owns it
+    // P4-14: the profile rules — accepted marketplace terms require a display name and a terms version
+    public static final String DISPLAY_NAME_REQUIRED_WHILE_AGREEMENT_ACCEPTED =
+            "displayName cannot be empty while the marketplace agreement is accepted; withdraw from the marketplace first";
+    public static final String AGREEMENT_VERSION_REQUIRED =
+            "marketplaceAgreementVersion is required to accept the marketplace agreement";
     public static final String NOT_THE_OWNER = "This resource does not belong to the authenticated user";
     // Returned instead of an unhandled exception's own message, which would leak internals
     public static final String INTERNAL_SERVER_ERROR = "Internal server error";

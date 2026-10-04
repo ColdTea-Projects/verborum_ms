@@ -19,6 +19,10 @@ public final class DTOMessageConstants {
     // and since P4-13 the name is public on the marketplace and copied into ms_marketplace
     public static final int USER_DISPLAY_NAME_MAX = 255;
     public static final String USER_DISPLAY_NAME_TOO_LONG = "displayName must be at most " + USER_DISPLAY_NAME_MAX + " characters";
+    // P4-14: an identifier such as "2026-10-01" or "v3"; matches the VARCHAR(50) column
+    public static final int MARKETPLACE_AGREEMENT_VERSION_MAX = 50;
+    public static final String MARKETPLACE_AGREEMENT_VERSION_TOO_LONG =
+            "marketplaceAgreementVersion must be at most " + MARKETPLACE_AGREEMENT_VERSION_MAX + " characters";
 
 
     //Vault DTOs — validation messages

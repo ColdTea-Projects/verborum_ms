@@ -24,6 +24,10 @@ public class UserResponseDTO {
 
     private String displayName;
 
+    private Boolean marketplaceAgreementAccepted;
+
+    private String marketplaceAgreementVersion;
+
     private OffsetDateTime createdAt;
 
     private OffsetDateTime updatedAt;

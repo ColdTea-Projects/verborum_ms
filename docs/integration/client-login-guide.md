@@ -100,7 +100,13 @@ POST /users/            (ms_user, requires the bearer token)
 }
 ```
 
-Safe rule: call it whenever `GET /users/{userId}` returns 404. `email` must be unique — one profile
+**After every login, call `GET /users/me`** (since 2026-10-04): it returns
+`{id, email, displayName, marketplaceAgreementAccepted, marketplaceAgreementVersion}` for the token's
+own user — no stored id needed — and builds the profile page. **404 means there is no profile yet:**
+create it with the `POST /users/` above, then call `/me` again. Change the name or the marketplace
+agreement with `PUT /users/me/profile-info` (marketplace guide §0).
+
+Safe rule: call it whenever `GET /users/me` (or `GET /users/{userId}`) returns 404. `email` must be unique — one profile
 per email is a product rule enforced in the database.
 
 `userId` is still client-supplied. Backend P3-05 will switch it to the JWT subject; that is a

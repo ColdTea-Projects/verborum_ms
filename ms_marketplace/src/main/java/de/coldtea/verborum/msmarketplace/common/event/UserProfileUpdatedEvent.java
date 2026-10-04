@@ -29,6 +29,12 @@ public class UserProfileUpdatedEvent {
 
     private String displayName;
 
+    /**
+     * Whether the user is on the marketplace (P4-14): their listings show only while this is true and
+     * they have a display name. Null = an event from before P4-14 — keep what is held.
+     */
+    private Boolean marketplaceAgreementAccepted;
+
     private OffsetDateTime updatedAt;
 
     private OffsetDateTime eventTimestamp;

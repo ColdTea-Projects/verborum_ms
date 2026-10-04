@@ -34,6 +34,20 @@ public class User {
     @Column(name = "display_name")
     private String displayName;
 
+    // Marketplace terms (P4-14). Accepted = the user is on the marketplace: ms_marketplace shows their
+    // listings only while this is true and they have a display name. Set explicitly on create — the
+    // column default does not apply through Hibernate, which writes every mapped column
+    @Column(name = "marketplace_agreement_accepted", nullable = false)
+    private Boolean marketplaceAgreementAccepted;
+
+    // Which terms text was accepted, and when (server time). Kept after a withdrawal as the record of
+    // the last acceptance; only the flag goes false
+    @Column(name = "marketplace_agreement_version")
+    private String marketplaceAgreementVersion;
+
+    @Column(name = "marketplace_agreement_accepted_at")
+    private OffsetDateTime marketplaceAgreementAcceptedAt;
+
     // Zone-aware timestamps (timestamptz), serialized as ISO-8601 UTC under JSON keys
     // createdAt / updatedAt — same contract as ms_dictionary. Server-authoritative.
     @CreationTimestamp

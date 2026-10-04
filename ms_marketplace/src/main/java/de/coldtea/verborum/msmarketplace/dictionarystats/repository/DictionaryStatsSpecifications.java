@@ -49,24 +49,29 @@ public class DictionaryStatsSpecifications {
     }
 
     /**
-     * The listing's publisher has a display name (P4-13) — and, given a pattern, one that matches it.
-     * Every browse read applies it: a user must name themselves before their dictionaries show.
+     * The listing's publisher is on the marketplace: has a display name (P4-13) and has accepted the
+     * marketplace terms (P4-14) — and, given a pattern, has a name that matches it. Every browse read
+     * applies it: the marketplace is opt-in, and withdrawing hides a user's listings.
      * <p>
-     * `EXISTS (SELECT 1 FROM publishers p WHERE p.keycloak_id = fk_user_id AND p.display_name IS NOT
-     * NULL [AND lower(p.display_name) LIKE :pattern ESCAPE '\'])`. A subquery rather than a join: there
-     * is no association to join on, and EXISTS cannot duplicate a listing. The LIKE is on
+     * `EXISTS (SELECT 1 FROM publishers p WHERE p.keycloak_id = fk_user_id
+     * AND p.display_name IS NOT NULL AND p.marketplace_agreement_accepted
+     * [AND lower(p.display_name) LIKE :pattern ESCAPE '\'])`.
+     * A subquery rather than a join: there is no association to join on, and EXISTS cannot duplicate a
+     * listing. The LIKE is on
      * `lower(display_name)` because that is the expression the trigram index covers.
      *
      * @param namePattern a ready pattern from {@link LikePatternUtils#toContainsPattern}, or null for "any name"
      */
-    public static Specification<DictionaryStats> hasNamedPublisher(String namePattern) {
+    public static Specification<DictionaryStats> hasActivePublisher(String namePattern) {
         return (root, query, criteriaBuilder) -> {
             Subquery<String> publisher = query.subquery(String.class);
             Root<Publisher> publisherRoot = publisher.from(Publisher.class);
 
             Predicate named = criteriaBuilder.and(
                     criteriaBuilder.equal(publisherRoot.get("keycloakId"), root.get("userId")),
-                    criteriaBuilder.isNotNull(publisherRoot.get("displayName")));
+                    criteriaBuilder.isNotNull(publisherRoot.get("displayName")),
+                    // A literal, like isListed(): no bound parameter in the plan
+                    criteriaBuilder.isTrue(publisherRoot.get("marketplaceAgreementAccepted")));
             if (namePattern != null) {
                 named = criteriaBuilder.and(named, criteriaBuilder.like(
                         criteriaBuilder.lower(publisherRoot.get("displayName")), namePattern, LikePatternUtils.ESCAPE));

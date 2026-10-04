@@ -1,0 +1,66 @@
+{
+  "databaseChangeLog": [
+    {
+      "changeSet": {
+        "id": "20261004-01-users-marketplace-agreement",
+        "author": "claude (P4-14)",
+        "comment": "Marketplace terms acceptance (decided 2026-10-04). Clients must have the user accept the marketplace terms before marketplace use, and the backend records it: marketplace_agreement_accepted is the current state (false = never accepted or withdrawn; withdrawing hides the user's listings in ms_marketplace), marketplace_agreement_version is which terms text was accepted (sent by the client), and marketplace_agreement_accepted_at is the server time of that acceptance. On withdrawal only the flag goes false: version and time stay as the record of the last acceptance. DEFAULT false backfills existing rows as not accepted - the marketplace is opt-in. VARCHAR(50) for the version, which is an identifier like 2026-10-01 or v3, not text.",
+        "changes": [
+          {
+            "addColumn": {
+              "tableName": "users",
+              "columns": [
+                {
+                  "column": {
+                    "name": "marketplace_agreement_accepted",
+                    "type": "BOOLEAN",
+                    "defaultValueBoolean": false,
+                    "constraints": {
+                      "nullable": false
+                    }
+                  }
+                },
+                {
+                  "column": {
+                    "name": "marketplace_agreement_version",
+                    "type": "VARCHAR(50)"
+                  }
+                },
+                {
+                  "column": {
+                    "name": "marketplace_agreement_accepted_at",
+                    "type": "TIMESTAMP WITH TIME ZONE"
+                  }
+                }
+              ]
+            }
+          }
+        ],
+        "rollback": [
+          {
+            "dropColumn": {
+              "tableName": "users",
+              "columns": [
+                {
+                  "column": {
+                    "name": "marketplace_agreement_accepted"
+                  }
+                },
+                {
+                  "column": {
+                    "name": "marketplace_agreement_version"
+                  }
+                },
+                {
+                  "column": {
+                    "name": "marketplace_agreement_accepted_at"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

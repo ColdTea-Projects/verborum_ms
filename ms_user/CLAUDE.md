@@ -41,6 +41,9 @@ serialized as ISO-8601 UTC (`...Z`), matching ms_dictionary. `User` exposes JSON
 unchanged (`creation_dt`/`update_dt`/`imported_at`).
 
 ## API — UserController (`/users`)
+- **`GET /users/me`** (P4-14) — the caller's `ProfileResponseDTO` by token subject, 404 when there is no
+  profile yet. **`PUT /users/me/profile-info`** (P4-14) — partial update of `displayName` and the
+  marketplace agreement; null fields are left alone. Both rules below apply.
 - `POST /users/` create profile · `PUT /users/` update · `GET /users/{userId}` (404 if missing) ·
   `DELETE /users/{userId}`. Mirrors DictionaryController: `Response` envelope on mutations, DTO on
   read, `saveUser` backs both POST and PUT. `userId` is still client-supplied here — switching to the
@@ -72,10 +75,10 @@ unchanged (`creation_dt`/`update_dt`/`imported_at`).
   - `UserDeletedAfterCommitTest` drives a real transaction and asserts a rollback publishes nothing.
     That test is the regression guard — do not delete it.
   - Unit tests verify `ApplicationEventPublisher`, not `RabbitTemplate`.
-- **Publishes `user.profile.updated`** (P4-13) from `UserServiceImpl.saveUser()` when the display
-  name actually changes — set on a new profile, renamed, or cleared (`displayName: null`). Payload
-  `{keycloakId, displayName, updatedAt, eventTimestamp}`; ms_marketplace shows the name on listings
-  and **hides the listings of a user without one**. The old name is copied out *before*
+- **Publishes `user.profile.updated`** (P4-13, P4-14) from `saveUser` and `updateProfileInfo` when
+  the display name or the marketplace agreement flag actually changes. Payload
+  `{keycloakId, displayName, marketplaceAgreementAccepted, updatedAt, eventTimestamp}`; ms_marketplace shows the name on listings
+  and **hides the listings of a user without one, or who has not accepted / has withdrawn**. The old name is copied out *before*
   `saveAndFlush`, which merges onto the managed instance `findById` returned — comparing after the save
   would always see "no change" (same trap as ms_dictionary's `dictionary.updated`; a test simulates it).
   A new profile without a name, or a re-save of the same name, sends nothing.
@@ -125,6 +128,20 @@ unchanged (`creation_dt`/`update_dt`/`imported_at`).
     realm import grants it.
 - `keycloak.admin.client-secret` is intentionally left blank in `application.properties` and
   sourced from the `KEYCLOAK_ADMIN_CLIENT_SECRET` environment variable — never hardcode it.
+
+## Marketplace agreement (P4-14)
+- `users.marketplace_agreement_accepted` (NOT NULL, default false — **set explicitly on create**, the
+  default does not apply through Hibernate; a test fixture once failed exactly this way),
+  `marketplace_agreement_version` (VARCHAR(50), from the client), `marketplace_agreement_accepted_at`
+  (server time). Migration `2026/10/04-01-changelog.json`.
+- **One invariant, checked on the resulting profile in both write paths:** accepted ⇒ non-blank
+  `displayName`. Accepting also needs a version in the request (unless already accepted). Breaking
+  either is `InvalidProfileException` → 400.
+- Withdrawing clears only the flag; version and `accepted_at` stay as the record. A new version (or an
+  acceptance after a withdrawal) stamps a new `accepted_at`.
+- **`PUT /users/` never clears by omission:** a missing `displayName` keeps the stored one (`""`
+  removes it), and the agreement fields are not part of that request at all — `UserMapper.toUser`
+  ignores them and the service copies them from the stored row.
 
 ## Validation
 - `displayName` is optional but at most 255 characters (`@Size`, P4-13) — the column is `VARCHAR(255)`,

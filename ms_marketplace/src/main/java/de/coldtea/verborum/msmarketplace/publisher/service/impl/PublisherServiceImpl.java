@@ -35,6 +35,10 @@ public class PublisherServiceImpl implements PublisherService {
                             // Equal counts as stale, so a redelivery is a no-op (rule 4)
                             if (sourceUpdatedAt.isAfter(publisher.getSourceUpdatedAt())) {
                                 publisher.setDisplayName(displayName);
+                                // Null = a pre-P4-14 event that does not know the agreement: keep ours
+                                if (event.getMarketplaceAgreementAccepted() != null) {
+                                    publisher.setMarketplaceAgreementAccepted(event.getMarketplaceAgreementAccepted());
+                                }
                                 publisher.setSourceUpdatedAt(sourceUpdatedAt);
                                 publisherRepository.saveAndFlush(publisher);
                             }
@@ -42,6 +46,8 @@ public class PublisherServiceImpl implements PublisherService {
                         () -> publisherRepository.saveAndFlush(Publisher.builder()
                                 .keycloakId(event.getKeycloakId())
                                 .displayName(displayName)
+                                // Unknown counts as not accepted: the marketplace is opt-in
+                                .marketplaceAgreementAccepted(Boolean.TRUE.equals(event.getMarketplaceAgreementAccepted()))
                                 .sourceUpdatedAt(sourceUpdatedAt)
                                 .build()));
     }

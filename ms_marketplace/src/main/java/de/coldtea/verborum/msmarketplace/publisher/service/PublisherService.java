@@ -9,8 +9,8 @@ import de.coldtea.verborum.msmarketplace.common.event.UserProfileUpdatedEvent;
 public interface PublisherService {
 
     /**
-     * `user.profile.updated` — creates the publisher, or updates the name if the event is newer than
-     * what is held (rule 4). Idempotent: a redelivery is not newer and changes nothing. A null or
+     * `user.profile.updated` — creates the publisher, or updates the name and marketplace agreement if
+     * the event is newer than what is held (rule 4). Idempotent: a redelivery is not newer and changes nothing. A null or
      * blank name is stored as null, which hides that publisher's listings.
      */
     void updateDisplayName(UserProfileUpdatedEvent event);

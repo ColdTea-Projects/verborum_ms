@@ -1,6 +1,8 @@
 package de.coldtea.verborum.msuser.user.controller;
 
 import de.coldtea.verborum.msuser.common.response.Response;
+import de.coldtea.verborum.msuser.user.dto.ProfileInfoRequestDTO;
+import de.coldtea.verborum.msuser.user.dto.ProfileResponseDTO;
 import de.coldtea.verborum.msuser.user.dto.UserRequestDTO;
 import de.coldtea.verborum.msuser.user.dto.UserResponseDTO;
 import de.coldtea.verborum.msuser.user.service.UserService;
@@ -32,6 +34,25 @@ public class UserController {
     public ResponseEntity<Response> updateUser(@Valid @RequestBody UserRequestDTO user, WebRequest request) {
         userService.saveUser(user, getCurrentKeycloakId());
         return buildResponse(HttpStatus.CREATED, USER_UPDATED_SUCCESSFULLY, user.getUserId(), request);
+    }
+
+    /**
+     * The caller's own profile for the profile page after login (P4-14) — by token subject, so the
+     * client needs no stored id. 404 until the profile is created with POST.
+     */
+    @GetMapping("/me")
+    public ResponseEntity<ProfileResponseDTO> getMyProfile() {
+        return new ResponseEntity<>(userService.getMyProfile(getCurrentKeycloakId()), HttpStatus.OK);
+    }
+
+    /**
+     * Display name and marketplace agreement only (P4-14); absent fields are left as they are.
+     */
+    @PutMapping("/me/profile-info")
+    public ResponseEntity<Response> updateProfileInfo(@Valid @RequestBody ProfileInfoRequestDTO profileInfo,
+                                                      WebRequest request) {
+        ProfileResponseDTO profile = userService.updateProfileInfo(profileInfo, getCurrentKeycloakId());
+        return buildResponse(HttpStatus.CREATED, USER_UPDATED_SUCCESSFULLY, profile.getId(), request);
     }
 
     @GetMapping("/{userId}")

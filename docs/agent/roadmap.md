@@ -1299,6 +1299,72 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
     - **Dev data:** the three seeded listings belong to a user with no profile, so they no longer show
       in browse. Expected.
 
+- [x] `P4-14` **Profile info for the client: marketplace agreement + profile endpoints** (ms_user + ms_marketplace) — depends on P4-13
+  (added 2026-10-04; decisions taken with the owner the same day)
+  - **Why:** clients must force a display name and the marketplace terms before marketplace use, and
+    build the profile page right after login. Today the backend records no terms acceptance, and the
+    only write is the full-replace `PUT /users/`, where omitting `displayName` clears it and hides the
+    user's listings (P4-13).
+  - **New columns on `users`** (one changeset): `marketplace_agreement_accepted BOOLEAN NOT NULL DEFAULT
+    false`, `marketplace_agreement_version VARCHAR` (which terms were accepted, sent by the client),
+    `marketplace_agreement_accepted_at TIMESTAMPTZ` (server time of acceptance). Set explicitly on
+    create (Hibernate ignores column defaults). On withdrawal the flag goes false and the version/time of
+    the last acceptance are kept as the record.
+  - **GET `/users/me`** — the caller's profile for the profile page after login:
+    `{ id, email, displayName, marketplaceAgreementAccepted, marketplaceAgreementVersion }` — `id` is
+    ms_user's `userId`. Owner only. **No profile yet → 404**; the client then creates it with
+    `POST /users/` as today.
+  - **PUT `/users/me/profile-info`** — partial update of the caller's own profile, body
+    `{ displayName, marketplaceAgreementAccepted, marketplaceAgreementVersion }`. Only these fields;
+    `email` and ids untouched.
+  - **Rules (owner, 2026-10-04):**
+    1. Accepting (`true`) requires a non-blank `displayName` **and** a non-blank version, else 400.
+    2. **While the agreement is accepted, the display name cannot be removed** — a blank `displayName`
+       is 400 until the user withdraws (`false`) first.
+    3. **Never clear by omission.** A field missing from the body is left as it is — on the new PUT and
+       on the existing full-replace `PUT /users/` too (`displayName` and the agreement fields must not be
+       wiped because an older client did not send them). Rule 2 applies to `PUT /users/` as well.
+    4. **Withdrawing hides the user's dictionaries from the marketplace**; nothing is deleted. Listings
+       are only deleted when the account itself is removed (`user.deleted`, existing behaviour).
+  - **Marketplace side:** `user.profile.updated` gains `marketplaceAgreementAccepted` and is sent when
+    the name **or** the flag changes. ms_marketplace stores it on `publishers`; browse shows a listing
+    only if its publisher is **named and has accepted** (extends P4-13's filter, renamed `hasActivePublisher`). An event
+    without the field (pre-P4-14) keeps the held value; a new publisher row starts as not accepted. So
+    after this ships, existing users' listings stay hidden until they accept the terms — intended: the
+    marketplace is opt-in.
+  - Tests: service (owner only, partial update leaves other fields, the four rules, event on name or flag
+    change only), web slice (401, 400s, 404 for no profile), marketplace (accepted + named filter, null
+    flag keeps held). Docs: contract table, routing table (payload change), both service `CLAUDE.md`
+    files, `client-login-guide.md` (call the GET after login), marketplace client guide (§0 heads-up).
+  - Agent: `spring-boot-architect` — it now changes an event across two services.
+  - **Paths (confirmed 2026-10-04):** `GET /users/me` and `PUT /users/me/profile-info`, keyed by the
+    token subject — a fresh install needs no stored `userId`. Rule 2 confirmed as written.
+  - Done 2026-10-04.
+    - **ms_user:** migration `2026/10/04-01` (the three columns). `UserServiceImpl`: `getMyProfile`
+      (by `findByKeycloakId`, 404 when missing) and `updateProfileInfo` (partial). Both write paths
+      enforce one invariant on the *resulting* profile — accepted ⇒ named — via
+      `InvalidProfileException` (new, 400, handled). Accepting needs a version **in the request** unless
+      already accepted; a new version or an acceptance after a withdrawal stamps `accepted_at`;
+      withdrawing clears only the flag. Names are trimmed, blank = null. `PUT /users/` no longer clears
+      `displayName` when it is omitted and never touches the agreement (the mapper ignores those
+      fields; the service copies them from the stored row). `user.profile.updated` now carries
+      `marketplaceAgreementAccepted` and is sent when the name **or** the flag changes (a new version
+      while staying accepted sends nothing — the marketplace has nothing to learn). `ProfileResponseDTO`
+      `{id, email, displayName, marketplaceAgreementAccepted, marketplaceAgreementVersion}`;
+      `UserResponseDTO` also gained the two agreement fields.
+    - **ms_marketplace:** migration `2026/10/04-05` (`publishers.marketplace_agreement_accepted`,
+      default false). `PublisherService` copies the flag; null (pre-P4-14 event) keeps the held value, a
+      new row without it starts false. `hasNamedPublisher` → **`hasActivePublisher`**: also requires the
+      flag, as a literal.
+    - Suites: ms_user 75/75, ms_marketplace 138/138. **Verified live** (new builds on
+      :8095/:8096/:8097, testuser; testadmin for the no-profile case): `/me` 404 without a profile and
+      401 without a token; profile with a name but not accepted → listing hidden; accept without version
+      → 400; accept with version → `/me` shows it and the listing appears; empty name while accepted →
+      400 on both PUTs; full `PUT /users/` without `displayName` kept the name and the agreement;
+      withdraw → listing hidden, version and `accepted_at` kept in the DB; re-accept → shown; withdraw +
+      clear name in one request → 201, `/me` shows `displayName: null`. Test data removed, DLQ empty.
+    - **Consequence (intended):** every existing listing is hidden until its publisher accepts the
+      terms — `publishers` rows created before this default to not accepted.
 ---
 
 ## Phase 5 — API Gateway
