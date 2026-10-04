@@ -3,7 +3,9 @@ package de.coldtea.verborum.msmarketplace.dictionarystats.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.type.SqlTypes;
 
 import java.time.OffsetDateTime;
 
@@ -56,6 +58,16 @@ public class DictionaryStats {
     // LanguagePairUtils. Browse filters on it alone, so one indexed IN covers both directions
     @Column(name = "lang_pair", nullable = false)
     private String langPair;
+
+    // The dictionary's tags (P4-12), normalised and sorted — a copy, replaced whole by every newer event.
+    // A Postgres varchar[] so the "any of these tags" filter is one indexed `tags && ARRAY[...]`.
+    // varchar, not text: Hibernate binds the String[] filter value as varchar[], and Postgres has no
+    // text[] && varchar[] operator (found live, P4-12). Unbounded like ms_dictionary's TEXT tag.
+    // String[] rather than List: Hibernate's arrayOverlaps predicate takes an array-typed attribute.
+    // Set explicitly on create (empty, not null) for the same Hibernate reason as importCount
+    @JdbcTypeCode(SqlTypes.ARRAY)
+    @Column(name = "tags", nullable = false, columnDefinition = "varchar[]")
+    private String[] tags;
 
     // false = the dictionary went private: hidden from browse, but the row stays so its
     // sourceUpdatedAt can reject older "public" state arriving late (P4-04). Browse filters on it.

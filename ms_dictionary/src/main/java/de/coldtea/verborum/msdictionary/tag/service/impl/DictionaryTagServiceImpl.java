@@ -5,6 +5,7 @@ import de.coldtea.verborum.msdictionary.common.exception.RecordNotFoundException
 import de.coldtea.verborum.msdictionary.common.mapper.DictionaryTagMapper;
 import de.coldtea.verborum.msdictionary.dictionary.entity.Dictionary;
 import de.coldtea.verborum.msdictionary.dictionary.repository.DictionaryRepository;
+import de.coldtea.verborum.msdictionary.dictionary.service.DictionaryService;
 import de.coldtea.verborum.msdictionary.tag.dto.DictionaryTagRequestDTO;
 import de.coldtea.verborum.msdictionary.tag.dto.DictionaryTagResponseDTO;
 import de.coldtea.verborum.msdictionary.tag.entity.DictionaryTag;
@@ -31,6 +32,9 @@ public class DictionaryTagServiceImpl implements DictionaryTagService {
     private final DictionaryRepository dictionaryRepository;
 
     private final DictionaryTagMapper dictionaryTagMapper;
+
+    // Tags are listed on the marketplace (P4-12): a real change on a public dictionary must reach it
+    private final DictionaryService dictionaryService;
 
     @Override
     public List<DictionaryTagResponseDTO> getTagsByDictionary(String dictionaryId, String ownerId) {
@@ -63,8 +67,11 @@ public class DictionaryTagServiceImpl implements DictionaryTagService {
     public void deleteTag(String dictionaryId, String tag, String ownerId) {
         requireOwnedDictionary(dictionaryId, ownerId);
 
-        // Removing a tag that is not there is a silent no-op, matching deleteDictionary/deleteWords
-        dictionaryTagRepository.deleteByDictionaryIdAndTag(dictionaryId, normalise(tag));
+        // Removing a tag that is not there is a silent no-op, matching deleteDictionary/deleteWords —
+        // and announces nothing
+        if (dictionaryTagRepository.deleteByDictionaryIdAndTag(dictionaryId, normalise(tag)) > 0) {
+            dictionaryService.publishTagChange(dictionaryId);
+        }
     }
 
     private DictionaryTagResponseDTO createTag(String dictionaryId, String tag) {
@@ -74,7 +81,13 @@ public class DictionaryTagServiceImpl implements DictionaryTagService {
                 .tag(tag)
                 .build();
 
-        return dictionaryTagMapper.toDictionaryTagResponseDTO(dictionaryTagRepository.saveAndFlush(dictionaryTag));
+        DictionaryTag saved = dictionaryTagRepository.saveAndFlush(dictionaryTag);
+
+        // Only here, on a real insert — re-adding an existing tag returns before this and announces
+        // nothing
+        dictionaryService.publishTagChange(dictionaryId);
+
+        return dictionaryTagMapper.toDictionaryTagResponseDTO(saved);
     }
 
     /**

@@ -30,6 +30,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -98,7 +99,7 @@ class DictionaryStatsServiceImplTest {
 
         // Act
         SliceResponse<DictionaryListingResponseDTO> result =
-                dictionaryStatsService.getListings(new ListingFilter(List.of("EN-TR", "de-fr")), 0, 20);
+                dictionaryStatsService.getListings(new ListingFilter(List.of("EN-TR", "de-fr"), null), 0, 20);
 
         // Assert
         assertTrue(result.getItems().isEmpty());
@@ -111,7 +112,7 @@ class DictionaryStatsServiceImplTest {
         when(dictionaryStatsRepository.findSlice(any(), any(Pageable.class))).thenReturn(new SliceImpl<>(List.of()));
 
         // Act
-        dictionaryStatsService.getPopularListings(new ListingFilter(List.of("EN-TR")), 0, 20);
+        dictionaryStatsService.getPopularListings(new ListingFilter(List.of("EN-TR"), null), 0, 20);
 
         // Assert
         assertEquals(Sort.by(Sort.Order.desc("importCount"), Sort.Order.desc("publishedAt"), Sort.Order.asc("dictionaryId")),
@@ -186,6 +187,176 @@ class DictionaryStatsServiceImplTest {
 
         // Assert
         assertEquals("DE-EN", capturedSaveAll().get(0).getLangPair());
+    }
+
+    // ---- tags (P4-12): a copy, replaced whole by newer state; null means "unknown, keep ours" ----
+
+    @Test
+    void getListings_TagFilter_DoesNotDisturbPagingOrSort() {
+        // Arrange — the overlap predicate itself is verified against Postgres (roadmap P4-12)
+        when(dictionaryStatsRepository.findSlice(any(), any(Pageable.class))).thenReturn(new SliceImpl<>(List.of()));
+
+        // Act
+        dictionaryStatsService.getListings(new ListingFilter(null, List.of(" Food", "TRAVEL")), 0, 20);
+
+        // Assert
+        assertEquals(Sort.by(Sort.Order.desc("publishedAt"), Sort.Order.asc("dictionaryId")), capturedPageable().getSort());
+    }
+
+    @Test
+    void publishListing_NewDictionary_StoresTagsNormalisedSortedAndDeduplicated() {
+        // Arrange
+        when(dictionaryStatsRepository.findById(DICTIONARY_ID)).thenReturn(Optional.empty());
+        DictionaryVisibilityEvent event = publicEvent("Travel", T2);
+        event.setTags(List.of("travel", " Food", "food", " "));
+
+        // Act
+        dictionaryStatsService.publishListing(event);
+
+        // Assert
+        assertArrayEquals(new String[]{"food", "travel"}, capturedSave().getTags());
+    }
+
+    @Test
+    void publishListing_NewDictionaryWithoutTagsField_StartsEmptyNotNull() {
+        // Arrange — an event from before P4-12; the column is NOT NULL
+        when(dictionaryStatsRepository.findById(DICTIONARY_ID)).thenReturn(Optional.empty());
+
+        // Act
+        dictionaryStatsService.publishListing(publicEvent("Travel", T2));
+
+        // Assert
+        assertArrayEquals(new String[0], capturedSave().getTags());
+    }
+
+    @Test
+    void updateListing_NewerEvent_ReplacesTagsWhole() {
+        // Arrange — full state, not a delta: "food" was removed in ms_dictionary
+        DictionaryStats listing = listing("Travel", T1);
+        listing.setTags(new String[]{"food", "travel"});
+        when(dictionaryStatsRepository.findById(DICTIONARY_ID)).thenReturn(Optional.of(listing));
+        DictionaryUpdatedEvent event = updatedEvent("Travel", "DE", T2);
+        event.setTags(List.of("travel"));
+
+        // Act
+        dictionaryStatsService.updateListing(event);
+
+        // Assert
+        assertArrayEquals(new String[]{"travel"}, capturedSave().getTags());
+    }
+
+    @Test
+    void updateListing_NewerEventWithEmptyTags_ClearsThem() {
+        // Arrange — [] is "no tags", unlike null
+        DictionaryStats listing = listing("Travel", T1);
+        listing.setTags(new String[]{"food"});
+        when(dictionaryStatsRepository.findById(DICTIONARY_ID)).thenReturn(Optional.of(listing));
+        DictionaryUpdatedEvent event = updatedEvent("Travel", "DE", T2);
+        event.setTags(List.of());
+
+        // Act
+        dictionaryStatsService.updateListing(event);
+
+        // Assert
+        assertArrayEquals(new String[0], capturedSave().getTags());
+    }
+
+    @Test
+    void updateListing_NewerEventWithoutTagsField_KeepsHeldTags() {
+        // Arrange — a pre-P4-12 message (e.g. a DLQ replay) knows nothing about tags
+        DictionaryStats listing = listing("Travel", T1);
+        listing.setTags(new String[]{"food"});
+        when(dictionaryStatsRepository.findById(DICTIONARY_ID)).thenReturn(Optional.of(listing));
+
+        // Act
+        dictionaryStatsService.updateListing(updatedEvent("Renamed", "DE", T2));
+
+        // Assert
+        DictionaryStats saved = capturedSave();
+        assertEquals("Renamed", saved.getName());
+        assertArrayEquals(new String[]{"food"}, saved.getTags());
+    }
+
+    @Test
+    void updateListing_OlderEvent_DoesNotTouchTags() {
+        // Arrange
+        DictionaryStats listing = listing("Travel", T2);
+        listing.setTags(new String[]{"food"});
+        when(dictionaryStatsRepository.findById(DICTIONARY_ID)).thenReturn(Optional.of(listing));
+        DictionaryUpdatedEvent event = updatedEvent("Travel", "DE", T1);
+        event.setTags(List.of("stale"));
+
+        // Act
+        dictionaryStatsService.updateListing(event);
+
+        // Assert
+        verify(dictionaryStatsRepository, never()).saveAndFlush(any());
+        assertArrayEquals(new String[]{"food"}, listing.getTags());
+    }
+
+    @Test
+    void reconcile_SameVersionDifferentTags_RepairsTagsOnly() {
+        // Arrange — a listing stored before P4-12: same updatedAt as the entry, but no tags
+        DictionaryStats listing = listing("Travel", T2);
+        when(dictionaryStatsRepository.findAll()).thenReturn(List.of(listing));
+        DictionarySnapshotEntry entry = entry(DICTIONARY_ID, "Travel", T2);
+        entry.setTags(List.of("food"));
+
+        // Act
+        dictionaryStatsService.reconcile(snapshot(T3, entry));
+
+        // Assert
+        List<DictionaryStats> saved = capturedSaveAll();
+        assertEquals(1, saved.size());
+        assertArrayEquals(new String[]{"food"}, saved.get(0).getTags());
+        assertEquals(T2, saved.get(0).getSourceUpdatedAt());
+    }
+
+    @Test
+    void reconcile_SameVersionSameTags_IsLeftAlone() {
+        // Arrange
+        DictionaryStats listing = listing("Travel", T2);
+        listing.setTags(new String[]{"food"});
+        when(dictionaryStatsRepository.findAll()).thenReturn(List.of(listing));
+        DictionarySnapshotEntry entry = entry(DICTIONARY_ID, "Travel", T2);
+        entry.setTags(List.of("food"));
+
+        // Act
+        dictionaryStatsService.reconcile(snapshot(T3, entry));
+
+        // Assert
+        assertTrue(capturedSaveAll().isEmpty());
+    }
+
+    @Test
+    void reconcile_OlderEntryWithDifferentTags_IsIgnored() {
+        // Arrange — the row is newer (a tag change already arrived); the snapshot read predates it
+        DictionaryStats listing = listing("Travel", T3);
+        listing.setTags(new String[]{"food", "travel"});
+        when(dictionaryStatsRepository.findAll()).thenReturn(List.of(listing));
+        DictionarySnapshotEntry entry = entry(DICTIONARY_ID, "Travel", T2);
+        entry.setTags(List.of("food"));
+
+        // Act
+        dictionaryStatsService.reconcile(snapshot(T3.plusMinutes(1), entry));
+
+        // Assert
+        assertTrue(capturedSaveAll().isEmpty());
+        assertArrayEquals(new String[]{"food", "travel"}, listing.getTags());
+    }
+
+    @Test
+    void reconcile_MissingListing_IsCreatedWithTags() {
+        // Arrange
+        when(dictionaryStatsRepository.findAll()).thenReturn(List.of());
+        DictionarySnapshotEntry entry = entry(DICTIONARY_ID, "Travel", T2);
+        entry.setTags(List.of("food"));
+
+        // Act
+        dictionaryStatsService.reconcile(snapshot(T3, entry));
+
+        // Assert
+        assertArrayEquals(new String[]{"food"}, capturedSaveAll().get(0).getTags());
     }
 
     // ---- publishListing (dictionary.visibility.public) ----
@@ -713,6 +884,7 @@ class DictionaryStatsServiceImplTest {
                 .name(name)
                 .fromLang("EN")
                 .toLang("DE")
+                .tags(new String[0])
                 .isListed(true)
                 .importCount(0)
                 .publishedAt(T1)

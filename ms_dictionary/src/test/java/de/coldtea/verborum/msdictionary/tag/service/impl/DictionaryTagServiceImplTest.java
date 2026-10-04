@@ -5,6 +5,7 @@ import de.coldtea.verborum.msdictionary.common.exception.RecordNotFoundException
 import de.coldtea.verborum.msdictionary.common.mapper.DictionaryTagMapper;
 import de.coldtea.verborum.msdictionary.dictionary.entity.Dictionary;
 import de.coldtea.verborum.msdictionary.dictionary.repository.DictionaryRepository;
+import de.coldtea.verborum.msdictionary.dictionary.service.DictionaryService;
 import de.coldtea.verborum.msdictionary.tag.dto.DictionaryTagRequestDTO;
 import de.coldtea.verborum.msdictionary.tag.dto.DictionaryTagResponseDTO;
 import de.coldtea.verborum.msdictionary.tag.entity.DictionaryTag;
@@ -39,6 +40,9 @@ class DictionaryTagServiceImplTest {
 
     @Mock
     private DictionaryTagMapper dictionaryTagMapper;
+
+    @Mock
+    private DictionaryService dictionaryService;
 
     @InjectMocks
     private DictionaryTagServiceImpl dictionaryTagService;
@@ -91,6 +95,8 @@ class DictionaryTagServiceImplTest {
         verify(dictionaryTagRepository).saveAndFlush(captor.capture());
         assertEquals(DICTIONARY_ID, captor.getValue().getDictionaryId());
         assertEquals("travel", captor.getValue().getTag());
+        // A real change reaches the marketplace (P4-12)
+        verify(dictionaryService).publishTagChange(DICTIONARY_ID);
     }
 
     @Test
@@ -128,18 +134,34 @@ class DictionaryTagServiceImplTest {
         // Assert
         assertEquals(responseDTO, result);
         verify(dictionaryTagRepository, never()).saveAndFlush(any());
+        verify(dictionaryService, never()).publishTagChange(any());
     }
 
     @Test
     void deleteTag_Success() {
         // Arrange
         givenTheDictionaryBelongsTo(OWNER);
+        when(dictionaryTagRepository.deleteByDictionaryIdAndTag(DICTIONARY_ID, "travel")).thenReturn(1L);
 
         // Act
         dictionaryTagService.deleteTag(DICTIONARY_ID, "Travel", OWNER);
 
         // Assert — normalised on delete too, so removing "Travel" removes what "travel" stored
         verify(dictionaryTagRepository).deleteByDictionaryIdAndTag(DICTIONARY_ID, "travel");
+        verify(dictionaryService).publishTagChange(DICTIONARY_ID);
+    }
+
+    @Test
+    void deleteTag_NotPresent_AnnouncesNothing() {
+        // Arrange — the repository reports 0 rows removed
+        givenTheDictionaryBelongsTo(OWNER);
+        when(dictionaryTagRepository.deleteByDictionaryIdAndTag(DICTIONARY_ID, "travel")).thenReturn(0L);
+
+        // Act
+        dictionaryTagService.deleteTag(DICTIONARY_ID, "travel", OWNER);
+
+        // Assert
+        verify(dictionaryService, never()).publishTagChange(any());
     }
 
     @Test

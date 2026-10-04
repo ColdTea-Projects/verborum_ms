@@ -1223,15 +1223,36 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
     `_popular` with no sort node. Backfill checked on the three existing dev rows. Test rows removed.
   - **Restart any running ms_marketplace after pulling this:** `lang_pair` is NOT NULL, so an
     instance on the old code fails every listing write (those messages go to the DLQ).
-- [ ] `P4-12` **Tag filter** (ms_dictionary + ms_marketplace) — depends on P4-11
-  - ms_dictionary: `tags` on `dictionary.visibility.public`, `dictionary.updated` and snapshot
-    entries (full state, rule 2). A tag add/remove on a **public** dictionary bumps the dictionary's
-    `updatedAt` and raises `dictionary.updated` — without the bump the marketplace drops the event as
-    stale (rule 4).
-  - ms_marketplace: `tags text[]` + GIN index (partial `WHERE is_listed`); every consumer replaces the
-    array and reconciliation compares it; `tag=` filter, **any** match (`&&`), normalised like
-    ms_dictionary (trim + lowercase, `Locale.ROOT`); `tags` on the listing DTO.
-  - Agent: `spring-boot-architect` (event change across two services).
+- [x] `P4-12` **Tag filter** (ms_dictionary + ms_marketplace) — depends on P4-11
+  - ms_dictionary: `tags` (sorted, never null — `[]` when untagged) on `dictionary.visibility.*`,
+    `dictionary.updated` and every snapshot entry (full state, rule 2; the snapshot reads all tags in
+    one query). A tag add/remove that **actually changes** a **public** dictionary bumps its `updatedAt`
+    and raises `dictionary.updated` via `DictionaryService.publishTagChange` — without the bump the
+    marketplace would drop the event as stale (rule 4). Re-adding an existing tag, deleting an absent
+    one, or any tag change on a private dictionary announces nothing. `deleteByDictionaryIdAndTag` now
+    returns the removed count to tell the cases apart.
+  - ms_marketplace: `tags VARCHAR[]` + GIN index partial `WHERE is_listed` (`2026/10/04-03`).
+    **varchar, not text:** Hibernate binds the `String[]` filter value as `varchar[]`, and Postgres has
+    no `text[] && varchar[]` operator — a `text[]` column 500'd on the first live request (unit tests
+    cannot see it). Consumers replace the array whole and normalise it again (trim, lowercase
+    `Locale.ROOT`, dedupe, sort). **Null tags = a pre-P4-12 message: keep the held tags**; `[]` clears.
+  - **Backfill:** existing listings start `{}`. `reconcile` repairs a row whose tags differ from a
+    snapshot entry of the **same** `updatedAt` (same version, so the row is just missing data) — the
+    one exception to "strictly newer only", and for tags only. The first snapshot after deploying
+    counts these repairs in its "created or corrected" log figure; that is expected once.
+  - `tag=` filter on `GET` and `/popular`, repeatable, max 10, each non-blank and ≤ 100 chars, any
+    case; **any** match via Hibernate's `arrayOverlaps` (`tags && ?`). AND-ed with `pair`. `tags` on
+    every listing. Known limit: Spring splits a single comma-separated value, so a tag that itself
+    contains a comma cannot be searched for.
+  - Done 2026-10-04. Suites: ms_dictionary 118/118, ms_marketplace 112/112. **Verified live:**
+    ms_dictionary on :8095 publishing to a temp queue — create public (`tags []`), add " Food " →
+    `[food]`, re-add → nothing, add travel → `[food, travel]`, delete FOOD → `[travel]`, delete absent
+    → nothing; `updatedAt` rose each time and matches `update_dt`. ms_marketplace on :8097: `tag=FOOD`,
+    `tag=food&tag=travel` (any), `tag+pair` (AND), unknown tag → empty, hidden rows excluded, blank /
+    11 tags → 400; real `dictionary.updated`/`visibility.public` messages stored normalised, deduped
+    tags; one real `dictionary.snapshot` repaired a same-version listing from `{}` to `{travel}`.
+    `EXPLAIN` at 50k rows: rare tags use `idx_dictionary_stats_listed_tags` (GIN), common tags walk the
+    newest-first index. Test data, temp queue and instances removed; DLQ stayed empty.
 - [ ] `P4-13` **Publisher display names: filter and on listings** (ms_user + ms_marketplace; absorbs `BL-04`) — depends on P4-11
   - Display name, not Keycloak username (can be an email for SSO users). Not unique; that is fine.
     Clients require a display name and the marketplace T&C before marketplace use; ms_user keeps it

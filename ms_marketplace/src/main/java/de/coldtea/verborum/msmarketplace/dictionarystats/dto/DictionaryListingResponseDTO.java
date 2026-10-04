@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 
 /**
  * One marketplace listing as clients see it (P4-06).
@@ -33,6 +34,8 @@ public class DictionaryListingResponseDTO {
     private String fromLang;
 
     private String toLang;
+
+    private List<String> tags;
 
     private Integer importCount;
 

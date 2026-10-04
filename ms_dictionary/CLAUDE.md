@@ -39,6 +39,13 @@ Full CRUD for **Dictionaries** and **Words** — the core vocabulary store.
   copied out *before* `saveAndFlush`, which merges the new values onto the managed instance
   `findById` returned — comparing after the save would always see "no change". A test simulates
   exactly that; keep it.
+- **Tags ride on the listing events (P4-12):** `dictionary.visibility.*`, `dictionary.updated` and
+  every snapshot entry carry `tags` — sorted, `[]` when untagged, never null (null tells the
+  marketplace "unknown, keep yours"). A tag add/remove that actually changes a **public** dictionary
+  calls `DictionaryService.publishTagChange`, which **bumps the dictionary's `updatedAt`** and sends
+  `dictionary.updated`. The bump is load-bearing: the marketplace drops events not newer than what it
+  holds (rule 4), and a tag write alone never touches `dictionaries.update_dt`. Re-adds, absent
+  deletes and private dictionaries send nothing.
 - `dictionary.snapshot` (P4-03) — every public dictionary in one message, sent by
   `common/scheduler/DictionarySnapshotScheduler` on `dictionary.snapshot.cron`
   (`DICTIONARY_SNAPSHOT_CRON`, nightly 03:00 by default; `@EnableScheduling` in `SchedulingConfig`).

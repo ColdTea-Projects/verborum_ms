@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 
 /**
  * Published on `dictionary.visibility.public` / `dictionary.visibility.private` when a
@@ -30,6 +31,13 @@ public class DictionaryVisibilityEvent {
     private String toLang;
 
     private String dictionaryName;
+
+    /**
+     * The dictionary's tags (P4-12): normalised (trimmed, lowercase), sorted, never null from
+     * ms_dictionary — an untagged dictionary sends an empty list. Full state, not a delta (rule 2):
+     * a consumer replaces what it holds with this.
+     */
+    private List<String> tags;
 
     /**
      * The dictionary's own `updatedAt` — the ordering key for the marketplace projection (rule 4 in

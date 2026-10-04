@@ -13,6 +13,7 @@ public interface DictionaryTagRepository extends JpaRepository<DictionaryTag, St
     List<DictionaryTag> findByDictionaryId(String dictionaryId);
     List<DictionaryTag> findByDictionaryIdIn(List<String> dictionaryIds);
     Optional<DictionaryTag> findByDictionaryIdAndTag(String dictionaryId, String tag);
-    void deleteByDictionaryIdAndTag(String dictionaryId, String tag);
+    // Returns how many rows went, so the caller can tell a real removal from a no-op (P4-12)
+    long deleteByDictionaryIdAndTag(String dictionaryId, String tag);
 
 }

@@ -16,7 +16,7 @@ request time — decided 2026-07-23, see roadmap `P4-03`.
 - **Status:** Scaffolded (P4-01), `dictionary_stats` table (P4-02), listing projection +
   snapshot reconciliation fed by ms_dictionary events (P4-03), private → hidden (P4-04),
   deletion and `user.deleted` (P4-05), browse API (P4-06), import + `dictionary.imported` (P4-07),
-  language-pair filter + slices + browse indexes (P4-11). Next: tag filter (P4-12), publisher names (P4-13).
+  language-pair filter + slices + browse indexes (P4-11), tag filter (P4-12). Next: publisher names (P4-13).
 
 ## Entities
 - `DictionaryStats` (`dictionary_stats`) — `dictionaryId` (PK, ms_dictionary's id, no DB FK),
@@ -26,6 +26,12 @@ request time — decided 2026-07-23, see roadmap `P4-03`.
     `updatedAt` is only when this row was written. Do not mix them up.
   - `langPair` (`lang_pair`, P4-11) — `fromLang`/`toLang` without direction, alphabetical. Derived
     in the service from the two languages; never set it on its own. Migration `2026/10/04-01`.
+  - `tags` (`tags`, P4-12) — `String[]` over **`varchar[]`** (not `text[]`: Hibernate binds the filter
+    array as `varchar[]` and Postgres has no `text[] && varchar[]`). Normalised + sorted on every write
+    (`normalizeTags`). An event with **null** tags predates P4-12 → keep the held ones; `[]` clears.
+    Set to `{}` explicitly on create. Migration `2026/10/04-03`.
+  - `reconcile` also repairs **tags only** when a snapshot entry has the *same* `updatedAt` as the
+    row but different tags (`isMissingTagsOfThisVersion`) — how listings stored before P4-12 get theirs.
   - `importCount` must be set to 0 explicitly on create; the column default does not apply through
     Hibernate.
   - `isListed` (`is_listed`, P4-04) — false means the dictionary went private. The row is kept on
@@ -81,8 +87,9 @@ request time — decided 2026-07-23, see roadmap `P4-03`.
   all **listed rows only**. Contract table in `docs/agent/verborum.md`.
 - Filters (P4-11): `pair=EN-TR` (repeatable, max 10, `@LanguagePair` per element). Direction is
   ignored via the `lang_pair` column — both codes alphabetical, set by `LanguagePairUtils` on **every**
-  write path that sets the languages (keep it that way; the column is NOT NULL). Tags (P4-12) and
-  publisher name (P4-13) join `ListingFilter` and `DictionaryStatsSpecifications` next.
+  write path that sets the languages (keep it that way; the column is NOT NULL). `tag=food` (P4-12,
+  repeatable, max 10): **any** match through `hasAnyTag` → Hibernate `arrayOverlaps` → `tags && ?`.
+  The publisher name (P4-13) joins `ListingFilter` and `DictionaryStatsSpecifications` next.
 - Returns `common/response/SliceResponse` `{items, page, size, hasNext}` — infinite scroll, no count
   query. Reuse it for any future paged read. Browse goes through `findSlice` (the
   `DictionaryStatsSliceRepository` fragment, size + 1 rows), never `findAll(spec, pageable)`, which

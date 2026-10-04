@@ -27,6 +27,14 @@ public final class DTOMessageConstants {
     public static final String INVALID_LANGUAGE_PAIR = "must be two different supported language codes, e.g. EN-TR";
     public static final String TOO_MANY_LANGUAGE_PAIRS = "at most " + LANGUAGE_PAIRS_MAX + " language pairs";
 
+    //Marketplace browse (P4-12) — tag filter. ms_dictionary sets no length limit on a tag, but a
+    //filter value is a search term: the cap stops one request from carrying an arbitrarily large array
+    public static final int TAGS_MAX = 10;
+    public static final int TAG_MAX_LENGTH = 100;
+    public static final String TOO_MANY_TAGS = "at most " + TAGS_MAX + " tags";
+    public static final String TAG_BLANK = "must not be blank";
+    public static final String TAG_TOO_LONG = "must be at most " + TAG_MAX_LENGTH + " characters";
+
     private DTOMessageConstants() {
     }
 }

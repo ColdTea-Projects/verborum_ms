@@ -14,6 +14,8 @@ import de.coldtea.verborum.msdictionary.dictionary.dto.DictionaryResponseDTO;
 import de.coldtea.verborum.msdictionary.dictionary.entity.Dictionary;
 import de.coldtea.verborum.msdictionary.dictionary.repository.DictionaryRepository;
 import de.coldtea.verborum.msdictionary.dictionary.service.DictionaryService;
+import de.coldtea.verborum.msdictionary.tag.entity.DictionaryTag;
+import de.coldtea.verborum.msdictionary.tag.repository.DictionaryTagRepository;
 import de.coldtea.verborum.msdictionary.word.repository.WordRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -22,7 +24,9 @@ import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import static de.coldtea.verborum.msdictionary.common.config.RabbitMQConfig.ROUTING_KEY_DICTIONARY_DELETED;
 import static de.coldtea.verborum.msdictionary.common.config.RabbitMQConfig.ROUTING_KEY_DICTIONARY_SNAPSHOT;
@@ -40,6 +44,9 @@ public class DictionaryServiceImpl implements DictionaryService {
     private final DictionaryRepository dictionaryRepository;
 
     private final WordRepository wordRepository;
+
+    // Tags ride on the listing events (P4-12) — read here, written by DictionaryTagServiceImpl
+    private final DictionaryTagRepository dictionaryTagRepository;
 
     private final DictionaryMapper dictionaryMapper;
 
@@ -114,6 +121,32 @@ public class DictionaryServiceImpl implements DictionaryService {
             return;
         }
 
+        publishUpdated(dictionary);
+    }
+
+    /**
+     * A tag was added to or removed from this dictionary (P4-12). If it is public, the marketplace
+     * listing carries the tags, so it gets a `dictionary.updated` with the new set.
+     * <p>
+     * The dictionary's `updatedAt` is bumped first, and that is the point: the marketplace drops any
+     * event whose `updatedAt` is not newer than what it holds (rule 4). Adding a tag writes only to
+     * `dictionary_tags`, so without the bump the event would carry the old `updatedAt` and be thrown
+     * away as stale. Private dictionaries are left untouched — nothing lists them, and their tags
+     * travel on the public event when they are published.
+     */
+    @Transactional
+    @Override
+    public void publishTagChange(String dictionaryId) {
+        dictionaryRepository.findById(dictionaryId)
+                .filter(dictionary -> Boolean.TRUE.equals(dictionary.getIsPublic()))
+                .ifPresent(dictionary -> {
+                    // Setting it makes the row dirty; @UpdateTimestamp then stamps the flush time
+                    dictionary.setUpdatedAt(OffsetDateTime.now());
+                    publishUpdated(dictionaryRepository.saveAndFlush(dictionary));
+                });
+    }
+
+    private void publishUpdated(Dictionary dictionary) {
         eventPublisher.publishEvent(new OutboundEvent(
                 ROUTING_KEY_DICTIONARY_UPDATED,
                 DictionaryUpdatedEvent.builder()
@@ -122,10 +155,19 @@ public class DictionaryServiceImpl implements DictionaryService {
                         .fromLang(dictionary.getFromLang())
                         .toLang(dictionary.getToLang())
                         .dictionaryName(dictionary.getName())
+                        .tags(tagsOf(dictionary.getDictionaryId()))
                         // Ordering key (rule 4) — see publishVisibilityChange
                         .updatedAt(dictionary.getUpdatedAt())
                         .eventTimestamp(OffsetDateTime.now())
                         .build()));
+    }
+
+    /** The tags as they ride on events: normalised already on write, sorted so equal sets compare equal. */
+    private List<String> tagsOf(String dictionaryId) {
+        return dictionaryTagRepository.findByDictionaryId(dictionaryId).stream()
+                .map(DictionaryTag::getTag)
+                .sorted()
+                .toList();
     }
 
     /**
@@ -140,13 +182,24 @@ public class DictionaryServiceImpl implements DictionaryService {
     public void publishPublicSnapshot() {
         OffsetDateTime takenAt = OffsetDateTime.now();
 
-        List<DictionarySnapshotEntry> entries = dictionaryRepository.findByIsPublicTrue().stream()
+        List<Dictionary> publicDictionaries = dictionaryRepository.findByIsPublicTrue();
+
+        // Every public dictionary's tags in one query, not one per dictionary
+        Map<String, List<String>> tagsByDictionary = dictionaryTagRepository.findByDictionaryIdIn(
+                        publicDictionaries.stream().map(Dictionary::getDictionaryId).toList()).stream()
+                .collect(Collectors.groupingBy(DictionaryTag::getDictionaryId,
+                        Collectors.mapping(DictionaryTag::getTag, Collectors.toList())));
+
+        List<DictionarySnapshotEntry> entries = publicDictionaries.stream()
                 .map(dictionary -> DictionarySnapshotEntry.builder()
                         .dictionaryId(dictionary.getDictionaryId())
                         .userId(dictionary.getUserId())
                         .fromLang(dictionary.getFromLang())
                         .toLang(dictionary.getToLang())
                         .dictionaryName(dictionary.getName())
+                        .tags(tagsByDictionary.getOrDefault(dictionary.getDictionaryId(), List.of()).stream()
+                                .sorted()
+                                .toList())
                         .updatedAt(dictionary.getUpdatedAt())
                         .build())
                 .toList();
@@ -182,6 +235,7 @@ public class DictionaryServiceImpl implements DictionaryService {
                         .fromLang(dictionary.getFromLang())
                         .toLang(dictionary.getToLang())
                         .dictionaryName(dictionary.getName())
+                        .tags(tagsOf(dictionary.getDictionaryId()))
                         // The projection's ordering key (rule 4): a consumer must ignore an event
                         // older than the state it already holds, or two quick renames delivered out
                         // of order leave the listing permanently stale

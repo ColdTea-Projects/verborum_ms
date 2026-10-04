@@ -184,6 +184,7 @@ Column-level detail, constraints and quirks (the cross-service user key is `keyc
 - fk_user_id         VARCHAR(255)      ← owner's JWT subject (ms_user's keycloak_id)
 - name, from_lang, to_lang VARCHAR(255) ← copies, kept current by events + nightly snapshot
 - lang_pair          VARCHAR(255)      ← both codes alphabetical (DE-TR for either direction); derived, P4-11
+- tags               VARCHAR[]         ← the dictionary's tags, normalised + sorted; GIN-indexed; P4-12
 - is_listed          BOOLEAN, default true ← false = went private; row kept as a stale-event guard
 - import_count       INT, default 0
 - published_at       timestamptz       ← from the event, not the insert
@@ -249,19 +250,19 @@ takes `page` (zero-based, default 0, ≥ 0) and `size` (default 20, 1–100); an
 
 | Method | Path | Returns |
 |---|---|---|
-| GET | `/marketplace/dictionaries?pair=EN-TR&pair=FR-DE` | `SliceResponse<DictionaryListingResponseDTO>` — newest first. `pair` optional, repeatable or comma-separated, max 10; **direction ignored** (`EN-TR` → EN→TR and TR→EN); any case; 400 on an unsupported code, the same code twice or a malformed pair |
-| GET | `/marketplace/dictionaries/popular?pair=...` | same — most imported first, newest first among equals; same filters |
+| GET | `/marketplace/dictionaries?pair=EN-TR&pair=FR-DE&tag=food` | `SliceResponse<DictionaryListingResponseDTO>` — newest first. `pair` optional, repeatable or comma-separated, max 10; **direction ignored** (`EN-TR` → EN→TR and TR→EN); any case; 400 on an unsupported code, the same code twice or a malformed pair. `tag` optional, repeatable, max 10, each non-blank and ≤ 100 chars, any case; **any** of them matches (P4-12). Different filters are AND-ed |
+| GET | `/marketplace/dictionaries/popular?pair=...&tag=...` | same — most imported first, newest first among equals; same filters |
 | GET | `/marketplace/dictionaries/publisher/{publisherId}` | same — one publisher's listings, newest first; unknown id → empty slice |
 
 ```
 SliceResponse                { items, page, size, hasNext }
-DictionaryListingResponseDTO { dictionaryId, publisherId, name, fromLang, toLang, importCount, publishedAt }
+DictionaryListingResponseDTO { dictionaryId, publisherId, name, fromLang, toLang, tags, importCount, publishedAt }
 ```
 `SliceResponse` is Verborum's own paging envelope for infinite scroll — no totals, so no count query
 (P4-11 replaced `PageResponse`). `GET /language?from=&to=` was removed at P4-11; use `pair`.
 `publisherId` is the owner's JWT subject — the value for the publisher endpoint; it grants no access
 (ownership always comes from the caller's token). No display name yet (P4-13). Language codes come
-back uppercase. Tag (P4-12) and publisher-name (P4-13) filters are planned.
+back uppercase; `tags` lowercase and sorted (`[]` when untagged). A publisher-name filter (P4-13) is planned.
 
 | Method | Path | Returns |
 |---|---|---|
@@ -293,7 +294,7 @@ This is the single source of truth — every client's language enum must be a su
 | `dictionary.visibility.public` | ms_dictionary | ms_marketplace (`marketplace.dictionary.visibility.public`) | `is_public` set to true |
 | `dictionary.visibility.private` | ms_dictionary | ms_marketplace (`marketplace.dictionary.visibility.private`) | `is_public` set to false |
 | `dictionary.deleted` | ms_dictionary | ms_marketplace (`marketplace.dictionary.deleted`) | Dictionary deleted |
-| `dictionary.updated` | ms_dictionary | ms_marketplace (`marketplace.dictionary.updated`) | A public dictionary's `name`/`fromLang`/`toLang` changed and it stayed public |
+| `dictionary.updated` | ms_dictionary | ms_marketplace (`marketplace.dictionary.updated`) | A public dictionary's `name`/`fromLang`/`toLang` changed and it stayed public, or a tag was actually added to/removed from it (P4-12; bumps its `updatedAt`) |
 | `dictionary.snapshot` | ms_dictionary | ms_marketplace (`marketplace.dictionary.snapshot`) | Schedule, nightly by default (`DICTIONARY_SNAPSHOT_CRON`) — every public dictionary in one message |
 | `user.deleted` | ms_user | ms_dictionary (`dictionary.user.deleted`), ms_marketplace (`marketplace.user.deleted`) | User account deleted |
 | `dictionary.imported` | ms_marketplace | ms_user | User imports a public dictionary |

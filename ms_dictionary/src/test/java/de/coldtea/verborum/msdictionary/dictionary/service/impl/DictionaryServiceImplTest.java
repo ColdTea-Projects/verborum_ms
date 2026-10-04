@@ -7,6 +7,8 @@ import de.coldtea.verborum.msdictionary.dictionary.dto.DictionaryRequestDTO;
 import de.coldtea.verborum.msdictionary.dictionary.dto.DictionaryResponseDTO;
 import de.coldtea.verborum.msdictionary.dictionary.entity.Dictionary;
 import de.coldtea.verborum.msdictionary.dictionary.repository.DictionaryRepository;
+import de.coldtea.verborum.msdictionary.tag.entity.DictionaryTag;
+import de.coldtea.verborum.msdictionary.tag.repository.DictionaryTagRepository;
 import de.coldtea.verborum.msdictionary.word.repository.WordRepository;
 
 import de.coldtea.verborum.msdictionary.common.event.DictionaryDeletedEvent;
@@ -55,6 +57,9 @@ class DictionaryServiceImplTest {
 
     @Mock
     private DictionaryMapper dictionaryMapper;
+
+    @Mock
+    private DictionaryTagRepository dictionaryTagRepository;
 
     @Mock
     private ApplicationEventPublisher eventPublisher;
@@ -813,6 +818,136 @@ class DictionaryServiceImplTest {
         // Assert
         DictionarySnapshotEvent event = (DictionarySnapshotEvent) capturedEvent().payload();
         assertFalse(event.getTakenAt().isAfter(queriedAt[0]));
+    }
+
+    // ---- tags on listing events (P4-12) ----
+
+    @Test
+    void saveDictionary_NewPublicDictionary_PublicEventCarriesSortedTags() {
+        // Arrange
+        DictionaryRequestDTO requestDTO = requestDTO("dict1");
+        Dictionary dictionary = dictionary("dict1", true);
+        when(dictionaryRepository.findById("dict1")).thenReturn(Optional.empty());
+        when(dictionaryMapper.toDictionary(requestDTO)).thenReturn(dictionary);
+        when(dictionaryRepository.saveAndFlush(dictionary)).thenReturn(dictionary);
+        when(dictionaryTagRepository.findByDictionaryId("dict1")).thenReturn(List.of(tag("dict1", "travel"), tag("dict1", "food")));
+
+        // Act
+        dictionaryService.saveDictionary(requestDTO, OWNER);
+
+        // Assert
+        DictionaryVisibilityEvent event = (DictionaryVisibilityEvent) capturedEvent().payload();
+        assertEquals(List.of("food", "travel"), event.getTags());
+    }
+
+    @Test
+    void saveDictionary_PublicDictionaryRenamed_UpdatedEventCarriesTags() {
+        // Arrange
+        DictionaryRequestDTO requestDTO = requestDTO("dict1");
+        Dictionary saved = dictionary("dict1", true);
+        saved.setName("Renamed");
+        when(dictionaryRepository.findById("dict1")).thenReturn(Optional.of(dictionary("dict1", true)));
+        when(dictionaryMapper.toDictionary(requestDTO)).thenReturn(saved);
+        when(dictionaryRepository.saveAndFlush(saved)).thenReturn(saved);
+        when(dictionaryTagRepository.findByDictionaryId("dict1")).thenReturn(List.of(tag("dict1", "food")));
+
+        // Act
+        dictionaryService.saveDictionary(requestDTO, OWNER);
+
+        // Assert
+        OutboundEvent outbound = capturedEvent();
+        assertEquals(ROUTING_KEY_DICTIONARY_UPDATED, outbound.routingKey());
+        assertEquals(List.of("food"), ((DictionaryUpdatedEvent) outbound.payload()).getTags());
+    }
+
+    @Test
+    void saveDictionary_UntaggedPublicDictionary_SendsAnEmptyListNotNull() {
+        // Arrange — consumers read null as "tags unknown", so an untagged dictionary must say []
+        DictionaryRequestDTO requestDTO = requestDTO("dict1");
+        Dictionary dictionary = dictionary("dict1", true);
+        when(dictionaryRepository.findById("dict1")).thenReturn(Optional.empty());
+        when(dictionaryMapper.toDictionary(requestDTO)).thenReturn(dictionary);
+        when(dictionaryRepository.saveAndFlush(dictionary)).thenReturn(dictionary);
+
+        // Act
+        dictionaryService.saveDictionary(requestDTO, OWNER);
+
+        // Assert
+        assertEquals(List.of(), ((DictionaryVisibilityEvent) capturedEvent().payload()).getTags());
+    }
+
+    @Test
+    void publishPublicSnapshot_EachEntryCarriesItsOwnSortedTags() {
+        // Arrange
+        Dictionary tagged = dictionary("dict1", true);
+        Dictionary untagged = dictionary("dict2", true);
+        when(dictionaryRepository.findByIsPublicTrue()).thenReturn(List.of(tagged, untagged));
+        when(dictionaryTagRepository.findByDictionaryIdIn(List.of("dict1", "dict2")))
+                .thenReturn(List.of(tag("dict1", "travel"), tag("dict1", "food")));
+
+        // Act
+        dictionaryService.publishPublicSnapshot();
+
+        // Assert — one tag query for the whole snapshot, not one per dictionary
+        DictionarySnapshotEvent event = (DictionarySnapshotEvent) capturedEvent().payload();
+        assertEquals(List.of("food", "travel"), event.getDictionaries().get(0).getTags());
+        assertEquals(List.of(), event.getDictionaries().get(1).getTags());
+        verify(dictionaryTagRepository, never()).findByDictionaryId(any());
+    }
+
+    @Test
+    void publishTagChange_PublicDictionary_BumpsUpdatedAtAndPublishesUpdated() {
+        // Arrange — without the bump the marketplace would drop the event as stale (rule 4)
+        Dictionary dictionary = dictionary("dict1", true);
+        OffsetDateTime before = OffsetDateTime.now().minusDays(1);
+        dictionary.setUpdatedAt(before);
+        when(dictionaryRepository.findById("dict1")).thenReturn(Optional.of(dictionary));
+        when(dictionaryRepository.saveAndFlush(dictionary)).thenReturn(dictionary);
+        when(dictionaryTagRepository.findByDictionaryId("dict1")).thenReturn(List.of(tag("dict1", "food")));
+
+        // Act
+        dictionaryService.publishTagChange("dict1");
+
+        // Assert
+        verify(dictionaryRepository).saveAndFlush(dictionary);
+        assertTrue(dictionary.getUpdatedAt().isAfter(before));
+
+        OutboundEvent outbound = capturedEvent();
+        assertEquals(ROUTING_KEY_DICTIONARY_UPDATED, outbound.routingKey());
+        DictionaryUpdatedEvent event = (DictionaryUpdatedEvent) outbound.payload();
+        assertEquals("dict1", event.getDictionaryId());
+        assertEquals(List.of("food"), event.getTags());
+        assertEquals(dictionary.getUpdatedAt(), event.getUpdatedAt());
+    }
+
+    @Test
+    void publishTagChange_PrivateDictionary_TouchesNothing() {
+        // Arrange — nothing lists it; its tags travel on the public event if it is published later
+        when(dictionaryRepository.findById("dict1")).thenReturn(Optional.of(dictionary("dict1", false)));
+
+        // Act
+        dictionaryService.publishTagChange("dict1");
+
+        // Assert
+        verify(dictionaryRepository, never()).saveAndFlush(any());
+        verifyNoInteractions(eventPublisher);
+    }
+
+    @Test
+    void publishTagChange_UnknownDictionary_DoesNothing() {
+        // Arrange
+        when(dictionaryRepository.findById("dict1")).thenReturn(Optional.empty());
+
+        // Act
+        dictionaryService.publishTagChange("dict1");
+
+        // Assert
+        verify(dictionaryRepository, never()).saveAndFlush(any());
+        verifyNoInteractions(eventPublisher);
+    }
+
+    private static DictionaryTag tag(String dictionaryId, String tag) {
+        return DictionaryTag.builder().tagId(dictionaryId + "-" + tag).dictionaryId(dictionaryId).tag(tag).build();
     }
 }
 

@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 
 /**
  * One public dictionary inside a {@link DictionarySnapshotEvent} — the same listing fields the
@@ -26,6 +27,8 @@ public class DictionarySnapshotEntry {
     private String toLang;
 
     private String dictionaryName;
+
+    private List<String> tags;
 
     private OffsetDateTime updatedAt;
 }

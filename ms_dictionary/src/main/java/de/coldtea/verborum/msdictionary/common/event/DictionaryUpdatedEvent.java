@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 
 /**
  * Published on `dictionary.updated` when a dictionary that is — and stays — public changes one of
@@ -31,6 +32,13 @@ public class DictionaryUpdatedEvent {
     private String toLang;
 
     private String dictionaryName;
+
+    /**
+     * The dictionary's tags (P4-12): normalised (trimmed, lowercase), sorted, never null from
+     * ms_dictionary — an untagged dictionary sends an empty list. Full state, not a delta (rule 2):
+     * a consumer replaces what it holds with this.
+     */
+    private List<String> tags;
 
     private OffsetDateTime updatedAt;
 

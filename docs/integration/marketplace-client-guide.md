@@ -6,8 +6,8 @@ to be followed literally. Where this file and the code in the backend repo disag
 and this file is the bug — say so rather than working around it.
 
 **Backend state this describes:** roadmap Phase 4 complete, verified against a running stack on
-**2026-09-27** (tasks P4-01 … P4-10), plus the language-pair filter and slice paging of **P4-11**
-(2026-10-04). Nothing here is planned-only unless it says so.
+**2026-09-27** (tasks P4-01 … P4-10), plus the language-pair filter and slice paging of **P4-11** and
+the tag filter of **P4-12** (2026-10-04). Nothing here is planned-only unless it says so.
 
 **Read first, and keep open:**
 - `docs/integration/frontend-backend-integration.md` — the normative contract (envelope, error shape,
@@ -42,7 +42,7 @@ otherwise surface as unexplained 401 / 400 / 403 / 404 responses.
 >    you can never write to someone else's dictionary (**403**). On words from someone else's
 >    dictionary, `level` is always **`null`** — it is the owner's progress, not yours.
 > 5. **The marketplace is live (`ms_marketplace`, `:8087`).** Browse public dictionaries, filter by
->    language pairs or publisher, and import them into your vault. Browse pages carry `hasNext`
+>    language pairs, tags or publisher, and import them into your vault. Browse pages carry `hasNext`
 >    (infinite scroll), not totals. See `docs/integration/marketplace-client-guide.md` in the backend repo.
 > 6. **Word save/update messages changed.** `POST`/`PUT /words` now reply "Saved/Updated successfully
 >    into dictionary `<dictionaryId>`" instead of listing the words. Do not parse `message` — it is for
@@ -159,9 +159,19 @@ the user scrolls — acceptable for browsing; de-duplicate by `dictionaryId` whe
 
 **Publisher filter:** an unknown `publisherId` returns an **empty page**, not a 404.
 
-**Planned, not built yet:** a tag filter (`tag=`, any match) and a publisher display-name filter with
-`publisherName` on every listing (roadmap P4-12, P4-13). Listings whose publisher has no display name
-will then stop appearing — require a display name before a user publishes to the marketplace.
+**Tag filter (`tag`):** optional, since 2026-10-04.
+- `tag=food&tag=travel` returns listings with **any** of the tags. Any case (`Food` matches `food`).
+- Repeat the parameter for several tags; at most **10**, each non-blank and at most 100 characters,
+  otherwise **400**. Do not comma-join tags into one value — a tag containing a comma cannot be
+  searched for (the server splits on commas).
+- Combines with `pair` by AND: `pair=EN-TR&tag=food` is English–Turkish dictionaries tagged food.
+- Every listing now carries `tags` (lowercase, sorted, `[]` when untagged) — render them as chips and
+  let a tap add that tag to the filter.
+- A tag added or removed in the app reaches the marketplace within seconds, like a rename.
+
+**Planned, not built yet:** a publisher display-name filter with `publisherName` on every listing
+(roadmap P4-13). Listings whose publisher has no display name will then stop appearing — require a
+display name before a user publishes to the marketplace.
 
 Only **listed** (public) dictionaries are ever returned. You will never see a private or deleted one
 here.
@@ -177,6 +187,7 @@ here.
       "name":         "Polish → Ukrainian",
       "fromLang":     "PL",
       "toLang":       "UK",
+      "tags":         ["grammar", "travel"],
       "importCount":  7,
       "publishedAt":  "2026-07-19T17:01:21.303971Z"
     }
@@ -195,6 +206,7 @@ here.
 | `dictionaryId` | the dictionary's id in ms_dictionary — use it to import and to read it |
 | `publisherId` | the owner's `sub`. Pass it to the publisher endpoint for "more from this publisher"; compare it with your own `sub` to detect your own listings. **Not a display name** — do not show the raw UUID to users |
 | `name`, `fromLang`, `toLang` | copies of the dictionary's fields, kept current by the backend within seconds |
+| `tags` | the dictionary's tags, lowercase and sorted; `[]` when untagged. Kept current like `name` |
 | `importCount` | number of **distinct users** who imported it (a user importing twice counts once) |
 | `publishedAt` | when it (most recently) became public, ISO-8601 UTC. Making it private and public again resets it |
 
@@ -256,7 +268,7 @@ whenever `GET /users/{userId}` returns 404, before offering the marketplace.
 1. `GET /marketplace/dictionaries?page=0&size=20` (or `/popular`) → render `items`.
 2. On scroll near the end and `hasNext` → request `page + 1`, append, de-duplicate by
    `dictionaryId`.
-3. Language-pair filter → `?pair=..&pair=..` on the same endpoint. Pre-fill it from the user's own
+3. Language-pair and tag filters → `?pair=..&pair=..&tag=..` on the same endpoint. Pre-fill it from the user's own
    dictionaries. Re-query on every change of the chips, reset to page 0, and **cancel the request
    still in flight** (`collectLatest`/`flatMapLatest`, `switchMap`) so a slow, older response can never
    overwrite a newer one.
@@ -372,7 +384,7 @@ TOKEN=$(curl -s -X POST http://localhost:8180/realms/verborum/protocol/openid-co
   | sed -E 's/.*"access_token":"([^"]+)".*/\1/')
 
 curl -s -H "Authorization: Bearer $TOKEN" "http://localhost:8087/marketplace/dictionaries?size=5"
-curl -s -H "Authorization: Bearer $TOKEN" "http://localhost:8087/marketplace/dictionaries?pair=de-en&pair=EN-TR"
+curl -s -H "Authorization: Bearer $TOKEN" "http://localhost:8087/marketplace/dictionaries?pair=de-en&pair=EN-TR&tag=travel"
 curl -s -X POST -H "Authorization: Bearer $TOKEN" \
   "http://localhost:8087/marketplace/dictionaries/<dictionaryId>/import"
 ```

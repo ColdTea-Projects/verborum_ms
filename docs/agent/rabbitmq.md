@@ -149,6 +149,7 @@ public class DictionaryVisibilityEvent {
     private String fromLang;
     private String toLang;
     private String dictionaryName;
+    private List<String> tags;             // full tag set, sorted, [] when untagged (P4-12)
     private OffsetDateTime updatedAt;      // ordering key for the projection - rule 4
     private OffsetDateTime eventTimestamp; // when the event was raised, not when the data changed
 }

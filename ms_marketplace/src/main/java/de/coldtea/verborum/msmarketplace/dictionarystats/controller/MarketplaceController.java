@@ -9,6 +9,7 @@ import de.coldtea.verborum.msmarketplace.dictionarystats.dto.ListingFilter;
 import de.coldtea.verborum.msmarketplace.dictionarystats.service.DictionaryStatsService;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -29,7 +30,12 @@ import static de.coldtea.verborum.msmarketplace.common.constants.DTOMessageConst
 import static de.coldtea.verborum.msmarketplace.common.constants.DTOMessageConstants.PAGE_SIZE_DEFAULT;
 import static de.coldtea.verborum.msmarketplace.common.constants.DTOMessageConstants.PAGE_SIZE_MAX;
 import static de.coldtea.verborum.msmarketplace.common.constants.DTOMessageConstants.PAGE_SIZE_OUT_OF_RANGE;
+import static de.coldtea.verborum.msmarketplace.common.constants.DTOMessageConstants.TAGS_MAX;
+import static de.coldtea.verborum.msmarketplace.common.constants.DTOMessageConstants.TAG_BLANK;
+import static de.coldtea.verborum.msmarketplace.common.constants.DTOMessageConstants.TAG_MAX_LENGTH;
+import static de.coldtea.verborum.msmarketplace.common.constants.DTOMessageConstants.TAG_TOO_LONG;
 import static de.coldtea.verborum.msmarketplace.common.constants.DTOMessageConstants.TOO_MANY_LANGUAGE_PAIRS;
+import static de.coldtea.verborum.msmarketplace.common.constants.DTOMessageConstants.TOO_MANY_TAGS;
 import static de.coldtea.verborum.msmarketplace.common.constants.ResponseMessageConstants.DICTIONARY_IMPORTED_SUCCESSFULLY;
 import static de.coldtea.verborum.msmarketplace.common.utils.ResponseUtils.buildResponse;
 import static de.coldtea.verborum.msmarketplace.common.utils.SecurityUtils.getCurrentUserId;
@@ -39,9 +45,9 @@ import static de.coldtea.verborum.msmarketplace.common.utils.SecurityUtils.getCu
  * to ms_dictionary (rule 5). Any authenticated caller may browse: every listed dictionary is public,
  * so there is no ownership filter. Import (P4-07) is the one write.
  * <p>
- * Parameter constraints (@Min/@Max, @Size, @LanguagePair on each list element) are enforced by Spring
- * MVC's built-in method validation — no class-level @Validated, which would switch to the AOP variant
- * and a different exception. Failures are 400s via GlobalExceptionHandler.
+ * Parameter constraints (@Min/@Max, @Size, @NotBlank, @LanguagePair — on list elements too) are
+ * enforced by Spring MVC's built-in method validation — no class-level @Validated, which would switch
+ * to the AOP variant and a different exception. Failures are 400s via GlobalExceptionHandler.
  */
 @RestController
 @RequestMapping("/marketplace/dictionaries")
@@ -65,17 +71,21 @@ public class MarketplaceController {
 
     /**
      * Newest first. `pair` narrows to the given language pairs in both directions — `pair=EN-TR`
-     * returns EN→TR and TR→EN listings (P4-11). Repeat it for several (`pair=EN-TR&pair=FR-DE`); leave
-     * it out for every language.
+     * returns EN→TR and TR→EN listings (P4-11). `tag` narrows to listings with any of the given tags,
+     * in any case (P4-12). Both repeat for several values (`pair=EN-TR&pair=FR-DE`); leave one out
+     * to not filter on it.
      */
     @GetMapping
     public ResponseEntity<SliceResponse<DictionaryListingResponseDTO>> getListings(
             @RequestParam(required = false)
             @Size(max = LANGUAGE_PAIRS_MAX, message = TOO_MANY_LANGUAGE_PAIRS) List<@LanguagePair String> pair,
+            @RequestParam(required = false)
+            @Size(max = TAGS_MAX, message = TOO_MANY_TAGS)
+            List<@NotBlank(message = TAG_BLANK) @Size(max = TAG_MAX_LENGTH, message = TAG_TOO_LONG) String> tag,
             @RequestParam(defaultValue = PAGE_DEFAULT) @Min(value = 0, message = PAGE_NEGATIVE) int page,
             @RequestParam(defaultValue = PAGE_SIZE_DEFAULT)
             @Min(value = 1, message = PAGE_SIZE_OUT_OF_RANGE) @Max(value = PAGE_SIZE_MAX, message = PAGE_SIZE_OUT_OF_RANGE) int size) {
-        return new ResponseEntity<>(dictionaryStatsService.getListings(new ListingFilter(pair), page, size), HttpStatus.OK);
+        return new ResponseEntity<>(dictionaryStatsService.getListings(new ListingFilter(pair, tag), page, size), HttpStatus.OK);
     }
 
     /** Most imported first, with the same filters as {@link #getListings}. */
@@ -83,10 +93,13 @@ public class MarketplaceController {
     public ResponseEntity<SliceResponse<DictionaryListingResponseDTO>> getPopularListings(
             @RequestParam(required = false)
             @Size(max = LANGUAGE_PAIRS_MAX, message = TOO_MANY_LANGUAGE_PAIRS) List<@LanguagePair String> pair,
+            @RequestParam(required = false)
+            @Size(max = TAGS_MAX, message = TOO_MANY_TAGS)
+            List<@NotBlank(message = TAG_BLANK) @Size(max = TAG_MAX_LENGTH, message = TAG_TOO_LONG) String> tag,
             @RequestParam(defaultValue = PAGE_DEFAULT) @Min(value = 0, message = PAGE_NEGATIVE) int page,
             @RequestParam(defaultValue = PAGE_SIZE_DEFAULT)
             @Min(value = 1, message = PAGE_SIZE_OUT_OF_RANGE) @Max(value = PAGE_SIZE_MAX, message = PAGE_SIZE_OUT_OF_RANGE) int size) {
-        return new ResponseEntity<>(dictionaryStatsService.getPopularListings(new ListingFilter(pair), page, size), HttpStatus.OK);
+        return new ResponseEntity<>(dictionaryStatsService.getPopularListings(new ListingFilter(pair, tag), page, size), HttpStatus.OK);
     }
 
     /**

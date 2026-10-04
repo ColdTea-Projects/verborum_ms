@@ -67,6 +67,7 @@ class MarketplaceControllerWebTest {
                         .name("Travel")
                         .fromLang("EN")
                         .toLang("DE")
+                        .tags(List.of("food", "travel"))
                         .importCount(3)
                         .publishedAt(OffsetDateTime.of(2026, 9, 27, 12, 0, 0, 0, ZoneOffset.UTC))
                         .build()))
@@ -92,6 +93,8 @@ class MarketplaceControllerWebTest {
                 .andExpect(jsonPath("$.items[0].publisherId").value(PUBLISHER))
                 .andExpect(jsonPath("$.items[0].name").value("Travel"))
                 .andExpect(jsonPath("$.items[0].importCount").value(3))
+                .andExpect(jsonPath("$.items[0].tags[0]").value("food"))
+                .andExpect(jsonPath("$.items[0].tags[1]").value("travel"))
                 .andExpect(jsonPath("$.items[0].publishedAt").exists())
                 // internal state never reaches the client
                 .andExpect(jsonPath("$.items[0].isListed").doesNotExist())
@@ -119,7 +122,7 @@ class MarketplaceControllerWebTest {
     @Test
     void getListings_RepeatedPairs_PassedAsSentInAnyCase() throws Exception {
         // Normalising is the service's job; the controller hands over what was validated
-        when(dictionaryStatsService.getListings(new ListingFilter(List.of("en-tr", "FR-DE")), 0, 20)).thenReturn(oneSlice());
+        when(dictionaryStatsService.getListings(new ListingFilter(List.of("en-tr", "FR-DE"), null), 0, 20)).thenReturn(oneSlice());
 
         mockMvc.perform(get("/marketplace/dictionaries?pair=en-tr&pair=FR-DE").with(jwt().jwt(j -> j.subject(SUB))))
                 .andExpect(status().isOk())
@@ -128,7 +131,7 @@ class MarketplaceControllerWebTest {
 
     @Test
     void getListings_CommaSeparatedPairs_AlsoAccepted() throws Exception {
-        when(dictionaryStatsService.getListings(new ListingFilter(List.of("EN-TR", "FR-DE")), 0, 20)).thenReturn(oneSlice());
+        when(dictionaryStatsService.getListings(new ListingFilter(List.of("EN-TR", "FR-DE"), null), 0, 20)).thenReturn(oneSlice());
 
         mockMvc.perform(get("/marketplace/dictionaries?pair=EN-TR,FR-DE").with(jwt().jwt(j -> j.subject(SUB))))
                 .andExpect(status().isOk())
@@ -137,7 +140,7 @@ class MarketplaceControllerWebTest {
 
     @Test
     void getPopularListings_PairFilter_Passed() throws Exception {
-        when(dictionaryStatsService.getPopularListings(new ListingFilter(List.of("DE-TR")), 0, 20)).thenReturn(oneSlice());
+        when(dictionaryStatsService.getPopularListings(new ListingFilter(List.of("DE-TR"), null), 0, 20)).thenReturn(oneSlice());
 
         mockMvc.perform(get("/marketplace/dictionaries/popular?pair=DE-TR").with(jwt().jwt(j -> j.subject(SUB))))
                 .andExpect(status().isOk())
@@ -180,6 +183,59 @@ class MarketplaceControllerWebTest {
                 .andExpect(jsonPath("$.errorDetail").value("pair: at most 10 language pairs"));
 
         verify(dictionaryStatsService, never()).getListings(any(), anyInt(), anyInt());
+    }
+
+    // ---- tag filter (P4-12) ----
+
+    @Test
+    void getListings_TagsAndPairs_PassedTogether() throws Exception {
+        when(dictionaryStatsService.getListings(new ListingFilter(List.of("EN-TR"), List.of("Food", "travel")), 0, 20))
+                .thenReturn(oneSlice());
+
+        mockMvc.perform(get("/marketplace/dictionaries?pair=EN-TR&tag=Food&tag=travel").with(jwt().jwt(j -> j.subject(SUB))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].dictionaryId").value("dict1"));
+    }
+
+    @Test
+    void getPopularListings_TagFilter_Passed() throws Exception {
+        when(dictionaryStatsService.getPopularListings(new ListingFilter(null, List.of("food")), 0, 20)).thenReturn(oneSlice());
+
+        mockMvc.perform(get("/marketplace/dictionaries/popular?tag=food").with(jwt().jwt(j -> j.subject(SUB))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].dictionaryId").value("dict1"));
+    }
+
+    @Test
+    void getListings_BlankTag_Is400() throws Exception {
+        // .param, not the URL template: the template would re-encode "%20" and send a non-blank value
+        mockMvc.perform(get("/marketplace/dictionaries").param("tag", "food", " ").with(jwt().jwt(j -> j.subject(SUB))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("HandlerMethodValidationException"))
+                .andExpect(jsonPath("$.errorDetail").value("tag: must not be blank"));
+
+        verify(dictionaryStatsService, never()).getListings(any(), anyInt(), anyInt());
+    }
+
+    @Test
+    void getListings_TagTooLong_Is400() throws Exception {
+        mockMvc.perform(get("/marketplace/dictionaries?tag=" + "a".repeat(101)).with(jwt().jwt(j -> j.subject(SUB))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorDetail").value("tag: must be at most 100 characters"));
+    }
+
+    @Test
+    void getPopularListings_MoreThanTenTags_Is400() throws Exception {
+        StringBuilder tags = new StringBuilder("tag=t0");
+        for (int i = 1; i <= 10; i++) {
+            tags.append("&tag=t").append(i);
+        }
+
+        mockMvc.perform(get("/marketplace/dictionaries/popular?" + tags).with(jwt().jwt(j -> j.subject(SUB))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorDetail").value("tag: at most 10 tags"));
+
+        verify(dictionaryStatsService, never()).getPopularListings(any(), anyInt(), anyInt());
     }
 
     @Test

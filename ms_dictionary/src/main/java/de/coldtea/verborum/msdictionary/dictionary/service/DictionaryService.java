@@ -27,4 +27,12 @@ public interface DictionaryService {
      * reconciliation backstop (rule 6, P4-03). Scheduled, not exposed over HTTP.
      */
     void publishPublicSnapshot();
+
+    /**
+     * A tag of this dictionary was added or removed (P4-12). For a public dictionary, bumps its
+     * `updatedAt` and publishes `dictionary.updated` with the new tag set; for a private or unknown
+     * one, does nothing. Called by the tag service after an actual change — never for a no-op.
+     * No ownership check: the caller has already done it.
+     */
+    void publishTagChange(String dictionaryId);
 }

@@ -1,0 +1,25 @@
+{
+  "databaseChangeLog": [
+    {
+      "changeSet": {
+        "id": "20261004-03-dictionary-stats-tags",
+        "author": "claude (P4-12)",
+        "comment": "Tag filter for browse (decided 2026-10-03): a listing matches when it has any of the requested tags. Tags are an array on the listing rather than a side table: the events carry the full tag set (rule 2), so a consumer replaces the array in one write, and the filter is tags && ARRAY[...] on this table with no join and no duplicate rows to remove before paging. VARCHAR[] with no length limit (as unbounded as ms_dictionary's TEXT tag), not TEXT[]: Hibernate binds the String[] filter value as varchar[], and Postgres has no text[] && varchar[] operator. GIN is the index that serves &&; partial WHERE is_listed like the other browse indexes. DEFAULT '{}' only fills existing rows - Hibernate writes the column explicitly on insert. Existing listings start empty and get their tags from the next dictionary.snapshot, which repairs a held row whose tags differ from a snapshot entry of the same version. Raw SQL for the GIN index because Liquibase's createIndex has no USING or WHERE.",
+        "changes": [
+          {
+            "sql": {
+              "sql": "ALTER TABLE dictionary_stats ADD COLUMN tags VARCHAR[] NOT NULL DEFAULT '{}'; CREATE INDEX idx_dictionary_stats_listed_tags ON dictionary_stats USING GIN (tags) WHERE is_listed;"
+            }
+          }
+        ],
+        "rollback": [
+          {
+            "sql": {
+              "sql": "DROP INDEX IF EXISTS idx_dictionary_stats_listed_tags; ALTER TABLE dictionary_stats DROP COLUMN tags;"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

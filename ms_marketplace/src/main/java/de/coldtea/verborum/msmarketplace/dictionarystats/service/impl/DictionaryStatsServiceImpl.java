@@ -25,6 +25,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -36,6 +37,7 @@ import java.util.stream.Collectors;
 
 import static de.coldtea.verborum.msmarketplace.common.utils.LanguagePairUtils.toLangPair;
 import static de.coldtea.verborum.msmarketplace.common.utils.ResponseUtils.toSliceResponse;
+import static de.coldtea.verborum.msmarketplace.dictionarystats.repository.DictionaryStatsSpecifications.hasAnyTag;
 import static de.coldtea.verborum.msmarketplace.dictionarystats.repository.DictionaryStatsSpecifications.hasLangPairIn;
 import static de.coldtea.verborum.msmarketplace.dictionarystats.repository.DictionaryStatsSpecifications.isListed;
 import static de.coldtea.verborum.msmarketplace.dictionarystats.repository.DictionaryStatsSpecifications.isPublishedBy;
@@ -89,7 +91,7 @@ public class DictionaryStatsServiceImpl implements DictionaryStatsService {
 
         if (existing.isEmpty()) {
             dictionaryStatsRepository.saveAndFlush(newRow(event.getDictionaryId(), event.getUserId(),
-                    event.getDictionaryName(), event.getFromLang(), event.getToLang(), sourceUpdatedAt, true));
+                    event.getDictionaryName(), event.getFromLang(), event.getToLang(), event.getTags(), sourceUpdatedAt, true));
             return;
         }
 
@@ -100,7 +102,7 @@ public class DictionaryStatsServiceImpl implements DictionaryStatsService {
         }
 
         applyPublicState(listing, event.getUserId(), event.getDictionaryName(), event.getFromLang(),
-                event.getToLang(), sourceUpdatedAt);
+                event.getToLang(), event.getTags(), sourceUpdatedAt);
         dictionaryStatsRepository.saveAndFlush(listing);
     }
 
@@ -114,7 +116,7 @@ public class DictionaryStatsServiceImpl implements DictionaryStatsService {
         // hidden row anyway — it is what makes that older public event compare as stale when it lands
         if (existing.isEmpty()) {
             dictionaryStatsRepository.saveAndFlush(newRow(event.getDictionaryId(), event.getUserId(),
-                    event.getDictionaryName(), event.getFromLang(), event.getToLang(), sourceUpdatedAt, false));
+                    event.getDictionaryName(), event.getFromLang(), event.getToLang(), event.getTags(), sourceUpdatedAt, false));
             return;
         }
 
@@ -124,7 +126,7 @@ public class DictionaryStatsServiceImpl implements DictionaryStatsService {
         }
 
         applyListingFields(listing, event.getUserId(), event.getDictionaryName(), event.getFromLang(),
-                event.getToLang(), sourceUpdatedAt);
+                event.getToLang(), event.getTags(), sourceUpdatedAt);
         // importCount and publishedAt are kept: they are history, and survive a later re-publish
         listing.setIsListed(false);
         dictionaryStatsRepository.saveAndFlush(listing);
@@ -143,7 +145,7 @@ public class DictionaryStatsServiceImpl implements DictionaryStatsService {
                 .filter(listing -> isNewer(sourceUpdatedAt, listing))
                 .ifPresent(listing -> {
                     applyPublicState(listing, event.getUserId(), event.getDictionaryName(), event.getFromLang(),
-                            event.getToLang(), sourceUpdatedAt);
+                            event.getToLang(), event.getTags(), sourceUpdatedAt);
                     dictionaryStatsRepository.saveAndFlush(listing);
                 });
     }
@@ -223,10 +225,13 @@ public class DictionaryStatsServiceImpl implements DictionaryStatsService {
 
             if (listing == null) {
                 toSave.add(newRow(entry.getDictionaryId(), entry.getUserId(), entry.getDictionaryName(),
-                        entry.getFromLang(), entry.getToLang(), sourceUpdatedAt, true));
+                        entry.getFromLang(), entry.getToLang(), entry.getTags(), sourceUpdatedAt, true));
             } else if (isNewer(sourceUpdatedAt, listing)) {
                 applyPublicState(listing, entry.getUserId(), entry.getDictionaryName(), entry.getFromLang(),
-                        entry.getToLang(), sourceUpdatedAt);
+                        entry.getToLang(), entry.getTags(), sourceUpdatedAt);
+                toSave.add(listing);
+            } else if (isMissingTagsOfThisVersion(entry, sourceUpdatedAt, listing)) {
+                listing.setTags(normalizeTags(entry.getTags()));
                 toSave.add(listing);
             }
         }
@@ -272,7 +277,7 @@ public class DictionaryStatsServiceImpl implements DictionaryStatsService {
     /**
      * Listed rows, narrowed by each filter the request set. Requested pairs are made canonical the same
      * way the stored ones are, so `TR-DE` and `de-tr` both match DE→TR and TR→DE listings; duplicates
-     * collapse in the set.
+     * collapse in the set. Tags likewise go through the same normalisation as stored ones.
      */
     private static Specification<DictionaryStats> toSpecification(ListingFilter filter) {
         Specification<DictionaryStats> specification = isListed();
@@ -284,11 +289,17 @@ public class DictionaryStatsServiceImpl implements DictionaryStatsService {
             specification = specification.and(hasLangPairIn(langPairs));
         }
 
+        // Normalised like the stored tags, so "Food " matches "food"
+        if (filter.tags() != null && !filter.tags().isEmpty()) {
+            specification = specification.and(hasAnyTag(normalizeTags(filter.tags())));
+        }
+
         return specification;
     }
 
     private static DictionaryStats newRow(String dictionaryId, String userId, String name, String fromLang,
-                                          String toLang, OffsetDateTime sourceUpdatedAt, boolean listed) {
+                                          String toLang, List<String> tags, OffsetDateTime sourceUpdatedAt,
+                                          boolean listed) {
         return DictionaryStats.builder()
                 .dictionaryId(dictionaryId)
                 .userId(userId)
@@ -296,6 +307,9 @@ public class DictionaryStatsServiceImpl implements DictionaryStatsService {
                 .fromLang(normalizeLanguage(fromLang))
                 .toLang(normalizeLanguage(toLang))
                 .langPair(toLangPair(fromLang, toLang))
+                // Unknown (null) tags start empty: the column is NOT NULL, and the next event or
+                // snapshot that knows them fills them in
+                .tags(tags == null ? new String[0] : normalizeTags(tags))
                 // Both explicit — the column defaults do not apply through Hibernate (see the entity)
                 .isListed(listed)
                 .importCount(0)
@@ -312,22 +326,56 @@ public class DictionaryStatsServiceImpl implements DictionaryStatsService {
      * row counts as newly published.
      */
     private static void applyPublicState(DictionaryStats listing, String userId, String name, String fromLang,
-                                         String toLang, OffsetDateTime sourceUpdatedAt) {
+                                         String toLang, List<String> tags, OffsetDateTime sourceUpdatedAt) {
         if (!Boolean.TRUE.equals(listing.getIsListed())) {
             listing.setIsListed(true);
             listing.setPublishedAt(sourceUpdatedAt);
         }
-        applyListingFields(listing, userId, name, fromLang, toLang, sourceUpdatedAt);
+        applyListingFields(listing, userId, name, fromLang, toLang, tags, sourceUpdatedAt);
     }
 
     private static void applyListingFields(DictionaryStats listing, String userId, String name, String fromLang,
-                                           String toLang, OffsetDateTime sourceUpdatedAt) {
+                                           String toLang, List<String> tags, OffsetDateTime sourceUpdatedAt) {
         listing.setUserId(userId);
         listing.setName(name);
         listing.setFromLang(normalizeLanguage(fromLang));
         listing.setToLang(normalizeLanguage(toLang));
         listing.setLangPair(toLangPair(fromLang, toLang));
+        // Null = a publisher or message from before P4-12, which does not know the tags: keep ours
+        if (tags != null) {
+            listing.setTags(normalizeTags(tags));
+        }
         listing.setSourceUpdatedAt(sourceUpdatedAt);
+    }
+
+    /**
+     * Tags as stored and as matched (P4-12): trimmed and lowercased with `Locale.ROOT` exactly like
+     * ms_dictionary normalises them, without blanks or duplicates, sorted so equal sets compare equal.
+     * ms_dictionary already sends them this way; doing it again here keeps the filter's matching
+     * independent of the publisher getting it right.
+     */
+    private static String[] normalizeTags(List<String> tags) {
+        return tags.stream()
+                .filter(Objects::nonNull)
+                .map(tag -> tag.trim().toLowerCase(Locale.ROOT))
+                .filter(tag -> !tag.isEmpty())
+                .distinct()
+                .sorted()
+                .toArray(String[]::new);
+    }
+
+    /**
+     * The one exception to "only strictly newer state is applied" (rule 4), and only for tags. A
+     * snapshot entry of the <i>same</i> version as the row describes the same dictionary state, so any
+     * difference means the row is missing data — in practice, a listing stored before P4-12 added
+     * tags, which no event would otherwise fill in (a tag change bumps `updatedAt`, but an untouched
+     * dictionary never sends anything newer). Older entries stay ignored, as always.
+     */
+    private static boolean isMissingTagsOfThisVersion(DictionarySnapshotEntry entry, OffsetDateTime sourceUpdatedAt,
+                                                      DictionaryStats listing) {
+        return entry.getTags() != null
+                && sourceUpdatedAt.isEqual(listing.getSourceUpdatedAt())
+                && !Arrays.equals(normalizeTags(entry.getTags()), listing.getTags());
     }
 
     /**
