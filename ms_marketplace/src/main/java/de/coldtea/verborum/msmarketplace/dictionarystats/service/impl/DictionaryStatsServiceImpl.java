@@ -46,6 +46,7 @@ import static de.coldtea.verborum.msmarketplace.dictionarystats.repository.Dicti
 import static de.coldtea.verborum.msmarketplace.dictionarystats.repository.DictionaryStatsSpecifications.hasLangPairIn;
 import static de.coldtea.verborum.msmarketplace.dictionarystats.repository.DictionaryStatsSpecifications.hasActivePublisher;
 import static de.coldtea.verborum.msmarketplace.dictionarystats.repository.DictionaryStatsSpecifications.isListed;
+import static de.coldtea.verborum.msmarketplace.dictionarystats.repository.DictionaryStatsSpecifications.isNotPublishedBy;
 import static de.coldtea.verborum.msmarketplace.dictionarystats.repository.DictionaryStatsSpecifications.isPublishedBy;
 
 /**
@@ -83,13 +84,13 @@ public class DictionaryStatsServiceImpl implements DictionaryStatsService {
     @Override
     public SliceResponse<DictionaryListingResponseDTO> getListings(ListingFilter filter, int page, int size, String callerId) {
         publisherService.requireMember(callerId);
-        return browse(toSpecification(filter), PageRequest.of(page, size, NEWEST_FIRST));
+        return browse(toSpecification(filter, callerId), PageRequest.of(page, size, NEWEST_FIRST));
     }
 
     @Override
     public SliceResponse<DictionaryListingResponseDTO> getPopularListings(ListingFilter filter, int page, int size, String callerId) {
         publisherService.requireMember(callerId);
-        return browse(toSpecification(filter), PageRequest.of(page, size, MOST_IMPORTED_FIRST));
+        return browse(toSpecification(filter, callerId), PageRequest.of(page, size, MOST_IMPORTED_FIRST));
     }
 
     @Override
@@ -315,11 +316,13 @@ public class DictionaryStatsServiceImpl implements DictionaryStatsService {
      * way the stored ones are, so `TR-DE` and `de-tr` both match DE→TR and TR→DE listings; duplicates
      * collapse in the set. Tags likewise go through the same normalisation as stored ones.
      */
-    private static Specification<DictionaryStats> toSpecification(ListingFilter filter) {
+    private static Specification<DictionaryStats> toSpecification(ListingFilter filter, String callerId) {
         // Listed, and published by someone on the marketplace — named (P4-13) and terms accepted (P4-14) —
         // matching the name filter if set:
-        // a case-insensitive substring, so "nna" finds "Anna Bauer"
+        // a case-insensitive substring, so "nna" finds "Anna Bauer".
+        // Never the caller's own (P4-17): browsing is for other people's dictionaries
         Specification<DictionaryStats> specification = isListed()
+                .and(isNotPublishedBy(callerId))
                 .and(hasActivePublisher(toContainsPattern(filter.publisherName())));
 
         if (filter.pairs() != null && !filter.pairs().isEmpty()) {

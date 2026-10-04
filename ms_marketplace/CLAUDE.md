@@ -110,6 +110,8 @@ request time — decided 2026-07-23, see roadmap `P4-03`.
   therefore take the caller's subject. Import also 404s a listing whose publisher is not a member
   (`isMember`), so leaving the marketplace cannot be bypassed with a remembered `dictionaryId`.
   Membership is this service's event-fed copy, so it lags a join by about a second.
+- **Never the caller's own (P4-17):** `GET` and `/popular` add `isNotPublishedBy(callerId)`; the
+  publisher endpoint does not (asking for your own id is deliberate).
 - **`hasActivePublisher` is applied to every browse read, filter or not** — a listing whose publisher has
   no `publishers` row, a null name, or has not accepted the marketplace terms (P4-14) is never returned. `publisherName` on each listing comes from one
   `publisherRepository.findAllById` per page; the mapper ignores the field.

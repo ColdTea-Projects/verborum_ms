@@ -1436,6 +1436,16 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
       server changed `isPublic`, and a sync pushing the stale local value would undo it (documented in
       the marketplace client guide). The whole sharing model for clients is in
       `docs/integration/dictionary-sharing-client-guide.md`.
+
+- [x] `P4-17` **Browse never shows the caller their own dictionaries** (ms_marketplace) — depends on P4-11
+  (requested and done 2026-10-04, found while testing the client against the dev seed)
+  - `GET /marketplace/dictionaries` and `/popular` add `DictionaryStatsSpecifications.isNotPublishedBy(callerId)`
+    (`fk_user_id <> :caller`). `/publisher/{publisherId}` is unchanged — an explicit request for one
+    publisher, including oneself.
+  - Suite 147/147. **Verified live** on the dev seed: Anna no longer sees her own "Long Sentences" (18
+    imports) or any of her listings in `/popular` and the DE-TR filter (43 of 53), Lukas sees hers but not
+    his own; `/publisher/{anna}` still returns her 10.
+  - Client guide: the "Yours" marking in browse lists is no longer needed.
 ---
 
 ## Phase 5 — API Gateway

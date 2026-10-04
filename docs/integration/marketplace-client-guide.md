@@ -310,6 +310,10 @@ member → 400). Prefer `profile-info` for anything on the profile page.
 | `GET /marketplace/dictionaries/popular?…same filters…` | listings, same filters | most imported first; newest first among equals |
 | `GET /marketplace/dictionaries/publisher/{publisherId}` | one publisher's listings | newest first |
 
+**Never your own.** `GET /marketplace/dictionaries` and `/popular` never return the caller's own
+listings (since 2026-10-04) — the Forum shows other people's dictionaries. Only
+`/publisher/{publisherId}` with your own `sub` returns yours.
+
 **Members only, both ways.** The caller must be a member (**403** otherwise, §4.6), and only members'
 listings are ever returned — on every endpoint, filtered or not, including `/publisher/{publisherId}`:
 the dictionary is public *and* its publisher has a display name *and* has accepted the terms. Private
@@ -497,7 +501,8 @@ locale-independent conversion (`Locale.ROOT` / invariant culture) — Turkish lo
    never overwrite a newer one. The publisher-name search runs on tap. A tap on a tag chip may add
    that tag to the filter.
 4. Tap a publisher → `/publisher/{publisherId}` ("More from Anna Bauer").
-5. For each item where `publisherId == mySub`: show "Yours" and no import action.
+5. Your own dictionaries never appear in these lists — no "Yours" handling needed. (They do appear on
+   `/publisher/{yourSub}`; there, hide the import action.)
 6. Optional preview before importing: `GET /dictionaries/dictionary/{id}` and
    `GET /words/dictionary/{id}` work for any listed dictionary.
 

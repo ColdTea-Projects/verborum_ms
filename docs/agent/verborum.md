@@ -299,7 +299,8 @@ DictionaryListingResponseDTO { dictionaryId, publisherId, publisherName, name, f
 (ownership always comes from the caller's token). **The Forum is for members both ways** (P4-13..P4-15):
 the caller must have a display name and accepted terms — otherwise **403** on every browse endpoint and
 on import — and only listings whose publisher is a member are returned or importable (a non-member's
-listing is a 404 on import). `publisherName` carries the name. Language codes come back
+listing is a 404 on import). `GET` and `/popular` never return the caller's own listings (P4-17);
+`/publisher/{publisherId}` does when asked for one's own id. `publisherName` carries the name. Language codes come back
 uppercase; `tags` lowercase and sorted (`[]` when untagged).
 
 | Method | Path | Returns |

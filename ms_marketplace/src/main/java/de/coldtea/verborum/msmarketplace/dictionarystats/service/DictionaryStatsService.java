@@ -23,10 +23,10 @@ public interface DictionaryStatsService {
     // ---- Browse (P4-06; filters and slices P4-11..P4-13). Listed rows of member publishers only, for
     // member callers only: callerId is the token subject, and a non-member gets 403 (the Forum gate) ----
 
-    /** Newest first, narrowed by whichever filters are set. */
+    /** Newest first, narrowed by whichever filters are set; never the caller's own listings (P4-17). */
     SliceResponse<DictionaryListingResponseDTO> getListings(ListingFilter filter, int page, int size, String callerId);
 
-    /** Most imported first, newest first among equals, narrowed by whichever filters are set. */
+    /** Most imported first, newest first among equals, narrowed by whichever filters are set; never the caller's own. */
     SliceResponse<DictionaryListingResponseDTO> getPopularListings(ListingFilter filter, int page, int size, String callerId);
 
     /** One publisher's listings, newest first — "more from this publisher". */

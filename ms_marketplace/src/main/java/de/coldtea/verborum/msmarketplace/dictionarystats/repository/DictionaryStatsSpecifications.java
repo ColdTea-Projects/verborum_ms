@@ -84,4 +84,9 @@ public class DictionaryStatsSpecifications {
     public static Specification<DictionaryStats> isPublishedBy(String publisherId) {
         return (root, query, criteriaBuilder) -> criteriaBuilder.equal(root.get("userId"), publisherId);
     }
+
+    /** Everyone's but this user's (P4-17) — browse never shows the caller their own dictionaries. */
+    public static Specification<DictionaryStats> isNotPublishedBy(String publisherId) {
+        return (root, query, criteriaBuilder) -> criteriaBuilder.notEqual(root.get("userId"), publisherId);
+    }
 }
