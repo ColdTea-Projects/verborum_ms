@@ -45,7 +45,8 @@ unchanged (`creation_dt`/`update_dt`/`imported_at`).
   profile yet. **`PUT /users/me/profile-info`** (P4-14) — partial update of `displayName` and the
   marketplace agreement; null fields are left alone. Both rules below apply.
 - `POST /users/` create profile · `PUT /users/` update · `GET /users/{userId}` (404 if missing **or not yours**, SEC-14) ·
-  `DELETE /users/{userId}`. Mirrors DictionaryController: `Response` envelope on mutations, DTO on
+  `DELETE /users/{userId}` (needs a login under 5 min old — `RecentLoginGuard`, 403 `ReauthenticationRequiredException`,
+  SEC-13). Mirrors DictionaryController: `Response` envelope on mutations, DTO on
   read, `saveUser` backs both POST and PUT. `userId` is still client-supplied here — switching to the
   JWT subject is P3-05. DELETE relies on the DB cascade to clear stats/vault; the `user.deleted`
   event is P2-08.

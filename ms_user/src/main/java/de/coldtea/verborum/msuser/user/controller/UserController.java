@@ -5,6 +5,7 @@ import de.coldtea.verborum.msuser.user.dto.ProfileInfoRequestDTO;
 import de.coldtea.verborum.msuser.user.dto.ProfileResponseDTO;
 import de.coldtea.verborum.msuser.user.dto.UserRequestDTO;
 import de.coldtea.verborum.msuser.user.dto.UserResponseDTO;
+import de.coldtea.verborum.msuser.common.utils.RecentLoginGuard;
 import de.coldtea.verborum.msuser.user.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +25,8 @@ import static de.coldtea.verborum.msuser.common.utils.SecurityUtils.getVerifiedE
 public class UserController {
 
     private final UserService userService;
+
+    private final RecentLoginGuard recentLoginGuard;
 
     @PostMapping("/")
     public ResponseEntity<Response> createUser(@Valid @RequestBody UserRequestDTO user, WebRequest request) {
@@ -63,6 +66,8 @@ public class UserController {
 
     @DeleteMapping("/{userId}")
     public ResponseEntity<Response> deleteUser(@PathVariable String userId, WebRequest request) {
+        // SEC-13: irreversible, so it needs a recent login, not just any valid token
+        recentLoginGuard.requireRecentLogin();
         userService.deleteUser(userId, getCurrentKeycloakId());
         return buildResponse(HttpStatus.OK, USER_DELETED_SUCCESSFULLY, userId, request);
     }

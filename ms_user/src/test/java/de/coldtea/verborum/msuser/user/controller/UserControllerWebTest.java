@@ -6,6 +6,9 @@ import de.coldtea.verborum.msuser.common.exception.GlobalExceptionHandler;
 import de.coldtea.verborum.msuser.common.exception.InvalidProfileException;
 import de.coldtea.verborum.msuser.common.exception.ProfileConflictException;
 import de.coldtea.verborum.msuser.common.exception.RecordNotFoundException;
+import de.coldtea.verborum.msuser.common.utils.RecentLoginGuard;
+
+import java.time.Instant;
 import de.coldtea.verborum.msuser.user.dto.ProfileInfoRequestDTO;
 import de.coldtea.verborum.msuser.user.dto.ProfileResponseDTO;
 import de.coldtea.verborum.msuser.user.dto.UserResponseDTO;
@@ -25,6 +28,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
@@ -37,7 +41,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * subject (this user's keycloakId), never the path's userId.
  */
 @WebMvcTest(UserController.class)
-@Import({SecurityConfig.class, GlobalExceptionHandler.class})
+@Import({SecurityConfig.class, GlobalExceptionHandler.class, RecentLoginGuard.class})
 class UserControllerWebTest {
 
     private static final String KEYCLOAK_ID = "78012064-231e-4a0d-abed-bad89a2350c1";
@@ -300,5 +304,39 @@ class UserControllerWebTest {
                         .content(body(KEYCLOAK_ID)))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.errorDetail").value("The request conflicts with existing data"));
+    }
+
+    // ---- SEC-13: deleting the account needs a recent login ----
+
+    @Test
+    void deleteUser_RecentLogin_ReachesTheService() throws Exception {
+        mockMvc.perform(delete("/users/" + USER_ID)
+                        .with(jwt().jwt(j -> j.subject(KEYCLOAK_ID).claim("auth_time", Instant.now().minusSeconds(60).getEpochSecond()))))
+                .andExpect(status().isOk());
+
+        verify(userService).deleteUser(USER_ID, KEYCLOAK_ID);
+    }
+
+    @Test
+    void deleteUser_StaleLogin_Is403AndNeverReachesTheService() throws Exception {
+        // A refresh keeps auth_time, so an old login stays old however fresh the access token is
+        mockMvc.perform(delete("/users/" + USER_ID)
+                        .with(jwt().jwt(j -> j.subject(KEYCLOAK_ID)
+                                .issuedAt(Instant.now())
+                                .claim("auth_time", Instant.now().minusSeconds(3600).getEpochSecond()))))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error").value("ReauthenticationRequiredException"));
+
+        verifyNoInteractions(userService);
+    }
+
+    @Test
+    void deleteUser_NoAuthTime_FallsBackToIssuedAt() throws Exception {
+        // A direct password grant (local dev client) carries no auth_time; each such token is a fresh login
+        mockMvc.perform(delete("/users/" + USER_ID)
+                        .with(jwt().jwt(j -> j.subject(KEYCLOAK_ID).issuedAt(Instant.now().minusSeconds(3600)))))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(userService);
     }
 }

@@ -75,6 +75,13 @@ public class GlobalExceptionHandler {
     /**
      * A duplicate profile or email, caught by the service before saving — 409 with our own message.
      */
+    @ExceptionHandler(ReauthenticationRequiredException.class)
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    public ResponseEntity<ErrorResponse> handleReauthenticationRequiredException(ReauthenticationRequiredException ex, WebRequest request) {
+        log.warn("{}: {}", ReauthenticationRequiredException.class.getCanonicalName(), ex.getMessage());
+        return buildErrorResponse(HttpStatus.FORBIDDEN, ReauthenticationRequiredException.class.getSimpleName(), ex.getMessage(), request);
+    }
+
     @ExceptionHandler(ProfileConflictException.class)
     @ResponseStatus(HttpStatus.CONFLICT)
     public ResponseEntity<ErrorResponse> handleProfileConflictException(ProfileConflictException ex, WebRequest request) {

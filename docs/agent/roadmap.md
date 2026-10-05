@@ -1522,9 +1522,10 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
   reserved words are refused with 400 (`DisplayNameUtils`). 135/135 ms_user tests; verified live
 - [x] `SEC-12` **Swagger off outside local** (all services) — done 2026-10-05 (`SWAGGER_ENABLED`); stable error codes
   instead of exception class names deferred, since it is a client contract change
-- [ ] `SEC-13` **Fresh login required for account deletion** (ms_user + clients)
-- [-] `SEC-08` **Dependency audit; Boot 3.5 + Keycloak 26 upgrade** — Boot 3.2.2 → 3.5.16 done 2026-10-05 (osv-scanner
-  228 → 0 known vulnerabilities, 443/443 tests); Keycloak 23 → 26 next
+- [x] `SEC-13` **Fresh login required for account deletion** (ms_user) — done 2026-10-05: `RecentLoginGuard`, 5 min, 403
+  `ReauthenticationRequiredException`; clients must re-login with `max_age=0` before deleting
+- [x] `SEC-08` **Dependency audit; Boot 3.5 + Keycloak 26 upgrade** — done 2026-10-05: Boot 3.2.2 → 3.5.16 (osv-scanner
+  228 → 0 known vulnerabilities, 443/443 tests), Keycloak 23.0.0 → 26.8.0 (volume migrated in place, all flows verified)
 - [ ] `SEC-08b` **Spring Boot 4.x migration** — Jackson 3 (`tools.jackson`), Spring Framework 7 / Security 7, Hibernate 7,
   springdoc 3, `@MockBean` → `@MockitoBean` across all web slices. Trigger: before Boot 3.5 leaves support, or when a
   scan finds a fix that only ships in 4.x

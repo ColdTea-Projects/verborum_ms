@@ -153,6 +153,12 @@ exists — and signing up again produces a genuinely new account.
 Clients should treat it as irreversible, confirm it explicitly, and afterwards clear local data and
 return to the login screen rather than attempting a refresh (which will fail).
 
+**It needs a recent login (SEC-13, since 2026-10-05).** The backend refuses the delete with **403**
+`ReauthenticationRequiredException` unless the token's `auth_time` is under 5 minutes old. A refresh does not
+help, because it keeps the original `auth_time`. Flow: the user confirms → start a normal login with
+`max_age=0` (or `prompt=login`), so Keycloak asks for the password or code again → call `DELETE` with the new
+access token. Treat a 403 with that `error` as "sign in again", not as a failure, and never auto-retry it.
+
 ## 6. Logout
 
 1. `POST {issuer}/protocol/openid-connect/logout`, form-encoded `client_id` + `refresh_token`.
@@ -176,7 +182,7 @@ used: a phone hitting `http://192.168.0.x:8180` gets `iss: http://192.168.0.x:81
 services validate `iss: http://localhost:8180/...`. **Every API call then fails with a 401 that looks
 like a broken token rather than a config mismatch.**
 
-The backend compose pins the issuer via `KC_HOSTNAME_URL` (default `http://localhost:8180`). For
+The backend compose pins the issuer via `KC_HOSTNAME` (env `KEYCLOAK_HOSTNAME_URL`, default `http://localhost:8180`). For
 device testing, all three must name the same origin:
 
 ```

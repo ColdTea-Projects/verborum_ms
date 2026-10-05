@@ -25,12 +25,12 @@ regression test exists where one is named.
 | SEC-05 | Medium — **fixed** | all services | No audience check: a token from any realm client was accepted |
 | SEC-06 | Medium — **fixed** | Keycloak | Refresh tokens could be reused, and offline sessions never expired |
 | SEC-07 | Medium — **fixed** | ms_dictionary | No limit on request collection sizes, and no per-user quotas |
-| SEC-08 | Medium — **Boot fixed**, Keycloak in progress | build | Spring Boot 3.2.2 and Keycloak 23.0.0 were past end of support |
+| SEC-08 | Medium — **fixed** (Boot 3.5.16, Keycloak 26.8.0) | build | Spring Boot 3.2.2 and Keycloak 23.0.0 were past end of support |
 | SEC-09 | Low–Medium — **fixed** | ms_user | `POST /users/{id}/vault` bypassed the marketplace and the Forum gate |
 | SEC-10 | Low — **done** | ms_user | Reserved words (Verborum, admin, …) blocked in display names; names stay non-unique by design |
 | SEC-11 | Low (prod blocker) | Keycloak | Realm defaults that must not reach a shared realm |
 | SEC-12 | Low — **Swagger fixed**; error names deferred | all services | Swagger was open in every environment; errors expose exception names |
-| SEC-13 | Low | ms_user | Account deletion accepts any valid access token, with no fresh login |
+| SEC-13 | Low — **fixed** | ms_user | Account deletion accepted any valid access token, with no fresh login |
 | SEC-14 | Info — **fixed** | ms_dictionary / ms_user | Responses that broke the ownership-status table |
 
 ---
@@ -291,7 +291,16 @@ client file.
 
 ## SEC-08 — End-of-support framework versions (Medium)
 
-**Status — Spring Boot part FIXED 2026-10-05 (Keycloak: see below).** Boot 3.2.2 → **3.5.16**, the
+**Status — FIXED 2026-10-05.** **Keycloak 23.0.0 → 26.8.0:** the custom image (SPI built against 26.8.0), the
+`keycloak-bootstrap` image (`kcadm.sh`) and `keycloak-admin-client` 26.0.12. Compose moved to the Keycloak 26
+names (`KC_BOOTSTRAP_ADMIN_*`, hostname v2 `KC_HOSTNAME`, `KC_HOSTNAME_BACKCHANNEL_DYNAMIC`) and pins the
+old H2 credentials so a Keycloak 23 volume migrates in place; on this machine it did (23 → 24 → 25 → 26).
+Verified live: the issuer is unchanged; tokens still carry `aud: verborum-api`; all three services → 200;
+the branded login page renders; the bootstrap runs clean; the email-code flow sends the code and rejects
+wrong ones; a full reset + seed deletes and recreates 30 identities through the new admin client. The
+migration also brought Keycloak 25+'s `basic` scope, so app tokens now carry `auth_time` (used by SEC-13).
+
+**Spring Boot part:** Boot 3.2.2 → **3.5.16**, the
 newest 3.x. springdoc 2.8.17, MapStruct 1.6.3, JaCoCo 0.8.15. Lombok and Liquibase are now Boot-managed.
 `org.jetbrains:annotations` went from the floating `RELEASE` to a pinned 26.1.0; the floating version
 also made the dependency tree unscannable. The unused DBUnit 2.2 and spring-test-dbunit were removed.
@@ -418,6 +427,14 @@ messages.
   the change. Low priority.
 
 ## SEC-13 — Account deletion needs no fresh login (Low)
+
+**Status — FIXED 2026-10-05.** `RecentLoginGuard` (ms_user) runs before `DELETE /users/{id}` and requires a login no older
+than `verborum.account-deletion.max-login-age-seconds` (`ACCOUNT_DELETION_MAX_LOGIN_AGE_SECONDS`, 300). The login time is the
+token's `auth_time`, which a refresh carries over. A token without one (only the local-only `verborum-dev-cli`
+password grant, where every token is itself a fresh login) falls back to `iat`. A stale login is **403**
+`ReauthenticationRequiredException`, not 401, because the clients refresh-and-retry on 401 and a refresh can never
+make a login recent. **Verified live** with real Authorization Code + PKCE logins as `verborum-app`, using a
+5-second limit: deleting right away → 200 (identity removed from Keycloak too); the same login 8 s later → 403.
 
 `DELETE /users/{userId}` cascades a permanent deletion, Keycloak identity included, on any valid
 5-minute access token. A stolen token or an unlocked phone is enough. **Fix:** require a recent login

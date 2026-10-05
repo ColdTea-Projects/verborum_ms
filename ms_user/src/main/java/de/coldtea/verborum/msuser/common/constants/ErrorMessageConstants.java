@@ -25,6 +25,8 @@ public final class ErrorMessageConstants {
     // SEC-04: the profile e-mail is the token's, verified — never a free choice in the request body
     public static final String EMAIL_NOT_VERIFIED = "The token carries no verified email; verify the account's email and sign in again";
     public static final String EMAIL_NOT_THE_TOKENS = "email must be the signed-in account's own verified email";
+    // SEC-13: account deletion needs a recent login; the client signs in again and retries
+    public static final String REAUTHENTICATION_REQUIRED = "Deleting the account needs a recent sign-in; sign in again and retry";
     public static final String DATA_CONFLICT = "The request conflicts with existing data";
     public static final String NOT_THE_OWNER = "This resource does not belong to the authenticated user";
     // Returned instead of an unhandled exception's own message, which would leak internals
