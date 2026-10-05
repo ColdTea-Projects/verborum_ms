@@ -5,7 +5,7 @@ description: The data layer of Verborum — PostgreSQL 14, JPA entities, UUID st
 
 # Persistence
 
-PostgreSQL 14 + Spring Data JPA (Hibernate) + Liquibase 4.25.1, migrations in **JSON**.
+PostgreSQL 14 + Spring Data JPA (Hibernate 6.6) + Liquibase (Boot-managed, 4.31), migrations in **JSON**.
 Layering: `spring-boot-app-architecture`. Hibernate `ddl-auto` is not used — Liquibase owns the
 schema.
 

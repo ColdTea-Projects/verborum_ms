@@ -1,12 +1,12 @@
 ---
 name: spring-boot
-description: Spring Boot 3.2.2 framework mechanics for Verborum — bean stereotypes, configuration classes, application.properties conventions with env-var indirection, and actuator exposure. Use when wiring beans, adding configuration, or editing application.properties.
+description: Spring Boot 3.5 framework mechanics for Verborum — bean stereotypes, configuration classes, application.properties conventions with env-var indirection, and actuator exposure. Use when wiring beans, adding configuration, or editing application.properties.
 ---
 
-# Spring Boot (3.2.2)
+# Spring Boot (3.5)
 
 Framework mechanics. Language style: `java`. Layout: `spring-boot-app-architecture`.
-HTTP layer: `web-api`. Boot 3.2.2 on Java 17, `jakarta.*` namespace.
+HTTP layer: `web-api`. Boot 3.5.16 on Java 17, `jakarta.*` namespace.
 
 ## Quick start
 

@@ -13,17 +13,15 @@ non-managed artifacts carry a `<version>`.
 | `spring-boot-starter-security` | managed | | **from the first commit** |
 | `spring-boot-starter-oauth2-resource-server` | managed | | **from the first commit** |
 | `spring-boot-devtools` | managed | | |
-| `org.postgresql:postgresql` | `42.6.2` via property | | pinned over the managed 42.6.0 for CVE-2024-1597 |
-| `org.liquibase:liquibase-core` | `4.25.1` | | |
-| `org.projectlombok:lombok` | `1.18.30` | `provided` | |
-| `org.mapstruct:mapstruct` | `1.5.5.Final` | | |
-| `org.mapstruct:mapstruct-processor` | `1.5.5.Final` | | |
-| `org.springdoc:springdoc-openapi-starter-webmvc-ui` | `2.2.0` | | Swagger UI + `/v3/api-docs` |
-| `org.jetbrains:annotations` | `RELEASE` | | |
+| `org.postgresql:postgresql` | `42.7.13` via property | | pinned over the managed 42.7.11 (see "Security pins") |
+| `org.liquibase:liquibase-core` | managed (4.31.1) | | |
+| `org.projectlombok:lombok` | managed (1.18.46) | `provided` | |
+| `org.mapstruct:mapstruct` | `1.6.3` | | |
+| `org.mapstruct:mapstruct-processor` | `1.6.3` | | |
+| `org.springdoc:springdoc-openapi-starter-webmvc-ui` | `2.8.17` | | Swagger UI + `/v3/api-docs` |
+| `org.jetbrains:annotations` | `26.1.0` | | never `RELEASE` — a floating version breaks reproducible builds and dependency scanning |
 | `spring-boot-starter-test` | managed | `test` | JUnit 5 + Mockito + AssertJ + MockMvc |
 | `spring-security-test` | managed | `test` | the `jwt()` MockMvc post-processor |
-| `com.github.springtestdbunit:spring-test-dbunit` | `1.3.0` | `test` | declared, currently unused |
-| `dbunit:dbunit` | `2.2` | `test` | declared, currently unused |
 
 ## ms_user only
 
@@ -42,7 +40,7 @@ It is the only service that talks to the Keycloak Admin API.
 **JUnit and Mockito with explicit versions.** They come transitively from
 `spring-boot-starter-test`. Older project docs showed `junit-jupiter-engine:5.6.2` and
 `mockito-junit-jupiter:2.23.0` as separate entries — adding those back downgrades both libraries
-against Boot 3.2.2 and breaks the test suite in confusing ways.
+against Boot 3.5.16 and breaks the test suite in confusing ways.
 
 ## Plugins
 
@@ -56,7 +54,7 @@ against Boot 3.2.2 and breaks the test suite in confusing ways.
         <plugin>
             <groupId>org.jacoco</groupId>
             <artifactId>jacoco-maven-plugin</artifactId>
-            <version>0.8.11</version>
+            <version>0.8.15</version>
             <executions>
                 <execution>
                     <id>default-prepare-agent</id>
@@ -76,3 +74,20 @@ against Boot 3.2.2 and breaks the test suite in confusing ways.
 No explicit `maven-compiler-plugin` with `annotationProcessorPaths` is configured. MapStruct's
 processor resolves from the classpath, and that has been sufficient — add the explicit
 configuration only if Lombok and MapStruct start disagreeing about processing order.
+
+## Security pins and the dependency scan (SEC-08)
+
+Each module pom pins a few Boot-managed libraries above the parent's version, one property each, with
+the advisory named in a comment: `tomcat.version`, `rabbit-amqp-client.version`, `postgresql.version`,
+`jackson-bom.version`, `commons-lang3.version`, `log4j2.version`, `netty.version`. Remove a pin once
+the parent manages that version or a newer one. Keep the three modules identical.
+
+Scan before and after any dependency change. The scan resolves the full transitive tree and needs
+every version to be concrete:
+
+```bash
+docker run --rm -v "$(pwd -W):/src:ro" ghcr.io/google/osv-scanner:latest scan source --format table \
+  /src/ms_dictionary/pom.xml /src/ms_user/pom.xml /src/ms_marketplace/pom.xml
+```
+
+The upgrade to Boot 3.5.16 took the result from 228 known vulnerabilities to 0 (2026-10-05).

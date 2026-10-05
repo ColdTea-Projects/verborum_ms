@@ -25,7 +25,7 @@ regression test exists where one is named.
 | SEC-05 | Medium — **fixed** | all services | No audience check: a token from any realm client was accepted |
 | SEC-06 | Medium — **fixed** | Keycloak | Refresh tokens could be reused, and offline sessions never expired |
 | SEC-07 | Medium — **fixed** | ms_dictionary | No limit on request collection sizes, and no per-user quotas |
-| SEC-08 | Medium | build | Spring Boot 3.2.2 and Keycloak 23.0.0 are past end of support |
+| SEC-08 | Medium — **Boot fixed**, Keycloak in progress | build | Spring Boot 3.2.2 and Keycloak 23.0.0 were past end of support |
 | SEC-09 | Low–Medium — **fixed** | ms_user | `POST /users/{id}/vault` bypassed the marketplace and the Forum gate |
 | SEC-10 | Low — **done** | ms_user | Reserved words (Verborum, admin, …) blocked in display names; names stay non-unique by design |
 | SEC-11 | Low (prod blocker) | Keycloak | Realm defaults that must not reach a shared realm |
@@ -290,6 +290,21 @@ client file.
 ---
 
 ## SEC-08 — End-of-support framework versions (Medium)
+
+**Status — Spring Boot part FIXED 2026-10-05 (Keycloak: see below).** Boot 3.2.2 → **3.5.16**, the
+newest 3.x. springdoc 2.8.17, MapStruct 1.6.3, JaCoCo 0.8.15. Lombok and Liquibase are now Boot-managed.
+`org.jetbrains:annotations` went from the floating `RELEASE` to a pinned 26.1.0; the floating version
+also made the dependency tree unscannable. The unused DBUnit 2.2 and spring-test-dbunit were removed.
+Tomcat, the RabbitMQ client, PostgreSQL, Jackson, commons-lang3, log4j and Netty are pinned above the
+parent, with the advisory named in each pom.
+
+**osv-scanner** (`ghcr.io/google/osv-scanner`, recipe in `maven` → `references/dependency-set.md`):
+**228 known vulnerabilities (24 critical, 92 high) → 0.** That includes Tomcat 10.1.18 (CVSS 9.8) and
+Spring Security Web 6.2.1 (9.3). No code changes were needed: 443/443 tests pass, and a full dev-seed
+reset + seed ran clean (events, Keycloak admin client, empty dead-letter queue).
+
+Boot **4.x** (Jackson 3, Spring Framework 7 and Security 7, Hibernate 7, `@MockBean` removed) is a
+migration of its own, tracked as `SEC-08b` in the roadmap, not part of this fix.
 
 **What:** Spring Boot **3.2.2** (January 2024; open-source support for 3.2 ended late 2024) brings in
 Spring Framework, Spring Security and Tomcat versions with published CVEs fixed in later releases.

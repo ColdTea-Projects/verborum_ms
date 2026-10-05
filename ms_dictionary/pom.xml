@@ -5,7 +5,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.2.2</version>
+        <version>3.5.16</version>
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
     <groupId>de.coldtea.verborum</groupId>
@@ -15,8 +15,15 @@
     <description>ms_dictionary</description>
     <properties>
         <java.version>17</java.version>
-        <!-- Boot 3.2.2 manages 42.6.0, which is affected by CVE-2024-1597 (fixed in 42.6.1) -->
-        <postgresql.version>42.6.2</postgresql.version>
+        <!-- SEC-08: pinned above what Boot 3.5.16 manages, each for published CVEs found by osv-scanner
+             (2026-10-05). Remove a pin once the Boot parent manages that version or newer. -->
+        <tomcat.version>10.1.60</tomcat.version>                  <!-- 10.1.55: GHSA-9xv2-5v5q-p794 (CVSS 9.8) -->
+        <rabbit-amqp-client.version>5.37.0</rabbit-amqp-client.version> <!-- 5.25.0: GHSA-jh4v-gfqj-7rhx, GHSA-68mj-5wr7-6fgg -->
+        <postgresql.version>42.7.13</postgresql.version>          <!-- 42.7.11: GHSA-j92g-9f8w-j867 -->
+        <jackson-bom.version>2.21.7</jackson-bom.version>         <!-- 2.21.4: GHSA-cxp5-3px4-pw24, GHSA-7hhh-6rmp-j9qf -->
+        <commons-lang3.version>3.18.0</commons-lang3.version>     <!-- 3.17.0: GHSA-j288-q9x7-2f5v -->
+        <log4j2.version>2.25.5</log4j2.version>                   <!-- 2.24.3: GHSA-qv9r-c865-cp47 -->
+        <netty.version>4.1.138.Final</netty.version>              <!-- 4.1.135 (via amqp-client): netty-handler, netty-codec CVEs (CVSS up to 9.1) -->
     </properties>
     <dependencies>
         <dependency>
@@ -47,35 +54,20 @@
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
-            <version>1.18.30</version>
             <scope>provided</scope>
         </dependency>
 
         <dependency>
             <groupId>org.jetbrains</groupId>
             <artifactId>annotations</artifactId>
-            <version>RELEASE</version>
+            <version>26.1.0</version>
             <scope>compile</scope>
-        </dependency>
-
-        <dependency>
-            <groupId>com.github.springtestdbunit</groupId>
-            <artifactId>spring-test-dbunit</artifactId>
-            <version>1.3.0</version>
-            <scope>test</scope>
-        </dependency>
-
-        <dependency>
-            <groupId>dbunit</groupId>
-            <artifactId>dbunit</artifactId>
-            <version>2.2</version>
-            <scope>test</scope>
         </dependency>
 
         <dependency>
             <groupId>org.springdoc</groupId>
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
-            <version>2.2.0</version>
+            <version>2.8.17</version>
         </dependency>
 
         <dependency>
@@ -112,18 +104,17 @@
         <dependency>
             <groupId>org.mapstruct</groupId>
             <artifactId>mapstruct</artifactId>
-            <version>1.5.5.Final</version>
+            <version>1.6.3</version>
         </dependency>
         <dependency>
             <groupId>org.mapstruct</groupId>
             <artifactId>mapstruct-processor</artifactId>
-            <version>1.5.5.Final</version>
+            <version>1.6.3</version>
         </dependency>
 
         <dependency>
             <groupId>org.liquibase</groupId>
             <artifactId>liquibase-core</artifactId>
-            <version>4.25.1</version>
         </dependency>
     </dependencies>
     
@@ -139,7 +130,7 @@
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
-                <version>0.8.11</version>
+                <version>0.8.15</version>
                 <executions>
                     <execution>
                         <id>default-prepare-agent</id>

@@ -2,7 +2,7 @@
 
 ## Versions
 - Java 17
-- Spring Boot 3.2.2
+- Spring Boot 3.5.16 (upgraded from 3.2.2 on 2026-10-05, SEC-08)
 - Maven (wrapper included — use `./mvnw`, not system `mvn`)
 
 ---
@@ -39,7 +39,7 @@ Each service is a standalone Spring Boot app. Required `pom.xml` dependencies fo
 <dependency>
     <groupId>org.liquibase</groupId>
     <artifactId>liquibase-core</artifactId>
-    <version>4.25.1</version>
+    <!-- version managed by the Boot parent (4.31.1) -->
 </dependency>
 
 <!-- Validation -->
@@ -52,7 +52,7 @@ Each service is a standalone Spring Boot app. Required `pom.xml` dependencies fo
 <dependency>
     <groupId>org.projectlombok</groupId>
     <artifactId>lombok</artifactId>
-    <version>1.18.30</version>
+    <!-- version managed by the Boot parent (1.18.46) -->
     <scope>provided</scope>
 </dependency>
 
@@ -60,12 +60,12 @@ Each service is a standalone Spring Boot app. Required `pom.xml` dependencies fo
 <dependency>
     <groupId>org.mapstruct</groupId>
     <artifactId>mapstruct</artifactId>
-    <version>1.5.5.Final</version>
+    <version>1.6.3</version>
 </dependency>
 <dependency>
     <groupId>org.mapstruct</groupId>
     <artifactId>mapstruct-processor</artifactId>
-    <version>1.5.5.Final</version>
+    <version>1.6.3</version>
 </dependency>
 
 <!-- OpenAPI / Swagger -->

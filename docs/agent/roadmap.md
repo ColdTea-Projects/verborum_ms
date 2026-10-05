@@ -1523,7 +1523,11 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
 - [x] `SEC-12` **Swagger off outside local** (all services) — done 2026-10-05 (`SWAGGER_ENABLED`); stable error codes
   instead of exception class names deferred, since it is a client contract change
 - [ ] `SEC-13` **Fresh login required for account deletion** (ms_user + clients)
-- [ ] `SEC-08` **Dependency audit in the build; plan Boot 3.4/3.5 + Keycloak 26 upgrade**
+- [-] `SEC-08` **Dependency audit; Boot 3.5 + Keycloak 26 upgrade** — Boot 3.2.2 → 3.5.16 done 2026-10-05 (osv-scanner
+  228 → 0 known vulnerabilities, 443/443 tests); Keycloak 23 → 26 next
+- [ ] `SEC-08b` **Spring Boot 4.x migration** — Jackson 3 (`tools.jackson`), Spring Framework 7 / Security 7, Hibernate 7,
+  springdoc 3, `@MockBean` → `@MockitoBean` across all web slices. Trigger: before Boot 3.5 leaves support, or when a
+  scan finds a fix that only ships in 4.x
 - [ ] `SEC-03` **Per-service RabbitMQ users with topic permissions** — trigger: before any non-local environment
 - [ ] `SEC-11` **Non-local realm hardening** (sslRequired, redirect URIs, test users, events, password policy) —
   trigger: before any non-local realm; absorbs `BL-03`

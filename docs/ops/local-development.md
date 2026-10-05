@@ -12,7 +12,7 @@ need).
 
 ## 1. Prerequisites
 
-- **JDK 17.** The build is pinned to Java 17 and Boot 3.2.2.
+- **JDK 17.** The build is pinned to Java 17 and Boot 3.5.16.
 - **Docker Desktop**, running. Everything except the services themselves lives in containers.
 
 ### JAVA_HOME is probably not set

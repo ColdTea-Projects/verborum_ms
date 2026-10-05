@@ -1,6 +1,6 @@
 # Lombok Annotation Sets
 
-Lombok 1.18.30, `provided` scope. The combination is fixed per class kind. Each exists for a
+Lombok (Boot-managed, 1.18.46 with Boot 3.5.16), `provided` scope. The combination is fixed per class kind. Each exists for a
 reason, and mixing them causes real bugs.
 
 | Class kind | Annotations | Why |
