@@ -45,6 +45,9 @@ class UserServiceImplTest {
     /** The JWT subject of the caller — in ms_user that is the profile's keycloakId (P3-05). */
     private static final String CALLER_KC_ID = "kc-1";
 
+    /** The verified e-mail of the caller's token (SEC-04) — what a profile write must carry. */
+    private static final String CALLER_EMAIL = "anna@example.com";
+
     private static final OffsetDateTime UPDATED_AT = OffsetDateTime.of(2026, 10, 4, 12, 0, 0, 0, ZoneOffset.UTC);
     private static final OffsetDateTime ACCEPTED_AT = OffsetDateTime.of(2026, 10, 1, 9, 0, 0, 0, ZoneOffset.UTC);
 
@@ -79,7 +82,7 @@ class UserServiceImplTest {
         when(userMapper.toUserResponseDTO(user)).thenReturn(responseDTO);
 
         // Act
-        UserResponseDTO result = userService.saveUser(requestDTO, CALLER_KC_ID);
+        UserResponseDTO result = userService.saveUser(requestDTO, CALLER_KC_ID, CALLER_EMAIL);
 
         // Assert
         assertEquals(responseDTO, result);
@@ -98,7 +101,7 @@ class UserServiceImplTest {
         when(userRepository.saveAndFlush(user)).thenThrow(new RuntimeException("Unable to save user"));
 
         // Act & Assert
-        assertThrows(RuntimeException.class, () -> userService.saveUser(requestDTO, CALLER_KC_ID));
+        assertThrows(RuntimeException.class, () -> userService.saveUser(requestDTO, CALLER_KC_ID, CALLER_EMAIL));
         verify(userMapper).toUser(requestDTO);
         verify(userRepository).saveAndFlush(user);
         verifyNoMoreInteractions(userMapper);
@@ -223,7 +226,7 @@ class UserServiceImplTest {
         UserRequestDTO requestDTO = requestDTO("kc-someone-else");
 
         // Act & Assert
-        assertThrows(ForbiddenOperationException.class, () -> userService.saveUser(requestDTO, CALLER_KC_ID));
+        assertThrows(ForbiddenOperationException.class, () -> userService.saveUser(requestDTO, CALLER_KC_ID, CALLER_EMAIL));
         verify(userRepository, never()).saveAndFlush(any());
     }
 
@@ -237,7 +240,7 @@ class UserServiceImplTest {
                 .thenReturn(Optional.of(User.builder().userId("1").keycloakId("kc-someone-else").build()));
 
         // Act & Assert
-        assertThrows(ForbiddenOperationException.class, () -> userService.saveUser(requestDTO, CALLER_KC_ID));
+        assertThrows(ForbiddenOperationException.class, () -> userService.saveUser(requestDTO, CALLER_KC_ID, CALLER_EMAIL));
         verify(userRepository, never()).saveAndFlush(any());
     }
 
@@ -269,6 +272,7 @@ class UserServiceImplTest {
     private static UserRequestDTO requestDTO(String keycloakId) {
         UserRequestDTO requestDTO = new UserRequestDTO();
         requestDTO.setKeycloakId(keycloakId);
+        requestDTO.setEmail(CALLER_EMAIL);
         return requestDTO;
     }
 
@@ -286,7 +290,7 @@ class UserServiceImplTest {
         when(userRepository.saveAndFlush(saved)).thenReturn(saved);
 
         // Act
-        userService.saveUser(requestDTO, CALLER_KC_ID);
+        userService.saveUser(requestDTO, CALLER_KC_ID, CALLER_EMAIL);
 
         // Assert
         ArgumentCaptor<OutboundEvent> captor = ArgumentCaptor.forClass(OutboundEvent.class);
@@ -309,7 +313,7 @@ class UserServiceImplTest {
         when(userRepository.saveAndFlush(saved)).thenReturn(saved);
 
         // Act
-        userService.saveUser(requestDTO, CALLER_KC_ID);
+        userService.saveUser(requestDTO, CALLER_KC_ID, CALLER_EMAIL);
 
         // Assert
         verifyNoInteractions(eventPublisher);
@@ -333,7 +337,7 @@ class UserServiceImplTest {
         });
 
         // Act
-        userService.saveUser(requestDTO, CALLER_KC_ID);
+        userService.saveUser(requestDTO, CALLER_KC_ID, CALLER_EMAIL);
 
         // Assert
         ArgumentCaptor<OutboundEvent> captor = ArgumentCaptor.forClass(OutboundEvent.class);
@@ -357,7 +361,7 @@ class UserServiceImplTest {
         when(userRepository.saveAndFlush(saved)).thenReturn(saved);
 
         // Act
-        userService.saveUser(requestDTO, CALLER_KC_ID);
+        userService.saveUser(requestDTO, CALLER_KC_ID, CALLER_EMAIL);
 
         // Assert
         ArgumentCaptor<OutboundEvent> captor = ArgumentCaptor.forClass(OutboundEvent.class);
@@ -378,7 +382,7 @@ class UserServiceImplTest {
         when(userRepository.saveAndFlush(saved)).thenReturn(saved);
 
         // Act
-        userService.saveUser(requestDTO, CALLER_KC_ID);
+        userService.saveUser(requestDTO, CALLER_KC_ID, CALLER_EMAIL);
 
         // Assert
         verifyNoInteractions(eventPublisher);
@@ -398,7 +402,7 @@ class UserServiceImplTest {
         when(userRepository.saveAndFlush(incoming)).thenReturn(incoming);
 
         // Act
-        userService.saveUser(requestDTO, CALLER_KC_ID);
+        userService.saveUser(requestDTO, CALLER_KC_ID, CALLER_EMAIL);
 
         // Assert
         assertEquals("Anna", incoming.getDisplayName());
@@ -419,7 +423,7 @@ class UserServiceImplTest {
         when(userRepository.saveAndFlush(incoming)).thenReturn(incoming);
 
         // Act
-        userService.saveUser(requestDTO, CALLER_KC_ID);
+        userService.saveUser(requestDTO, CALLER_KC_ID, CALLER_EMAIL);
 
         // Assert
         assertTrue(incoming.getMarketplaceAgreementAccepted());
@@ -439,7 +443,7 @@ class UserServiceImplTest {
         when(userRepository.saveAndFlush(incoming)).thenReturn(incoming);
 
         // Act
-        userService.saveUser(requestDTO, CALLER_KC_ID);
+        userService.saveUser(requestDTO, CALLER_KC_ID, CALLER_EMAIL);
 
         // Assert
         assertEquals(false, incoming.getMarketplaceAgreementAccepted());
@@ -455,7 +459,7 @@ class UserServiceImplTest {
         when(userMapper.toUser(requestDTO)).thenReturn(user(null, null));
 
         // Act & Assert
-        assertThrows(InvalidProfileException.class, () -> userService.saveUser(requestDTO, CALLER_KC_ID));
+        assertThrows(InvalidProfileException.class, () -> userService.saveUser(requestDTO, CALLER_KC_ID, CALLER_EMAIL));
         verify(userRepository, never()).saveAndFlush(any());
         verifyNoInteractions(eventPublisher);
     }
@@ -666,7 +670,7 @@ class UserServiceImplTest {
         when(userMapper.toUser(requestDTO)).thenReturn(user("Official Admin", null));
 
         // Act & Assert
-        assertThrows(InvalidProfileException.class, () -> userService.saveUser(requestDTO, CALLER_KC_ID));
+        assertThrows(InvalidProfileException.class, () -> userService.saveUser(requestDTO, CALLER_KC_ID, CALLER_EMAIL));
         verify(userRepository, never()).saveAndFlush(any());
         verifyNoInteractions(eventPublisher);
     }
@@ -684,7 +688,7 @@ class UserServiceImplTest {
         when(userRepository.saveAndFlush(incoming)).thenReturn(incoming);
 
         // Act
-        userService.saveUser(requestDTO, CALLER_KC_ID);
+        userService.saveUser(requestDTO, CALLER_KC_ID, CALLER_EMAIL);
 
         // Assert
         verify(userRepository).saveAndFlush(incoming);
@@ -765,7 +769,7 @@ class UserServiceImplTest {
         when(userRepository.findByKeycloakId(CALLER_KC_ID)).thenReturn(Optional.of(user("Anna", UPDATED_AT)));
 
         // Act & Assert
-        assertThrows(ProfileConflictException.class, () -> userService.saveUser(requestDTO, CALLER_KC_ID));
+        assertThrows(ProfileConflictException.class, () -> userService.saveUser(requestDTO, CALLER_KC_ID, CALLER_EMAIL));
         verify(userRepository, never()).saveAndFlush(any());
         verifyNoInteractions(eventPublisher);
     }
@@ -781,9 +785,41 @@ class UserServiceImplTest {
         when(userRepository.findById("user-1")).thenReturn(Optional.empty());
         when(userRepository.findByEmail("taken@example.com")).thenReturn(Optional.of(other));
 
-        // Act & Assert
-        assertThrows(ProfileConflictException.class, () -> userService.saveUser(requestDTO, CALLER_KC_ID));
+        // Act & Assert — the token's own verified address, still held by an older profile
+        assertThrows(ProfileConflictException.class, () -> userService.saveUser(requestDTO, CALLER_KC_ID, "taken@example.com"));
         verify(userRepository, never()).saveAndFlush(any());
+    }
+
+    // ---- SEC-04: the profile e-mail is the token's ----
+
+    @Test
+    void saveUser_EmailNotTheTokens_Is400AndSavesNothing() {
+        // Arrange — squatting: a profile claiming an address the caller's token does not carry
+        UserRequestDTO requestDTO = requestDTO(CALLER_KC_ID);
+        requestDTO.setEmail("future.victim@example.com");
+
+        // Act & Assert
+        assertThrows(InvalidProfileException.class, () -> userService.saveUser(requestDTO, CALLER_KC_ID, CALLER_EMAIL));
+        verify(userRepository, never()).findByEmail(any());
+        verify(userRepository, never()).saveAndFlush(any());
+        verifyNoInteractions(eventPublisher);
+    }
+
+    @Test
+    void saveUser_EmailDiffersOnlyInCase_StoresTheTokensForm() {
+        // Arrange
+        UserRequestDTO requestDTO = requestDTO(CALLER_KC_ID);
+        requestDTO.setEmail(" Anna@Example.COM ");
+        User user = new User();
+        when(userMapper.toUser(requestDTO)).thenReturn(user);
+        when(userRepository.saveAndFlush(user)).thenReturn(user);
+
+        // Act
+        userService.saveUser(requestDTO, CALLER_KC_ID, CALLER_EMAIL);
+
+        // Assert — the DTO the mapper and the conflict check saw carries the token's address
+        assertEquals(CALLER_EMAIL, requestDTO.getEmail());
+        verify(userRepository).findByEmail(CALLER_EMAIL);
     }
 
     @Test
@@ -800,7 +836,7 @@ class UserServiceImplTest {
         when(userRepository.saveAndFlush(incoming)).thenReturn(incoming);
 
         // Act
-        userService.saveUser(requestDTO, CALLER_KC_ID);
+        userService.saveUser(requestDTO, CALLER_KC_ID, CALLER_EMAIL);
 
         // Assert
         verify(userRepository).saveAndFlush(incoming);

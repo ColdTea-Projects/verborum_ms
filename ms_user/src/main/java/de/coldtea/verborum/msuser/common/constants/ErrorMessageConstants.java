@@ -22,6 +22,9 @@ public final class ErrorMessageConstants {
     public static final String PROFILE_ALREADY_EXISTS =
             "This account already has a profile; load it with GET /users/me instead of creating another";
     public static final String EMAIL_ALREADY_IN_USE = "This email is already used by another profile";
+    // SEC-04: the profile e-mail is the token's, verified — never a free choice in the request body
+    public static final String EMAIL_NOT_VERIFIED = "The token carries no verified email; verify the account's email and sign in again";
+    public static final String EMAIL_NOT_THE_TOKENS = "email must be the signed-in account's own verified email";
     public static final String DATA_CONFLICT = "The request conflicts with existing data";
     public static final String NOT_THE_OWNER = "This resource does not belong to the authenticated user";
     // Returned instead of an unhandled exception's own message, which would leak internals

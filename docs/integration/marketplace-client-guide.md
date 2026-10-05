@@ -225,6 +225,8 @@ POST /users/
   already has a profile; load it with GET /users/me…") — the usual cause is a reinstall that lost the
   `userId`; recover with `GET /users/me`. An email another profile already uses is also **409**
   ("This email is already used by another profile").
+- `email` must be the token's own `email` claim (any case), or **400** `email must be the signed-in account's own
+  verified email`. The token must carry a verified e-mail (`email_verified: true`), or **403** (since 2026-10-05, SEC-04).
 - `keycloakId` must equal your token's `sub` (**403** otherwise). `userId` and `keycloakId` must be
   canonical UUIDs, `email` a valid address (**400** otherwise).
 - A new profile is **not** a member: `marketplaceAgreementAccepted` starts `false`, whatever you send.

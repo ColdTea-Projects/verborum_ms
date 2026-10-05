@@ -30,6 +30,7 @@ import static de.coldtea.verborum.msuser.common.constants.ErrorMessageConstants.
 import static de.coldtea.verborum.msuser.common.constants.ErrorMessageConstants.DISPLAY_NAME_REQUIRED_WHILE_AGREEMENT_ACCEPTED;
 import static de.coldtea.verborum.msuser.common.constants.ErrorMessageConstants.DISPLAY_NAME_RESERVED;
 import static de.coldtea.verborum.msuser.common.constants.ErrorMessageConstants.EMAIL_ALREADY_IN_USE;
+import static de.coldtea.verborum.msuser.common.constants.ErrorMessageConstants.EMAIL_NOT_THE_TOKENS;
 import static de.coldtea.verborum.msuser.common.constants.ErrorMessageConstants.NOT_THE_OWNER;
 import static de.coldtea.verborum.msuser.common.constants.ErrorMessageConstants.PROFILE_ALREADY_EXISTS;
 import static de.coldtea.verborum.msuser.common.constants.ErrorMessageConstants.USER_WAS_NOT_FOUND_ID;
@@ -50,13 +51,22 @@ public class UserServiceImpl implements UserService {
 
     @Transactional
     @Override
-    public UserResponseDTO saveUser(UserRequestDTO userRequestDTO, String callerKeycloakId) {
+    public UserResponseDTO saveUser(UserRequestDTO userRequestDTO, String callerKeycloakId, String callerEmail) {
         // P3-05: a profile may only be created or updated for the token's own subject. Without this
         // an authenticated caller could claim someone else's keycloakId — and since keycloak_id is
         // the cross-service join key, that would hand them the other user's dictionaries too
         if (!callerKeycloakId.equals(userRequestDTO.getKeycloakId())) {
             throw new ForbiddenOperationException(NOT_THE_OWNER);
         }
+
+        // SEC-04: the e-mail is unique, so a free choice here let anyone squat an address and turn its
+        // real owner's sign-up into a 409. It must be the token's verified e-mail; the body field stays
+        // for compatibility and is held to it (400 on a mismatch, not a silent substitution — a client
+        // sending another address has a bug). Case-insensitive: Keycloak lower-cases what it stores
+        if (userRequestDTO.getEmail() == null || !callerEmail.equalsIgnoreCase(userRequestDTO.getEmail().trim())) {
+            throw new InvalidProfileException(EMAIL_NOT_THE_TOKENS);
+        }
+        userRequestDTO.setEmail(callerEmail);
 
         // Backs both POST and PUT — a client-generated userId that already exists is an update,
         // otherwise an insert (mirrors DictionaryServiceImpl.saveDictionary). The client supplies

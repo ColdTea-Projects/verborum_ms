@@ -21,7 +21,7 @@ regression test exists where one is named.
 | SEC-01 | **Critical** — **fixed** | ms_dictionary | Any user could overwrite and take over anyone's word by `wordId` |
 | SEC-02 | **High** — **fixed** | compose | All infrastructure listened on every network interface with default credentials |
 | SEC-03 | **High** (before prod) | RabbitMQ | Every service shares one broker user; whoever holds it can forge `user.deleted` |
-| SEC-04 | Medium | ms_user | The profile e-mail comes from the request body, so it can be squatted |
+| SEC-04 | Medium — **fixed** | ms_user | The profile e-mail came from the request body, so it could be squatted |
 | SEC-05 | Medium | all services | No audience check: a token from any realm client is accepted |
 | SEC-06 | Medium | Keycloak | Refresh tokens can be reused, and offline sessions never expire |
 | SEC-07 | Medium | ms_dictionary | No limit on request collection sizes, and no per-user quotas |
@@ -146,6 +146,13 @@ a class to deserialise into. There is no deserialisation-gadget risk.
 ---
 
 ## SEC-04 — The profile e-mail is not bound to the token: e-mail squatting (Medium, verified)
+
+**Status — FIXED 2026-10-05.** `SecurityUtils.getVerifiedEmail()` reads the token's `email` and
+`email_verified` claims and returns 403 `EMAIL_NOT_VERIFIED` when either is missing or false (a
+service-account token has none). `saveUser` takes it as an explicit argument, returns 400
+`EMAIL_NOT_THE_TOKENS` for a body e-mail that differs (case-insensitive), and stores the token's form.
+140/140 ms_user tests. **Verified live:** squatting → 400, own e-mail in different case → 201,
+service-account token → 403.
 
 **What:** `POST`/`PUT /users/` takes `email` from the request body (`UserRequestDTO.email`), and
 `UserServiceImpl.requireNoConflictingProfile` enforces it as unique. The check that `keycloakId`

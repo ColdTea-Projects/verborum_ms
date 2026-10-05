@@ -11,7 +11,7 @@ import de.coldtea.verborum.msuser.user.dto.UserResponseDTO;
  * context so the services stay plain objects, testable without a SecurityContextHolder.
  */
 public interface UserService {
-    UserResponseDTO saveUser(UserRequestDTO userDto, String callerKeycloakId);
+    UserResponseDTO saveUser(UserRequestDTO userDto, String callerKeycloakId, String callerEmail);
     UserResponseDTO getUserById(String userId, String callerKeycloakId);
     void deleteUser(String userId, String callerKeycloakId);
 

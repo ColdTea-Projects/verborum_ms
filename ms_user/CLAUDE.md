@@ -147,6 +147,8 @@ unchanged (`creation_dt`/`update_dt`/`imported_at`).
   ignores them and the service copies them from the stored row.
 
 ## Conflicts (P4-15)
+- **SEC-04:** the profile e-mail is the token's verified `email` (`SecurityUtils.getVerifiedEmail`, 403 when missing or
+  unverified), passed into `saveUser`, which 400s a different body e-mail and stores the token's form.
 - `saveUser` checks the two unique columns before saving: a new profile for a `keycloakId` that already
   has one, or an email used by another profile → `ProfileConflictException` → **409** with a message
   telling the client to load the profile with `GET /users/me`. `GlobalExceptionHandler` also maps

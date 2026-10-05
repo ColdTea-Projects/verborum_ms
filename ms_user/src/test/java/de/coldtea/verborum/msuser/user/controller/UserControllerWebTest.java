@@ -19,10 +19,12 @@ import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
@@ -40,6 +42,8 @@ class UserControllerWebTest {
 
     private static final String KEYCLOAK_ID = "78012064-231e-4a0d-abed-bad89a2350c1";
     private static final String USER_ID = "aa11bb22-cc33-dd44-ee55-ff6677889900";
+    // The e-mail the test body sends — a verified token must carry the same one (SEC-04)
+    private static final String VERIFIED_EMAIL = "a@b.co";
 
     @Autowired
     private MockMvc mockMvc;
@@ -112,14 +116,56 @@ class UserControllerWebTest {
 
     @Test
     void serviceForbidden_MapsTo403() throws Exception {
-        when(userService.saveUser(any(), anyString())).thenThrow(new ForbiddenOperationException("nope"));
+        when(userService.saveUser(any(), anyString(), anyString())).thenThrow(new ForbiddenOperationException("nope"));
 
         mockMvc.perform(post("/users/")
-                        .with(jwt().jwt(j -> j.subject(KEYCLOAK_ID)))
+                        .with(verifiedUser())
                         .contentType(MediaType.APPLICATION_JSON)
                         // a real UUID since P4-09 — a malformed id is now a 400 before the service runs
                         .content(body("0f1e2d3c-4b5a-4968-8776-655443322110")))
                 .andExpect(status().isForbidden());
+    }
+
+    // ---- SEC-04: the profile e-mail comes from the token, verified ----
+
+    @Test
+    void createUser_PassesTheTokensVerifiedEmail() throws Exception {
+        when(userService.saveUser(any(), eq(KEYCLOAK_ID), eq(VERIFIED_EMAIL))).thenReturn(new UserResponseDTO());
+
+        mockMvc.perform(post("/users/")
+                        .with(verifiedUser())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body(KEYCLOAK_ID)))
+                .andExpect(status().isCreated());
+        // the stub only matches with the token's e-mail, so a 201 proves it was passed through
+    }
+
+    @Test
+    void createUser_UnverifiedEmail_Is403AndNeverReachesTheService() throws Exception {
+        mockMvc.perform(post("/users/")
+                        .with(jwt().jwt(j -> j.subject(KEYCLOAK_ID).claim("email", VERIFIED_EMAIL).claim("email_verified", false)))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body(KEYCLOAK_ID)))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(userService);
+    }
+
+    @Test
+    void updateUser_TokenWithoutEmail_Is403AndNeverReachesTheService() throws Exception {
+        // A service-account token carries no e-mail — it is not a user who may own a profile
+        mockMvc.perform(put("/users/")
+                        .with(jwt().jwt(j -> j.subject(KEYCLOAK_ID)))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body(KEYCLOAK_ID)))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(userService);
+    }
+
+    /** A user token as Keycloak issues it after verification: subject plus a verified e-mail. */
+    private static RequestPostProcessor verifiedUser() {
+        return jwt().jwt(j -> j.subject(KEYCLOAK_ID).claim("email", VERIFIED_EMAIL).claim("email_verified", true));
     }
 
     @Test
@@ -231,11 +277,11 @@ class UserControllerWebTest {
 
     @Test
     void createUser_DuplicateProfile_Is409WithTheReason() throws Exception {
-        when(userService.saveUser(any(), anyString()))
+        when(userService.saveUser(any(), anyString(), anyString()))
                 .thenThrow(new ProfileConflictException("This account already has a profile; load it with GET /users/me instead of creating another"));
 
         mockMvc.perform(post("/users/")
-                        .with(jwt().jwt(j -> j.subject(KEYCLOAK_ID)))
+                        .with(verifiedUser())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body(KEYCLOAK_ID)))
                 .andExpect(status().isConflict())
@@ -245,11 +291,11 @@ class UserControllerWebTest {
     @Test
     void createUser_ConstraintRace_Is409AndDoesNotLeakTheConstraint() throws Exception {
         // The backstop: a unique constraint fired after the service's own check passed
-        when(userService.saveUser(any(), anyString())).thenThrow(new DataIntegrityViolationException(
+        when(userService.saveUser(any(), anyString(), anyString())).thenThrow(new DataIntegrityViolationException(
                 "duplicate key value violates unique constraint \"users_keycloak_id_key\""));
 
         mockMvc.perform(post("/users/")
-                        .with(jwt().jwt(j -> j.subject(KEYCLOAK_ID)))
+                        .with(verifiedUser())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body(KEYCLOAK_ID)))
                 .andExpect(status().isConflict())

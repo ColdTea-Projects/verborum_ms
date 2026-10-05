@@ -16,6 +16,7 @@ import org.springframework.web.context.request.WebRequest;
 import static de.coldtea.verborum.msuser.common.constants.ResponseMessageConstants.*;
 import static de.coldtea.verborum.msuser.common.utils.ResponseUtils.buildResponse;
 import static de.coldtea.verborum.msuser.common.utils.SecurityUtils.getCurrentKeycloakId;
+import static de.coldtea.verborum.msuser.common.utils.SecurityUtils.getVerifiedEmail;
 
 @RestController
 @RequestMapping("/users")
@@ -26,13 +27,13 @@ public class UserController {
 
     @PostMapping("/")
     public ResponseEntity<Response> createUser(@Valid @RequestBody UserRequestDTO user, WebRequest request) {
-        UserResponseDTO userResponseDTO = userService.saveUser(user, getCurrentKeycloakId());
+        UserResponseDTO userResponseDTO = userService.saveUser(user, getCurrentKeycloakId(), getVerifiedEmail());
         return buildResponse(HttpStatus.CREATED, USER_SAVED_SUCCESSFULLY, userResponseDTO.getUserId(), request);
     }
 
     @PutMapping("/")
     public ResponseEntity<Response> updateUser(@Valid @RequestBody UserRequestDTO user, WebRequest request) {
-        userService.saveUser(user, getCurrentKeycloakId());
+        userService.saveUser(user, getCurrentKeycloakId(), getVerifiedEmail());
         return buildResponse(HttpStatus.CREATED, USER_UPDATED_SUCCESSFULLY, user.getUserId(), request);
     }
 

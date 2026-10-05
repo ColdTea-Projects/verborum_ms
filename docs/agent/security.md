@@ -274,7 +274,8 @@ code_challenge_method`. Do not treat PKCE as advisory.
 `/protocol/openid-connect/registrations` with the same PKCE parameters as login — no native
 registration form. A native form would need ms_user to create the Keycloak identity through the
 Admin API (P3-04, unbuilt), and would split identity ownership. After first login the client calls
-`POST /users/` once with `keycloakId` = JWT `sub` to create the profile row. Password reset is the
+`POST /users/` once with `keycloakId` = JWT `sub` and `email` = the token's verified `email` claim (SEC-04: a
+different e-mail is 400, a token without a verified e-mail is 403) to create the profile row. Password reset is the
 hosted "Forgot Password" link.
 
 **Email verification is required** (`verifyEmail: true`, since the `oauth2-hardening` branch, roadmap
