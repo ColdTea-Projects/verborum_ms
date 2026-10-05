@@ -39,6 +39,17 @@ log "Logging in to ${KC_URL} (realm master) as ${KEYCLOAK_ADMIN}"
 log "Setting realm loginTheme=verborum, emailTheme=verborum."
 "$KCADM" update "realms/${KC_REALM}" -s loginTheme=verborum -s emailTheme=verborum
 
+# --- Refresh-token rotation and offline-session ceiling (SEC-06) ----------------
+# Every refresh returns a new refresh token and the old one stops working; presenting a used one again
+# revokes the session (reuse detection), so a stolen refresh token is only good until the real client
+# refreshes. Offline sessions (offline_access) end after OFFLINE_SESSION_MAX_LIFESPAN — 180 days, decided
+# 2026-10-05 — however often they are used. Mirrors the realm import, for realms imported before it.
+OFFLINE_MAX="${OFFLINE_SESSION_MAX_LIFESPAN:-15552000}"
+log "Token policy: refresh-token rotation on, offline session max lifespan ${OFFLINE_MAX}s."
+"$KCADM" update "realms/${KC_REALM}" \
+  -s revokeRefreshToken=true -s refreshTokenMaxReuse=0 \
+  -s offlineSessionMaxLifespanEnabled=true -s "offlineSessionMaxLifespan=${OFFLINE_MAX}"
+
 # --- Identity providers -------------------------------------------------------
 # upsert_idp <alias> <providerId> <clientId> <clientSecret> <defaultScope>
 # Creates the IdP if absent, otherwise updates its credentials. trustEmail=true so a provider that

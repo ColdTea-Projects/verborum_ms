@@ -218,6 +218,13 @@ for days must resume sync without re-login. Web: short everything; re-authentica
 acceptable in a browser. All clients: send `Authorization: Bearer <access>`; refresh on 401
 once, then surface login.
 
+**Refresh-token rotation (SEC-06, since 2026-10-05):** every refresh returns a **new** refresh token and
+the old one stops working. Presenting a used one again revokes the whole session (reuse detection), so
+the user is logged out. Clients must store the new refresh token from every refresh, atomically with the
+access token, and refresh **single-flight**: one refresh at a time, re-reading the stored token inside the
+lock. An offline session ends after **180 days** however often it is used (`offlineSessionMaxLifespan`),
+as well as after 60 days unused.
+
 ### 6.3 Web token storage — decision pending, backend must stay compatible with both
 
 Browsers have no secure token storage. Two options:

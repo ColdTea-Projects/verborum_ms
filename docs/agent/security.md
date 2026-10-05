@@ -250,7 +250,9 @@ instead would have contradicted the PKCE-only spec, which is why it is a separat
 Delete it from any realm export that leaves a developer machine.
 
 **Token policy:** access tokens 5 min (`accessTokenLifespan: 300`), SSO idle 30 min, offline session
-idle 60 days so a device offline for days resumes sync without re-login (Integration §6.2). Clients
+idle 60 days so a device offline for days resumes sync without re-login (Integration §6.2), and at most
+180 days in total (SEC-06). Refresh tokens rotate: each refresh issues a new one and reusing an old one
+revokes the session (`revokeRefreshToken: true`, `refreshTokenMaxReuse: 0`). Clients
 send `Authorization: Bearer <access>`, refresh once on 401, then surface login.
 
 **One client for every platform.** A separate `verborum-web` client existed until 2026-08-06 and was

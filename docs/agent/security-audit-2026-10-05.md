@@ -23,7 +23,7 @@ regression test exists where one is named.
 | SEC-03 | **High** (before prod) | RabbitMQ | Every service shares one broker user; whoever holds it can forge `user.deleted` |
 | SEC-04 | Medium — **fixed** | ms_user | The profile e-mail came from the request body, so it could be squatted |
 | SEC-05 | Medium — **fixed** | all services | No audience check: a token from any realm client was accepted |
-| SEC-06 | Medium | Keycloak | Refresh tokens can be reused, and offline sessions never expire |
+| SEC-06 | Medium — **fixed** | Keycloak | Refresh tokens could be reused, and offline sessions never expired |
 | SEC-07 | Medium — **fixed** | ms_dictionary | No limit on request collection sizes, and no per-user quotas |
 | SEC-08 | Medium | build | Spring Boot 3.2.2 and Keycloak 23.0.0 are past end of support |
 | SEC-09 | Low–Medium — **fixed** | ms_user | `POST /users/{id}/vault` bypassed the marketplace and the Forum gate |
@@ -218,6 +218,17 @@ still → 200. Add this to each `SecurityConfigTest`.
 ---
 
 ## SEC-06 — Refresh-token reuse allowed; offline sessions never expire (Medium, verified)
+
+**Status — FIXED 2026-10-05.** The realm import and `configure.sh` (for existing realms) set
+`revokeRefreshToken: true`, `refreshTokenMaxReuse: 0`, `offlineSessionMaxLifespanEnabled: true` and
+`offlineSessionMaxLifespan: 15552000` (180 days, product owner's decision; `OFFLINE_SESSION_MAX_LIFESPAN`).
+**Verified live:** a refresh issues a new refresh token; replaying the old one → 400, and that also
+revokes the session, so the rotated token → 400 as well.
+
+**Client readiness, read before enabling:** Android's `TokenAuthenticator` re-checks for an
+already-refreshed access token inside its lock, and KMP reads the token pair behind a mutex, so
+concurrent 401s do not double-spend a refresh token. The client handoff asks both to persist every new
+refresh token atomically.
 
 **What:** in `verborum-realm.json`, `revokeRefreshToken` is unset (false),
 `offlineSessionMaxLifespanEnabled` is unset (false) and `offlineSessionIdleTimeout` is 60 days. All

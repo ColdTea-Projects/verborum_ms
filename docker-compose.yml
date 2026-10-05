@@ -182,6 +182,8 @@ services:
       EMAIL_CODE_ENABLED: ${EMAIL_CODE_ENABLED:-true}
       # SEC-05: the audience the services require in every access token, added to the user-facing clients
       VERBORUM_JWT_AUDIENCE: ${VERBORUM_JWT_AUDIENCE:-verborum-api}
+      # SEC-06: how long an offline session may live in total, however often it is used (180 days)
+      OFFLINE_SESSION_MAX_LIFESPAN: ${OFFLINE_SESSION_MAX_LIFESPAN:-15552000}
     volumes:
       - ./keycloak/bootstrap:/bootstrap:ro
 
