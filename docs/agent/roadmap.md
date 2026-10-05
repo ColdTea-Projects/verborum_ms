@@ -1505,7 +1505,8 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
 - [x] `SEC-01` **Word takeover via `POST`/`PUT /words`** (ms_dictionary) — **critical**, done 2026-10-05; 142/142 tests, verified live
   - `WordServiceImpl.saveWords` must refuse (403) an existing `wordId` whose dictionary the caller does not
     own, before anything is saved. Unit + web-slice regression tests.
-- [ ] `SEC-02` **Bind local infrastructure to loopback; LAN exposure opt-in** (docker-compose, ops docs)
+- [x] `SEC-02` **Bind local infrastructure to loopback; LAN exposure opt-in** (docker-compose, ops docs) — done
+  2026-10-05, verified from the LAN address
 - [ ] `SEC-04` **Profile e-mail from the token, verified only** (ms_user)
 - [ ] `SEC-05` **Audience validation on all three services** (realm mapper + `JwtDecoder` validator)
 - [ ] `SEC-07` **Collection size limits and per-user quotas** (ms_dictionary) — limits need product sign-off

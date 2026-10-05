@@ -217,6 +217,24 @@ curl -s -u verborum:verborum -X DELETE \
 
 ## 7. Testing from a phone or another machine
 
+**Every container port is published on `127.0.0.1` only (SEC-02).** The defaults (`admin`/`admin`,
+`verborum`/`verborum`, `qwerty`) are well known, and on all interfaces anyone on the same Wi-Fi could
+take over Keycloak, forge RabbitMQ events, read login codes in Mailpit and open the databases. The
+emulator is unaffected: `10.0.2.2` and `adb reverse` both land on the host's loopback.
+
+A **physical device** needs Keycloak on the LAN. Use the opt-in override, which exposes Keycloak
+alone and refuses to start without a real admin password and the LAN issuer in `.env`:
+
+```bash
+# .env:  KEYCLOAK_ADMIN_PASSWORD=<not admin>   KEYCLOAK_HOSTNAME_URL=http://<lan-ip>:8180
+docker compose -f docker-compose.yml -f docker-compose.lan.yml up -d
+```
+
+`KEYCLOAK_ADMIN_PASSWORD` only takes effect on a fresh `keycloak_data` volume. On an existing one,
+change the admin password in the console (master realm → Users → admin → Credentials) first. The
+three services run on the host and already listen on all interfaces; they require a JWT for
+everything but health and Swagger. Go back to loopback-only with a plain `docker compose up -d`.
+
 Keycloak stamps the issuer into every token. Unpinned it echoes back whatever `Host` the caller used,
 so a device on a LAN address gets tokens the services reject — **a 401 that looks like a bad token
 but is a configuration mismatch.** Set all three to the same origin and restart:

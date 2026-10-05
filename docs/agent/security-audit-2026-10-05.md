@@ -19,7 +19,7 @@ regression test exists where one is named.
 | Id | Severity | Area | One line |
 |---|---|---|---|
 | SEC-01 | **Critical** — **fixed** | ms_dictionary | Any user could overwrite and take over anyone's word by `wordId` |
-| SEC-02 | **High** | compose | All infrastructure listens on every network interface with default credentials |
+| SEC-02 | **High** — **fixed** | compose | All infrastructure listened on every network interface with default credentials |
 | SEC-03 | **High** (before prod) | RabbitMQ | Every service shares one broker user; whoever holds it can forge `user.deleted` |
 | SEC-04 | Medium | ms_user | The profile e-mail comes from the request body, so it can be squatted |
 | SEC-05 | Medium | all services | No audience check: a token from any realm client is accepted |
@@ -75,6 +75,17 @@ sits in Nina's dictionary with the text `["PWNED"]`.
 ---
 
 ## SEC-02 — Local infrastructure is reachable from the network with default credentials (High, verified)
+
+**Status — FIXED 2026-10-05.** Every port in the root and per-service compose files is now
+`127.0.0.1:…`. `docker-compose.lan.yml` (opt-in) exposes Keycloak alone, via `ports: !override`, and
+refuses to start without `KEYCLOAK_ADMIN_PASSWORD` and `KEYCLOAK_HOSTNAME_URL`. **Verified from the
+LAN address** (`192.168.100.16`): 5432–5434, 5672, 15672, 1025, 8025, 8080 and 8180 are all closed;
+with the override only 8180 opens, and the issuer becomes the LAN origin. The services on 8085–8087
+stay on all interfaces by design (JWT-protected). Note: containers on the same machine still reach
+loopback ports through Docker Desktop's `host.docker.internal`. That is not network exposure, but it
+means the original container-based probe below was a stand-in for "another machine". Docs:
+`docs/ops/local-development.md` §7 and `infra-ops` → `references/local-stack.md`. Still open from the
+fix list: point 3 only matters with the override, and is enforced there.
 
 **What:** every `ports:` entry in the root `docker-compose.yml` uses the `"host:container"` form,
 which binds to `0.0.0.0`. On any shared Wi-Fi, anyone can reach:

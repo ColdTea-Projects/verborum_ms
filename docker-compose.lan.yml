@@ -1,0 +1,31 @@
+# Opt-in override for testing from a phone or another machine on the LAN (SEC-02):
+#
+#   docker compose -f docker-compose.yml -f docker-compose.lan.yml up -d
+#
+# Exposes Keycloak alone on every interface — a device needs it for the login page and the token
+# endpoint. Databases, RabbitMQ, Adminer and Mailpit stay on 127.0.0.1: nothing on the phone needs
+# them, and they are where the damage is (see docs/agent/security-audit-2026-10-05.md, SEC-02).
+# The three Spring services run on the host and listen on all interfaces already; the Windows
+# firewall decides which networks reach them.
+#
+# Refuses to start without the two values that make LAN exposure safe and working, both from .env:
+#   KEYCLOAK_ADMIN_PASSWORD — not the "admin" default; the admin console is reachable from the LAN now
+#   KEYCLOAK_HOSTNAME_URL   — http://<lan-ip>:8180, so tokens carry an issuer the device can reach
+# The services need the matching KEYCLOAK_ISSUER_URI / KEYCLOAK_JWK_SET_URI (docs/ops/local-development.md §7).
+#
+# KEYCLOAK_ADMIN_PASSWORD only creates the admin on a FRESH keycloak_data volume. On an existing one
+# the old admin/admin is still valid — change it in the admin console (master realm → Users → admin →
+# Credentials) or recreate the volume before using this file.
+
+services:
+  keycloak:
+    ports: !override
+      - "8180:8080"
+    environment:
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?set KEYCLOAK_ADMIN_PASSWORD in .env (not "admin") before exposing Keycloak on the LAN}
+      KC_HOSTNAME_URL: ${KEYCLOAK_HOSTNAME_URL:?set KEYCLOAK_HOSTNAME_URL=http://<lan-ip>:8180 in .env}
+      KC_HOSTNAME_ADMIN_URL: ${KEYCLOAK_HOSTNAME_URL:?set KEYCLOAK_HOSTNAME_URL=http://<lan-ip>:8180 in .env}
+
+  keycloak-bootstrap:
+    environment:
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?set KEYCLOAK_ADMIN_PASSWORD in .env}

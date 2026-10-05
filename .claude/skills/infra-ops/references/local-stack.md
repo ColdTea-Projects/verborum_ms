@@ -71,7 +71,8 @@ mismatch.
 1. **Per-service compose file** — Postgres 14-alpine + Adminer on the host ports assigned in
    `docs/agent/verborum.md`, checked against the port map for a clash.
 2. **Root compose** — add the database too, with a named volume and a health check, following
-   `db_dictionary` as the template. A service database that only exists in the per-service file is
+   `db_dictionary` as the template, published on `127.0.0.1` only (SEC-02: a bare `"5434:5432"` binds
+   every interface, and these credentials are public). A service database that only exists in the per-service file is
    invisible when the full stack is running.
 3. **`.env.example`** — a commented placeholder for every new environment variable, matching the
    `${VAR:default}` added in `application.properties`.
@@ -81,7 +82,7 @@ db_market:
   image: postgres:14-alpine
   container_name: verborum-db-market
   ports:
-    - "5434:5432"
+    - "127.0.0.1:5434:5432"   # loopback only — never a bare "5434:5432" (SEC-02)
   environment:
     POSTGRES_USER: coldtea
     POSTGRES_PASSWORD: qwerty
@@ -94,3 +95,15 @@ db_market:
     timeout: 5s
     retries: 5
 ```
+
+## Loopback-only ports and the LAN override (SEC-02)
+
+Every published port in the root and per-service compose files is `127.0.0.1:<host>:<container>`.
+Testing from a physical device layers `docker-compose.lan.yml` on top. It exposes Keycloak alone,
+using `ports: !override`; a plain merge would append `8180:8080` to the loopback entry and clash on
+the port. It refuses to start unless `.env` sets `KEYCLOAK_ADMIN_PASSWORD` and
+`KEYCLOAK_HOSTNAME_URL`. Steps are in `docs/ops/local-development.md` §7.
+
+Verify with the LAN address, not `host.docker.internal`. Docker Desktop routes containers to the
+host's loopback, so another container on the same machine still reaches loopback-only ports. That is
+expected, and it does not mean the port is on the network.

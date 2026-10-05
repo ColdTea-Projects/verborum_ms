@@ -2,14 +2,20 @@
 #   RabbitMQ + every service database + a single Adminer.
 # The per-service compose files (ms_dictionary/, ms_user/) still work standalone for
 # working on one service in isolation. Do not run both at once — the host ports clash.
+#
+# Every port is published on 127.0.0.1 only (SEC-02, docs/agent/security-audit-2026-10-05.md). The
+# credentials below are well-known local defaults, and a plain "5432:5432" binds all interfaces: on
+# shared Wi-Fi anyone could take over Keycloak (admin/admin), forge RabbitMQ events, read Mailpit's
+# login codes and open every database. Keep the 127.0.0.1 prefix on any port you add. To test from a
+# phone, layer docker-compose.lan.yml on top — it exposes Keycloak alone, behind a real password.
 
 services:
   rabbitmq:
     image: rabbitmq:3-management
     container_name: verborum-rabbitmq
     ports:
-      - "5672:5672"     # AMQP protocol
-      - "15672:15672"   # Management UI
+      - "127.0.0.1:5672:5672"     # AMQP protocol
+      - "127.0.0.1:15672:15672"   # Management UI
     environment:
       RABBITMQ_DEFAULT_USER: verborum
       RABBITMQ_DEFAULT_PASS: verborum
@@ -25,7 +31,7 @@ services:
     image: postgres:14-alpine
     container_name: verborum-db-dictionary
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     environment:
       POSTGRES_USER: coldtea
       POSTGRES_PASSWORD: qwerty
@@ -42,7 +48,7 @@ services:
     image: postgres:14-alpine
     container_name: verborum-db-user
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     environment:
       POSTGRES_USER: coldtea
       POSTGRES_PASSWORD: qwerty
@@ -59,7 +65,7 @@ services:
     image: postgres:14-alpine
     container_name: verborum-db-market
     ports:
-      - "5434:5432"
+      - "127.0.0.1:5434:5432"
     environment:
       POSTGRES_USER: coldtea
       POSTGRES_PASSWORD: qwerty
@@ -86,7 +92,7 @@ services:
     container_name: verborum-keycloak
     command: start-dev --import-realm
     ports:
-      - "8180:8080"
+      - "127.0.0.1:8180:8080"
     environment:
       KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
@@ -124,7 +130,7 @@ services:
       - db_user
       - db_market
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
 
   # Fake SMTP for local dev. Keycloak's realm smtpServer points here (host `mailpit`, 1025,
   # no auth), so email verification and passwordless email-code mail are captured — never sent —
@@ -135,8 +141,8 @@ services:
     container_name: verborum-mailpit
     restart: unless-stopped
     ports:
-      - "1025:1025"   # SMTP
-      - "8025:8025"   # Web UI
+      - "127.0.0.1:1025:1025"   # SMTP
+      - "127.0.0.1:8025:8025"   # Web UI
     environment:
       MP_SMTP_AUTH_ACCEPT_ANY: "true"
       MP_SMTP_AUTH_ALLOW_INSECURE: "true"

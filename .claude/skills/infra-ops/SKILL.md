@@ -30,7 +30,7 @@ auth needs the root file.
 
 ## Port map
 
-| Container | Image | Host port | Credentials |
+| Container | Image | Host port (127.0.0.1 only — SEC-02) | Credentials |
 |---|---|---|---|
 | `rabbitmq` | `rabbitmq:3-management` | 5672 AMQP, 15672 UI | `verborum` / `verborum` |
 | `db_dictionary` | `postgres:14-alpine` | 5432 → `vdbdictionary` | `coldtea` / `qwerty` |
