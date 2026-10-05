@@ -13,7 +13,7 @@ Adminer only, no broker. They clash on host ports with the root file.
 ## Keycloak — three things that surprise people
 
 **1. The image is custom.** `build: ./keycloak/passwordless-email-code` produces
-`verborum-keycloak:local` — stock Keycloak 23 plus the Verborum email-code authenticator SPI.
+`verborum-keycloak:local` — stock Keycloak 26 plus the Verborum email-code authenticator SPI.
 Themes are bind-mounted from `keycloak/themes`, and `start-dev` disables theme caching, so CSS edits
 show on a browser refresh with no rebuild.
 
@@ -33,7 +33,7 @@ and silently breaks login. Identity-provider secrets and real SMTP credentials a
 applied *after* the realm is live, by `keycloak/bootstrap/configure.sh` via `kcadm.sh`. It is
 idempotent and a no-op locally with an empty `.env`, then exits.
 
-`KC_HOSTNAME_URL` pins the issuer stamped into every token. Unpinned, Keycloak echoes the caller's
+`KC_HOSTNAME` (a full URL, Keycloak 26 hostname v2) pins the issuer stamped into every token. Unpinned, Keycloak echoes the caller's
 Host header, so a phone on a LAN address gets tokens the services reject.
 
 ## Running services on the host

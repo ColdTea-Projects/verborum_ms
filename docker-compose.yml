@@ -85,7 +85,7 @@ services:
   #   docker compose down && docker volume rm verborum_ms_keycloak_data
   # to re-import. Changes made in the admin console are NOT written back to the file.
   keycloak:
-    # Custom image = stock Keycloak 23 + the Verborum email-code authenticator SPI baked in.
+    # Custom image = stock Keycloak 26 + the Verborum email-code authenticator SPI baked in.
     # See keycloak/passwordless-email-code/Dockerfile. Themes are still bind-mounted below.
     build: ./keycloak/passwordless-email-code
     image: verborum-keycloak:local
@@ -94,16 +94,26 @@ services:
     ports:
       - "127.0.0.1:8180:8080"
     environment:
-      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
-      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
-      # Pins the issuer Keycloak stamps into every token, instead of echoing back whatever Host
-      # header the caller used. Without this, a phone hitting http://192.168.0.x:8180 gets tokens
-      # with iss=http://192.168.0.x:8180/... while the services validate iss=localhost:8180 — every
-      # request then fails with a 401 that looks like a broken token rather than a config mismatch.
+      # Keycloak 26 names (SEC-08). The temporary bootstrap admin is created only on a fresh data
+      # volume; the .env names KEYCLOAK_ADMIN / KEYCLOAK_ADMIN_PASSWORD are kept so nothing else changes.
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      # start-dev keeps its data in an H2 file inside keycloak_data. Keycloak 25+ changed the H2 default
+      # credentials, so a volume created by Keycloak 23 fails with "Wrong user name or password". These
+      # are the old defaults: they keep existing volumes working and are what a fresh one gets too. The
+      # file never leaves the container, so they are not a secret. Production uses a real database.
+      KC_DB_USERNAME: sa
+      KC_DB_PASSWORD: password
+      # Pins the issuer Keycloak stamps into every token (hostname v2: a full URL), instead of echoing
+      # back whatever Host header the caller used. Without this, a phone hitting http://192.168.0.x:8180
+      # gets tokens with iss=http://192.168.0.x:8180/... while the services validate iss=localhost:8180 —
+      # every request then fails with a 401 that looks like a broken token rather than a config mismatch.
       # For device testing set this AND the services' KEYCLOAK_ISSUER_URI / KEYCLOAK_JWK_SET_URI to
       # the same LAN origin. See docs/agent/security.md.
-      KC_HOSTNAME_URL: ${KEYCLOAK_HOSTNAME_URL:-http://localhost:8180}
-      KC_HOSTNAME_ADMIN_URL: ${KEYCLOAK_HOSTNAME_URL:-http://localhost:8180}
+      KC_HOSTNAME: ${KEYCLOAK_HOSTNAME_URL:-http://localhost:8180}
+      # The bootstrap container talks to http://keycloak:8080 — let back-channel requests use the
+      # address they arrived on rather than the pinned front-end URL.
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
     volumes:
       - ./keycloak/import:/opt/keycloak/data/import:ro
       - keycloak_data:/opt/keycloak/data
@@ -153,7 +163,7 @@ services:
   # smtpServer credentials. Idempotent, and a NO-OP locally when the credentials are unset — so this
   # runs clean on a laptop with an empty .env. Exits when done. See keycloak/bootstrap/configure.sh.
   keycloak-bootstrap:
-    image: quay.io/keycloak/keycloak:23.0.0
+    image: quay.io/keycloak/keycloak:26.8.0   # kcadm.sh — keep on the same version as the keycloak image
     container_name: verborum-keycloak-bootstrap
     restart: "no"
     depends_on:

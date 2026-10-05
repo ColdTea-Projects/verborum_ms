@@ -42,7 +42,7 @@ Add to ms_user only (for Keycloak admin API integration):
 <dependency>
     <groupId>org.keycloak</groupId>
     <artifactId>keycloak-admin-client</artifactId>
-    <version>23.0.0</version>
+    <version>26.0.12</version>
 </dependency>
 ```
 
@@ -53,12 +53,12 @@ Add to ms_user only (for Keycloak admin API integration):
 Add to root `docker-compose.yml`:
 ```yaml
 keycloak:
-  image: quay.io/keycloak/keycloak:23.0.0
+  image: quay.io/keycloak/keycloak:26.8.0   # the compose builds verborum-keycloak:local on this base
   command: start-dev --import-realm
   ports:
     - "8180:8080"
   environment:
-    KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
+    KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:-admin}   # Keycloak 26 name; .env keeps KEYCLOAK_ADMIN
     KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
   volumes:
     - ./keycloak/import:/opt/keycloak/data/import:ro
@@ -312,7 +312,7 @@ never trusted, because clients generate them. Rules, applied consistently:
 **Realm roles:** `user` (every registered account), `admin`. Mapped to `ROLE_user` / `ROLE_admin` —
 see "Roles & Authorization" below and the nested-claim warning in the resource-server config.
 
-**Issuer pinning (`KC_HOSTNAME_URL`).** Keycloak stamps the issuer into every token; unpinned it
+**Issuer pinning (`KC_HOSTNAME`, env `KEYCLOAK_HOSTNAME_URL`).** Keycloak stamps the issuer into every token; unpinned it
 echoes the caller's Host header, so a phone on `http://<lan-ip>:8180` gets tokens no service will
 accept — a 401 that reads like a bad token. The compose file pins it (default
 `http://localhost:8180`). For device testing set `KEYCLOAK_HOSTNAME_URL` plus every service's

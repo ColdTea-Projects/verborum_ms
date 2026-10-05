@@ -11,7 +11,7 @@ Verborum is a language learning app where users create personal vocabulary dicti
 share them on a marketplace, and (V2) get AI-powered word suggestions.
 
 **Stack:** Java 17 · Spring Boot 3.5.16 · Maven (wrapper) · PostgreSQL 14 + Liquibase · RabbitMQ 3 ·
-Keycloak 23 · Lombok + MapStruct · springdoc-openapi · JUnit 5 + Mockito + JaCoCo · Docker Compose
+Keycloak 26 · Lombok + MapStruct · springdoc-openapi · JUnit 5 + Mockito + JaCoCo · Docker Compose
 
 **Repo layout:**
 ```

@@ -49,7 +49,7 @@ the address is verified — matching the rule "email-code only after email is ve
      code, mails it via Keycloak's `EmailSenderProvider`, and validates the input; plus a
      `AuthenticatorFactory`).
    Record the choice and its provenance here before committing a jar/URL.
-2. **`Dockerfile`** (skeleton in this folder): `FROM quay.io/keycloak/keycloak:23.0.0`, copy the jar
+2. **`Dockerfile`** (skeleton in this folder): `FROM quay.io/keycloak/keycloak:26.8.0`, copy the jar
    into `/opt/keycloak/providers/`, `RUN /opt/keycloak/bin/kc.sh build`.
 3. **docker-compose:** switch the `keycloak` service from `image:` to `build: ./keycloak/passwordless-email-code`.
 4. **Custom flow:** define it as data. Prefer adding it to `keycloak/bootstrap/configure.sh` via

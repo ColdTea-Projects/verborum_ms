@@ -29,7 +29,7 @@ non-managed artifacts carry a `<version>`.
 <dependency>
     <groupId>org.keycloak</groupId>
     <artifactId>keycloak-admin-client</artifactId>
-    <version>23.0.0</version>
+    <version>26.0.12</version>   <!-- the admin client is versioned separately from the server; works with Keycloak 26 -->
 </dependency>
 ```
 

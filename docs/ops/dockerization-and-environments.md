@@ -67,7 +67,7 @@ The three share the same Dockerfiles. Only compose layering and environment vari
 | `ms_user` | built | No | 8086 internal |
 | `ms_marketplace` | built | No | 8087 internal (BE Phase 4) |
 | `ms_autofil` | built | No | V2 |
-| `keycloak` | `quay.io/keycloak/keycloak:23` | No (via gateway) | Realm `verborum` |
+| `keycloak` | `quay.io/keycloak/keycloak:26` (custom image) | No (via gateway) | Realm `verborum` |
 | `postgres ×1–3` | `postgres:14-alpine` | No | §12 |
 | `rabbitmq` | `rabbitmq:3-management` | No | Management UI never public |
 | `adminer` | `adminer` | **dev only** | Never deployed to staging/prod |

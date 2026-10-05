@@ -36,7 +36,7 @@ auth needs the root file.
 | `db_dictionary` | `postgres:14-alpine` | 5432 → `vdbdictionary` | `coldtea` / `qwerty` |
 | `db_user`, `db_market` | `postgres:14-alpine` | 5433 → `vdbprofile`, 5434 → `vdbmarket` | `coldtea` / `qwerty` |
 | `keycloak` | `verborum-keycloak:local` (built) | 8180 | `admin` / `admin` |
-| `keycloak-bootstrap` | Keycloak 23 | — | runs once, then exits |
+| `keycloak-bootstrap` | Keycloak 26 | — | runs once, then exits |
 | `admin` | `adminer` | 8080 | — |
 | `mailpit` | `axllent/mailpit:latest` | 1025 SMTP, 8025 UI | — |
 

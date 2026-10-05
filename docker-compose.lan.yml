@@ -22,9 +22,8 @@ services:
     ports: !override
       - "8180:8080"
     environment:
-      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?set KEYCLOAK_ADMIN_PASSWORD in .env (not "admin") before exposing Keycloak on the LAN}
-      KC_HOSTNAME_URL: ${KEYCLOAK_HOSTNAME_URL:?set KEYCLOAK_HOSTNAME_URL=http://<lan-ip>:8180 in .env}
-      KC_HOSTNAME_ADMIN_URL: ${KEYCLOAK_HOSTNAME_URL:?set KEYCLOAK_HOSTNAME_URL=http://<lan-ip>:8180 in .env}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?set KEYCLOAK_ADMIN_PASSWORD in .env (not "admin") before exposing Keycloak on the LAN}
+      KC_HOSTNAME: ${KEYCLOAK_HOSTNAME_URL:?set KEYCLOAK_HOSTNAME_URL=http://<lan-ip>:8180 in .env}
 
   keycloak-bootstrap:
     environment:

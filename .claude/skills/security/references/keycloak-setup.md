@@ -1,6 +1,6 @@
 # Keycloak Setup and the Auth Contract
 
-Keycloak 23, realm `verborum`, issuer `http://localhost:8180/realms/verborum` locally.
+Keycloak 26, realm `verborum`, issuer `http://localhost:8180/realms/verborum` locally.
 
 ## Clients
 
@@ -58,10 +58,10 @@ users. Versioned in git, imported by `--import-realm`.
   26275). A placeholder is stored as a literal string and silently breaks login. Non-secret config
   lives in the JSON; secrets and per-environment overrides are applied afterwards by
   `keycloak/bootstrap/configure.sh` via `kcadm.sh` — idempotent, and a no-op locally.
-- The image is custom: stock Keycloak 23 plus the Verborum email-code authenticator SPI, with
+- The image is custom: stock Keycloak 26 plus the Verborum email-code authenticator SPI, with
   themes bind-mounted. See `infra-ops`.
 
-**Issuer pinning (`KC_HOSTNAME_URL`).** Keycloak stamps the issuer into every token; unpinned it
+**Issuer pinning (`KC_HOSTNAME`, env `KEYCLOAK_HOSTNAME_URL`).** Keycloak stamps the issuer into every token; unpinned it
 echoes the caller's Host header, so a phone on a LAN address gets tokens no service accepts — a 401
 that reads like a bad token. For device testing set `KEYCLOAK_HOSTNAME_URL` plus every service's
 `KEYCLOAK_ISSUER_URI` and `KEYCLOAK_JWK_SET_URI` to the same origin.

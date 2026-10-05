@@ -68,6 +68,21 @@ docker volume rm verborum_ms_keycloak_data
 docker compose up -d keycloak
 ```
 
+### Upgrading from Keycloak 23 (2026-10-05, SEC-08)
+
+The stack now runs **Keycloak 26.8.0**. After pulling, rebuild the custom image once, then start as usual:
+
+```bash
+docker compose up -d --build
+```
+
+An existing `keycloak_data` volume is migrated in place on first start, realms and users included
+(watch for `migrated realm verborum` in `docker logs verborum-keycloak`). The compose file pins the
+old H2 credentials (`KC_DB_USERNAME`/`KC_DB_PASSWORD`), because Keycloak 25+ changed the defaults and
+would otherwise refuse the volume with "Wrong user name or password". `keycloak-bootstrap` then
+re-applies themes, token policy, the audience mapper and the email-code flow. If the migration fails
+for any reason, recreate the volume with the commands above and re-run `scripts/dev-seed/seed.py`.
+
 ---
 
 ## 3. Run a service

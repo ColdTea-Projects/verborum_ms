@@ -1,4 +1,6 @@
-# Custom Keycloak image = stock Keycloak 23 + the hand-written Verborum email-code authenticator SPI.
+# Custom Keycloak image = stock Keycloak 26 + the hand-written Verborum email-code authenticator SPI.
+# Keep the base tag, keycloak.version in pom.xml and the keycloak-bootstrap image in docker-compose.yml
+# on the same version (SEC-08: 23.0.0 -> 26.8.0 on 2026-10-05).
 #
 # Stage 1 builds the provider jar from the Maven module in this folder. Stage 2 drops it into
 # /opt/keycloak/providers and runs `kc.sh build` so the provider is baked in (no per-boot augment).
@@ -15,6 +17,6 @@ COPY src ./src
 RUN mvn -B -q package
 
 # ---- Stage 2: Keycloak + provider -------------------------------------------
-FROM quay.io/keycloak/keycloak:23.0.0
+FROM quay.io/keycloak/keycloak:26.8.0
 COPY --from=build /spi/target/verborum-email-code-authenticator.jar /opt/keycloak/providers/
 RUN /opt/keycloak/bin/kc.sh build
