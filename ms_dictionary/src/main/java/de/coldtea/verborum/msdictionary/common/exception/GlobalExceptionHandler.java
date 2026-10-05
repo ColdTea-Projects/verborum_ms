@@ -122,6 +122,13 @@ public class GlobalExceptionHandler {
         return buildErrorResponse(HttpStatus.BAD_REQUEST, SharingRequiredException.class.getSimpleName(), ex.getMessage(), request);
     }
 
+    @ExceptionHandler(InvalidRequestException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ResponseEntity<ErrorResponse> handleInvalidRequestException(InvalidRequestException ex, WebRequest request) {
+        log.warn("{}: {}", InvalidRequestException.class.getCanonicalName(), ex.getMessage());
+        return buildErrorResponse(HttpStatus.BAD_REQUEST, InvalidRequestException.class.getSimpleName(), ex.getMessage(), request);
+    }
+
     @ExceptionHandler(QuotaExceededException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ResponseEntity<ErrorResponse> handleQuotaExceededException(QuotaExceededException ex, WebRequest request) {

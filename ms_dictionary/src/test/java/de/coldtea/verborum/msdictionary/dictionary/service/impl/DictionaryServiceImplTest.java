@@ -1,6 +1,7 @@
 package de.coldtea.verborum.msdictionary.dictionary.service.impl;
 
 import de.coldtea.verborum.msdictionary.common.exception.ForbiddenOperationException;
+import de.coldtea.verborum.msdictionary.common.exception.InvalidRequestException;
 import de.coldtea.verborum.msdictionary.common.exception.RecordNotFoundException;
 import de.coldtea.verborum.msdictionary.common.exception.QuotaExceededException;
 import de.coldtea.verborum.msdictionary.common.mapper.DictionaryMapper;
@@ -85,6 +86,7 @@ class DictionaryServiceImplTest {
     void saveDictionary_Success() {
         // Arrange
         DictionaryRequestDTO requestDTO = new DictionaryRequestDTO();
+        requestDTO.setIsPublic(false); // a create always says (P4-18)
         Dictionary dictionary = new Dictionary();
         DictionaryResponseDTO responseDTO = new DictionaryResponseDTO();
 
@@ -106,6 +108,7 @@ class DictionaryServiceImplTest {
     void saveDictionary_Failure() {
         // Arrange
         DictionaryRequestDTO requestDTO = new DictionaryRequestDTO();
+        requestDTO.setIsPublic(false); // a create always says (P4-18)
         Dictionary dictionary = new Dictionary();
 
         when(dictionaryMapper.toDictionary(requestDTO)).thenReturn(dictionary);
@@ -122,6 +125,7 @@ class DictionaryServiceImplTest {
     void saveDictionary_NewPublicDictionary_PublishesPublicEvent() {
         // Arrange
         DictionaryRequestDTO requestDTO = requestDTO("dict1");
+        requestDTO.setIsPublic(true); // a create always says (P4-18)
         Dictionary dictionary = dictionary("dict1", true);
 
         when(dictionaryRepository.findById("dict1")).thenReturn(Optional.empty());
@@ -150,6 +154,7 @@ class DictionaryServiceImplTest {
     void saveDictionary_NewPrivateDictionary_PublishesNothing() {
         // Arrange
         DictionaryRequestDTO requestDTO = requestDTO("dict1");
+        requestDTO.setIsPublic(false); // a create always says (P4-18)
         Dictionary dictionary = dictionary("dict1", false);
 
         when(dictionaryRepository.findById("dict1")).thenReturn(Optional.empty());
@@ -569,6 +574,7 @@ class DictionaryServiceImplTest {
     void saveDictionary_OwnerComesFromTheToken() {
         // Arrange — even with no userId in the body, the stored row belongs to the caller
         DictionaryRequestDTO requestDTO = requestDTO("dict1");
+        requestDTO.setIsPublic(false); // a create always says (P4-18)
         Dictionary mapped = Dictionary.builder().dictionaryId("dict1").build();
 
         when(dictionaryRepository.findById("dict1")).thenReturn(Optional.empty());
@@ -833,6 +839,7 @@ class DictionaryServiceImplTest {
     void saveDictionary_NewPublicDictionary_PublicEventCarriesSortedTags() {
         // Arrange
         DictionaryRequestDTO requestDTO = requestDTO("dict1");
+        requestDTO.setIsPublic(true); // a create always says (P4-18)
         Dictionary dictionary = dictionary("dict1", true);
         when(dictionaryRepository.findById("dict1")).thenReturn(Optional.empty());
         when(dictionaryMapper.toDictionary(requestDTO)).thenReturn(dictionary);
@@ -871,6 +878,7 @@ class DictionaryServiceImplTest {
     void saveDictionary_UntaggedPublicDictionary_SendsAnEmptyListNotNull() {
         // Arrange — consumers read null as "tags unknown", so an untagged dictionary must say []
         DictionaryRequestDTO requestDTO = requestDTO("dict1");
+        requestDTO.setIsPublic(true); // a create always says (P4-18)
         Dictionary dictionary = dictionary("dict1", true);
         when(dictionaryRepository.findById("dict1")).thenReturn(Optional.empty());
         when(dictionaryMapper.toDictionary(requestDTO)).thenReturn(dictionary);
@@ -1176,5 +1184,52 @@ class DictionaryServiceImplTest {
         // Assert
         verify(dictionaryRepository).saveAndFlush(existing);
         verify(dictionaryRepository, never()).countByUserId(any());
+    }
+
+    // ---- P4-18: isPublic optional on an update ----
+
+    @Test
+    void saveDictionary_UpdateWithoutIsPublic_KeepsItPublicAndRaisesNothing() {
+        // Arrange — the server shared it when the user joined; the client re-uploads a rename made offline
+        DictionaryRequestDTO requestDTO = requestDTO("d1");
+        Dictionary stored = dictionary("d1", true);
+        when(dictionaryRepository.findById("d1")).thenReturn(Optional.of(stored));
+        when(dictionaryMapper.toDictionary(requestDTO)).thenAnswer(invocation -> dictionary("d1", requestDTO.getIsPublic()));
+        when(dictionaryRepository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        dictionaryService.saveDictionary(requestDTO, OWNER);
+
+        // Assert — still public, so no visibility flip and no un-sharing
+        assertEquals(Boolean.TRUE, requestDTO.getIsPublic());
+        verifyNoInteractions(eventPublisher);
+    }
+
+    @Test
+    void saveDictionary_UpdateWithoutIsPublic_PrivateStaysPrivateWithoutTheSharingCheck() {
+        // Arrange — sending the stored `false` would not be checked either, but nothing must be inferred
+        DictionaryRequestDTO requestDTO = requestDTO("d1");
+        when(dictionaryRepository.findById("d1")).thenReturn(Optional.of(dictionary("d1", false)));
+        when(dictionaryMapper.toDictionary(requestDTO)).thenAnswer(invocation -> dictionary("d1", requestDTO.getIsPublic()));
+        when(dictionaryRepository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        dictionaryService.saveDictionary(requestDTO, OWNER);
+
+        // Assert
+        assertEquals(Boolean.FALSE, requestDTO.getIsPublic());
+        verifyNoInteractions(marketplaceMemberRepository);
+        verifyNoInteractions(eventPublisher);
+    }
+
+    @Test
+    void saveDictionary_CreateWithoutIsPublic_Is400AndSavesNothing() {
+        // Arrange — a new dictionary has no stored value to keep
+        DictionaryRequestDTO requestDTO = requestDTO("brand-new");
+        when(dictionaryRepository.findById("brand-new")).thenReturn(Optional.empty());
+
+        // Act & Assert
+        assertThrows(InvalidRequestException.class, () -> dictionaryService.saveDictionary(requestDTO, OWNER));
+        verify(dictionaryRepository, never()).saveAndFlush(any());
     }
 }

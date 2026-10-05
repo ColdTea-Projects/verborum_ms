@@ -211,4 +211,15 @@ class DictionaryControllerWebTest {
                 .andExpect(status().isMethodNotAllowed())
                 .andExpect(jsonPath("$.errorDetail").value("This HTTP method is not supported on this path"));
     }
+
+    @Test
+    void updateDictionary_WithoutIsPublic_PassesValidation() throws Exception {
+        // P4-18: optional on PUT — the service keeps the stored value (and requires it for a new dictionary)
+        mockMvc.perform(put("/dictionaries/").with(jwt().jwt(j -> j.subject(SUB)))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"dictionaryId":"%s","userId":"%s","name":"Renamed offline","fromLang":"EN","toLang":"DE"}
+                                """.formatted(DICTIONARY_ID, SUB)))
+                .andExpect(status().isCreated());
+    }
 }

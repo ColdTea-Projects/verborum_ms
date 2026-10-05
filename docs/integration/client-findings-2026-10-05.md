@@ -53,7 +53,7 @@ deployed yet; the roadmap ("Security fixes (audit 2026-10-05)") tracks them.
 | **SEC-02 local stack is loopback-only — live now** | Emulator testing is unchanged (`10.0.2.2` and `adb reverse` reach the host's loopback). A **physical device** now needs the backend dev to start the stack with `docker-compose.lan.yml` (see `docs/ops/local-development.md` §7); without it Keycloak is unreachable from the phone. The services on 8085–8087 still answer on the LAN |
 | **SEC-01 word ids are pinned to their dictionary — live now** | `POST`/`PUT /words` answers 403 when an existing `wordId` is sent under a different `dictionaryId`. Clients never move words, so nothing should change; if this 403 shows up, a local row has the wrong `dictionaryId` |
 | **SEC-10 reserved display names — live now** | `PUT /users/me/profile-info` and `POST`/`PUT /users/` answer 400 `displayName contains a reserved word …` for names with `Verborum`, `admin`, `moderator`, `official` (and `support`, `team`, `staff`, … as words). Show the message on the profile/Join screen and keep the input. Duplicate names are allowed by design |
-| **`isPublic` handling** (being decided; see §4.1) | Wait for the backend decision before building the share toggle |
+| **P4-18 `isPublic` optional on `PUT` — live now** | Omit `isPublic` from upload-sync `PUT`s unless the user toggled sharing; still send it on create. See §4.1 |
 
 ---
 
@@ -95,7 +95,7 @@ is gated on a debug binary; the token pair is read behind a mutex.
 
 ## 4. Integration gaps (both clients unless marked)
 
-### 4.1 Sharing (`isPublic`) vs. sync — wait for the backend decision
+### 4.1 Sharing (`isPublic`) vs. sync — backend fix live (P4-18)
 - Joining the Forum makes all of a user's dictionaries public **on the server**, in the background.
 - Both clients let local unsynced edits win, so an edit made before the join is uploaded later with
   the old `isPublic: false`. That un-shares the dictionary, or is refused with 400
@@ -106,10 +106,13 @@ is gated on a debug binary; the token pair is read behind a mutex.
 
   For a member with no shared dictionary, that create is refused with 400.
 
-The backend will likely make `isPublic` optional on `PUT /dictionaries/` (absent = unchanged), or give
-visibility its own endpoint. **Until that lands, don't build the share toggle.** When it lands:
-- Send `isPublic` only when the user changed it.
-- Create with the member default from `dictionary-sharing-client-guide.md` §5.
+**Live since 2026-10-05 (P4-18):** `isPublic` is optional on `PUT /dictionaries/`, and absent means unchanged.
+What the client does now (full rules in `dictionary-sharing-client-guide.md` §4 and §7):
+- **Upload sync:** leave `isPublic` out of `PUT` unless the user toggled sharing on that row. Keep the
+  toggle as its own pending flag, so offline edits never carry visibility.
+- **Create:** still send `isPublic` (400 otherwise). For a member, use the default from §5 of the sharing
+  guide: on, and locked on while they have no shared dictionary.
+- **The share toggle can be built now.**
 
 ### 4.2 Tell "refused" apart from "offline" in the upload sync
 Network error or 5xx → keep pending and retry. **4xx → stop retrying that row:**

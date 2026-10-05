@@ -1455,7 +1455,8 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
 > `SEC-12` → 5. `SEC-06` (after the clients confirm single-flight refresh), `SEC-13`, `SEC-08` →
 > 6. Phase 5, with `SEC-03` and `SEC-11` before any non-local environment.
 
-- [ ] `P4-18` **`isPublic` optional on `PUT /dictionaries/`** (ms_dictionary) — found 2026-10-05
+- [x] `P4-18` **`isPublic` optional on `PUT /dictionaries/`** (ms_dictionary) — found and done 2026-10-05; 160/160 tests,
+  verified live (offline rename of a shared dictionary keeps it public and listed; create without it → 400)
   - Joining/leaving flips `isPublic` server-side (P4-16), and both clients' offline-first sync re-uploads
     stale local copies with the old value — silently undoing the join/leave or hitting 400
     `SharingRequiredException` (`docs/integration/dictionary-sharing-client-guide.md` §7 documents the race).

@@ -11,6 +11,8 @@ public final class ErrorMessageConstants {
     public static final String NOT_THE_OWNER = "This resource does not belong to the authenticated user";
     // SEC-01: an existing wordId named under a different dictionary — never upserted across dictionaries
     // SEC-07: quotas — 400, the request is valid in shape but would exceed the owner's allowance
+    // P4-18: isPublic may be left out of an update, not of a create — same "field: reason" shape as validation
+    public static final String IS_PUBLIC_REQUIRED_ON_CREATE = "isPublic: isPublic is mandatory when creating a dictionary";
     public static final String DICTIONARY_QUOTA_EXCEEDED = "An account can have at most " + DTOMessageConstants.DICTIONARIES_PER_USER_MAX + " dictionaries";
     public static final String WORD_QUOTA_EXCEEDED = "A dictionary can have at most " + DTOMessageConstants.WORDS_PER_DICTIONARY_MAX + " words";
     public static final String WORD_IN_ANOTHER_DICTIONARY =

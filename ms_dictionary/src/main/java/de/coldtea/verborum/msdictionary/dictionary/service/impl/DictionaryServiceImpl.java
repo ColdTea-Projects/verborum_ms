@@ -7,6 +7,7 @@ import de.coldtea.verborum.msdictionary.common.event.DictionaryUpdatedEvent;
 import de.coldtea.verborum.msdictionary.common.event.DictionaryVisibilityEvent;
 import de.coldtea.verborum.msdictionary.common.event.OutboundEvent;
 import de.coldtea.verborum.msdictionary.common.exception.ForbiddenOperationException;
+import de.coldtea.verborum.msdictionary.common.exception.InvalidRequestException;
 import de.coldtea.verborum.msdictionary.common.exception.QuotaExceededException;
 import de.coldtea.verborum.msdictionary.common.exception.RecordNotFoundException;
 import de.coldtea.verborum.msdictionary.common.exception.SharingRequiredException;
@@ -40,6 +41,7 @@ import static de.coldtea.verborum.msdictionary.common.constants.ErrorMessageCons
 import static de.coldtea.verborum.msdictionary.common.constants.ErrorMessageConstants.MEMBER_MUST_KEEP_ONE_SHARED;
 import static de.coldtea.verborum.msdictionary.common.constants.ErrorMessageConstants.NOT_THE_OWNER;
 import static de.coldtea.verborum.msdictionary.common.constants.ErrorMessageConstants.DICTIONARY_QUOTA_EXCEEDED;
+import static de.coldtea.verborum.msdictionary.common.constants.ErrorMessageConstants.IS_PUBLIC_REQUIRED_ON_CREATE;
 import static de.coldtea.verborum.msdictionary.common.constants.DTOMessageConstants.DICTIONARIES_PER_USER_MAX;
 import static de.coldtea.verborum.msdictionary.common.utils.DictionaryAccessUtils.isReadableBy;
 
@@ -85,6 +87,16 @@ public class DictionaryServiceImpl implements DictionaryService {
         // SEC-07: a new dictionary may not take the account past its quota; an edit never trips it
         if (existing.isEmpty() && dictionaryRepository.countByUserId(ownerId) >= DICTIONARIES_PER_USER_MAX) {
             throw new QuotaExceededException(DICTIONARY_QUOTA_EXCEEDED);
+        }
+
+        // P4-18: `isPublic` left out means "unchanged". Joining or leaving the Forum flips every dictionary
+        // on the server (P4-16) while a client may still hold the old value offline; re-uploading that copy
+        // with its stale flag silently undid the join or leave, or hit SharingRequiredException. Resolved
+        // here, before anything below reads it, so the sharing rule and the visibility events see the
+        // effective value. A new dictionary has nothing to keep, so it must say
+        if (dictionaryRequestDTO.getIsPublic() == null) {
+            Dictionary stored = existing.orElseThrow(() -> new InvalidRequestException(IS_PUBLIC_REQUIRED_ON_CREATE));
+            dictionaryRequestDTO.setIsPublic(Boolean.TRUE.equals(stored.getIsPublic()));
         }
 
         // P4-16: a member who has dictionaries keeps at least one shared. Only a change that takes
