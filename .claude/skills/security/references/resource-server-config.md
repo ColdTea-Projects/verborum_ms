@@ -87,10 +87,19 @@ keys including the datasource password. The two settings are a pair — see `spr
 ```properties
 spring.security.oauth2.resourceserver.jwt.issuer-uri=${KEYCLOAK_ISSUER_URI:http://localhost:8180/realms/verborum}
 spring.security.oauth2.resourceserver.jwt.jwk-set-uri=${KEYCLOAK_JWK_SET_URI:http://localhost:8180/realms/verborum/protocol/openid-connect/certs}
+spring.security.oauth2.resourceserver.jwt.audiences=${VERBORUM_JWT_AUDIENCE:verborum-api}
 ```
 
 `jwk-set-uri` alongside `issuer-uri` is deliberate: with only the issuer, Boot fetches the discovery
 document at startup and the service refuses to boot when Keycloak is down.
+
+`audiences` (SEC-05) makes Boot add an `aud` validator next to the issuer check. Without it any token
+the realm signs is accepted, including a client-credentials token of another client such as the
+`verborum-backend` service account. The realm puts `verborum-api` into user tokens with an
+`oidc-audience-mapper` on `verborum-app` and `verborum-dev-cli` (realm import plus
+`keycloak/bootstrap/configure.sh`). A new service copies all three lines; a new user-facing client needs
+the mapper. Web slices mock `JwtDecoder`, so they cannot prove the audience check. Verify it live: a
+service-account token must get 401.
 
 ## Role-based matchers
 

@@ -1,0 +1,4 @@
+# Shell scripts run inside Linux containers (keycloak-bootstrap mounts keycloak/bootstrap read-only).
+# With core.autocrlf=true on Windows they would be checked out with CRLF, and bash then fails with
+# "$'\r': command not found" — always check them out with LF.
+*.sh text eol=lf

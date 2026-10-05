@@ -22,7 +22,7 @@ regression test exists where one is named.
 | SEC-02 | **High** — **fixed** | compose | All infrastructure listened on every network interface with default credentials |
 | SEC-03 | **High** (before prod) | RabbitMQ | Every service shares one broker user; whoever holds it can forge `user.deleted` |
 | SEC-04 | Medium — **fixed** | ms_user | The profile e-mail came from the request body, so it could be squatted |
-| SEC-05 | Medium | all services | No audience check: a token from any realm client is accepted |
+| SEC-05 | Medium — **fixed** | all services | No audience check: a token from any realm client was accepted |
 | SEC-06 | Medium | Keycloak | Refresh tokens can be reused, and offline sessions never expire |
 | SEC-07 | Medium — **fixed** | ms_dictionary | No limit on request collection sizes, and no per-user quotas |
 | SEC-08 | Medium | build | Spring Boot 3.2.2 and Keycloak 23.0.0 are past end of support |
@@ -179,6 +179,19 @@ Record this in the client findings file.
 ---
 
 ## SEC-05 — No audience (`aud`/`azp`) validation (Medium, verified)
+
+**Status — FIXED 2026-10-05.**
+- **Services:** all three set `spring.security.oauth2.resourceserver.jwt.audiences=${VERBORUM_JWT_AUDIENCE:verborum-api}`.
+  Spring Boot 3.2 supports this natively and adds the `aud` validator next to the issuer check, so no
+  hand-written `JwtDecoder` was needed.
+- **Realm:** the import adds an `oidc-audience-mapper` (`verborum-api`) to `verborum-app` and
+  `verborum-dev-cli`. `configure.sh` adds the same mapper idempotently to existing realms.
+- **Line endings:** this also fixed the bootstrap on Windows. `core.autocrlf=true` checked the shell
+  scripts out with CRLF, so bash failed. A new `.gitattributes` pins `*.sh` to LF.
+
+**Verified live:** user tokens (dev-cli, and Keycloak's example token for `verborum-app`) carry
+`aud: ["verborum-api","account"]` and get 200 on all three services. A `verborum-backend`
+service-account token gets 401 on all three. Suites: 155 + 139 + 148.
 
 **What:** all three resource servers accept any token signed by the realm. Access tokens from the
 app carry `aud=account`. A **client-credentials token of `verborum-backend`** (`aud=realm-management`)

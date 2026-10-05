@@ -180,6 +180,8 @@ services:
       # Passwordless email-code login (needs the SPI in the custom keycloak image). ON by default —
       # the choose-password-or-code UX is browser-verified. Set false to fall back to password-only.
       EMAIL_CODE_ENABLED: ${EMAIL_CODE_ENABLED:-true}
+      # SEC-05: the audience the services require in every access token, added to the user-facing clients
+      VERBORUM_JWT_AUDIENCE: ${VERBORUM_JWT_AUDIENCE:-verborum-api}
     volumes:
       - ./keycloak/bootstrap:/bootstrap:ro
 

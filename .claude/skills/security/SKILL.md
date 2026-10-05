@@ -84,7 +84,7 @@ Stateless, CSRF disabled, `permitAll` only on `/actuator/**` and Swagger, everyt
 ## Workflow: securing a service
 
 1. Both security starters in the pom; `common/config/SecurityConfig.java` copied, not re-derived
-2. `issuer-uri` **and** `jwk-set-uri` in properties, plus actuator exposure `health,info`
+2. `issuer-uri`, `jwk-set-uri` **and** `audiences` (SEC-05) in properties, plus actuator exposure `health,info`
 3. `common/utils/SecurityUtils.java`, and every endpoint `authenticated()` except actuator,
    Swagger and deliberately public reads
 4. Every ownership-sensitive service method takes an explicit `ownerId`; apply the table above
@@ -96,5 +96,5 @@ Stateless, CSRF disabled, `permitAll` only on `/actuator/**` and Swagger, everyt
 
 - Trusting a `userId` from the request body or path
 - `JwtGrantedAuthoritiesConverter` with a dotted claim name
-- Restoring actuator exposure `*`, or removing `jwk-set-uri`
+- Restoring actuator exposure `*`, or removing `jwk-set-uri` or `audiences`
 - 403 on an id-addressed read, or a service scaffolded without `SecurityConfig`

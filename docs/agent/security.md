@@ -143,6 +143,8 @@ public class SecurityConfig {
 ```properties
 spring.security.oauth2.resourceserver.jwt.issuer-uri=http://localhost:8180/realms/verborum
 spring.security.oauth2.resourceserver.jwt.jwk-set-uri=http://localhost:8180/realms/verborum/protocol/openid-connect/certs
+# SEC-05: aud must contain the API audience — tokens of other realm clients are refused
+spring.security.oauth2.resourceserver.jwt.audiences=${VERBORUM_JWT_AUDIENCE:verborum-api}
 ```
 
 ---
@@ -381,7 +383,7 @@ Role-based access example:
 
 1. Add `spring-boot-starter-security` + `oauth2-resource-server` to `pom.xml`
 2. Create `common/config/SecurityConfig.java` with stateless JWT config
-3. Add `issuer-uri` and `jwk-set-uri` to `application.properties`
+3. Add `issuer-uri`, `jwk-set-uri` and `audiences` (SEC-05) to `application.properties`
 4. Add `common/utils/SecurityUtils.java` for extracting current user
 5. Permit actuator and Swagger endpoints
 6. Never trust client-provided `userId` for ownership — always use JWT subject

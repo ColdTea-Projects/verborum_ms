@@ -138,6 +138,32 @@ else
   log "SMTP: no SMTP_HOST set — keeping the Mailpit defaults from the realm import."
 fi
 
+# --- API audience (SEC-05) ----------------------------------------------------
+# The services accept only access tokens whose `aud` contains the API audience
+# (spring.security.oauth2.resourceserver.jwt.audiences), so a token minted for any other client in the
+# realm — the verborum-backend service account, an admin tool — is refused. The user-facing clients
+# get an audience mapper that adds it. The realm import carries the same mapper; this step adds it to
+# a realm that was imported before it existed. Idempotent; a client that is absent (verborum-dev-cli in
+# a shared realm) is skipped.
+API_AUDIENCE="${VERBORUM_JWT_AUDIENCE:-verborum-api}"
+for client in verborum-app verborum-dev-cli; do
+  cid=$("$KCADM" get clients -r "$KC_REALM" -q "clientId=${client}" --fields id --format csv --noquotes | head -n1 | tr -d '\r')
+  if [[ -z "$cid" ]]; then
+    log "Audience: client ${client} not in this realm — skipped."
+    continue
+  fi
+  if "$KCADM" get "clients/${cid}/protocol-mappers/models" -r "$KC_REALM" --fields name --format csv --noquotes \
+      | tr -d '\r' | grep -qx "verborum-api-audience"; then
+    log "Audience: ${client} already adds '${API_AUDIENCE}'."
+  else
+    "$KCADM" create "clients/${cid}/protocol-mappers/models" -r "$KC_REALM" \
+      -s name=verborum-api-audience -s protocol=openid-connect -s protocolMapper=oidc-audience-mapper \
+      -s "config.\"included.custom.audience\"=${API_AUDIENCE}" \
+      -s 'config."access.token.claim"=true' -s 'config."id.token.claim"=false' >/dev/null
+    log "Audience: added '${API_AUDIENCE}' to ${client}."
+  fi
+done
+
 # --- Passwordless email-code browser flow ------------------------------------
 # Needs the verborum-email-code SPI (baked into the custom Keycloak image). ON by default — the full
 # choose-password-or-code flow is browser-verified end to end. Set EMAIL_CODE_ENABLED=false to fall
