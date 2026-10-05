@@ -47,10 +47,12 @@ project state and the long-form rationale behind them.
 | `docs/agent/clean-code.md` | Background on the naming and structure conventions |
 | `docs/agent/rabbitmq.md` | Background on messaging — the seven rules in full |
 | `docs/agent/security.md` | The normative auth contract — realm, clients, tokens, ownership rules |
+| `docs/agent/security-audit-2026-10-05.md` | Working on any `SEC-xx` roadmap task, or asked about known security gaps — evidence, fix and verify step per finding |
 | `docs/agent/testing.md` | Background on test conventions |
 | `docs/integration/client-login-guide.md` | Any question from a client team (Android/iOS/web) about login, sign-up, tokens or identity ids |
 | `docs/integration/marketplace-client-guide.md` | Anything a client (Android/iOS/web) needs to use the marketplace — endpoints, flows, security rules, platform notes; also holds the P3-03a client heads-up |
 | `docs/integration/kmp-client-alignment.md` | Working on or asked about the KMP (iOS/web) client — what it does not yet use, and what this backend already offers it |
+| `docs/integration/client-findings-2026-10-05.md` | Handoff to the Android and KMP agents — client security fixes, integration gaps, and backend changes they must adapt to |
 | `docs/ops/local-development.md` | Running the stack, getting a token, running tests, verifying events by hand, troubleshooting |
 | `docs/ops/dockerization-and-environments.md` | The containerization plan — topologies, Dockerfiles, environments, deployment |
 
