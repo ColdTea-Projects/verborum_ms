@@ -247,7 +247,7 @@ the name; `null`/absent leaves it alone. Read the result back with `GET /users/m
 
 | Field | Rules |
 |---|---|
-| `displayName` | ≤ 255 characters; leading/trailing spaces are trimmed; blank counts as no name. Need not be unique |
+| `displayName` | ≤ 255 characters; leading/trailing spaces are trimmed; blank counts as no name. Need not be unique, but must not contain a reserved word (see below) |
 | `marketplaceAgreementAccepted` | `true` = join (or confirm a new terms version); `false` = withdraw |
 | `marketplaceAgreementVersion` | the version of the terms text the user was shown, ≤ 50 chars (e.g. `"2026-10-01"`). **Required whenever you send `true`** for a user who is not a member yet |
 
@@ -263,6 +263,7 @@ the name; `null`/absent leaves it alone. Read the result back with `GET /users/m
 | `false` | **withdrawn.** **All of the user's dictionaries become private** within seconds — out of the Forum, and importers lose access; the last accepted version and time are kept as the record; nothing is deleted |
 | `true` + a **new** version while a member | the new version and a new acceptance time are recorded; stays a member |
 | a new `displayName` while a member | renamed; the Forum shows the new name within seconds |
+| a `displayName` containing a reserved word (`Verborum`, `admin`, `moderator`, `official`, `coldtea` anywhere; `support`, `staff`, `team`, `system`, `mod`, `root`, `security`, `help`, `helpdesk`, `bot` as a word; case, accents and look-alikes like `4dm1n` don't help) | 400 `displayName contains a reserved word …`. Show the message and keep the input; the same applies to `POST`/`PUT /users/` (since 2026-10-05) |
 | `{}` | nothing changes (201) |
 
 **404** = no profile (§4.3). **401** = token missing/expired.

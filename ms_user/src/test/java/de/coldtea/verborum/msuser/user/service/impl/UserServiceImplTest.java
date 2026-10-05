@@ -620,6 +620,76 @@ class UserServiceImplTest {
         assertEquals("Anna Schmidt", capturedProfileEvent().getDisplayName());
     }
 
+    // ---- SEC-10: reserved display names ----
+
+    @Test
+    void updateProfileInfo_ReservedName_Is400() {
+        // Arrange
+        givenMyProfile(acceptedUser("Anna", "v1"));
+
+        // Act & Assert
+        assertThrows(InvalidProfileException.class,
+                () -> userService.updateProfileInfo(profileInfo("Verborum Team", null, null), CALLER_KC_ID));
+        verify(userRepository, never()).saveAndFlush(any());
+        verifyNoInteractions(eventPublisher);
+    }
+
+    @Test
+    void updateProfileInfo_JoiningWithAReservedName_Is400() {
+        // Arrange — the Join screen sends the name and the agreement together
+        givenMyProfile(user(null, UPDATED_AT));
+
+        // Act & Assert
+        assertThrows(InvalidProfileException.class,
+                () -> userService.updateProfileInfo(profileInfo("4dm1n", true, "v1"), CALLER_KC_ID));
+        verify(userRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void updateProfileInfo_NameUsedByAnotherUser_Succeeds() {
+        // Arrange — names are deliberately not unique; nothing is looked up
+        givenMyProfile(acceptedUser("Anna", "v1"));
+
+        // Act
+        userService.updateProfileInfo(profileInfo("Anna Bauer", null, null), CALLER_KC_ID);
+
+        // Assert
+        assertEquals("Anna Bauer", capturedProfileEvent().getDisplayName());
+        verify(userRepository, never()).findAll();
+    }
+
+    @Test
+    void saveUser_ReservedName_Is400() {
+        // Arrange
+        UserRequestDTO requestDTO = requestDTO(CALLER_KC_ID);
+        requestDTO.setDisplayName("Official Admin");
+        when(userMapper.toUser(requestDTO)).thenReturn(user("Official Admin", null));
+
+        // Act & Assert
+        assertThrows(InvalidProfileException.class, () -> userService.saveUser(requestDTO, CALLER_KC_ID));
+        verify(userRepository, never()).saveAndFlush(any());
+        verifyNoInteractions(eventPublisher);
+    }
+
+    @Test
+    void saveUser_StoredNamePredatingTheRule_IsKept() {
+        // Arrange — a full-profile PUT re-sending a name stored before SEC-10 must not start failing
+        UserRequestDTO requestDTO = requestDTO(CALLER_KC_ID);
+        requestDTO.setUserId("user-1");
+        requestDTO.setDisplayName("Support Desk");
+        User existing = user("Support Desk", UPDATED_AT);
+        User incoming = user("Support Desk", null);
+        when(userRepository.findById("user-1")).thenReturn(Optional.of(existing));
+        when(userMapper.toUser(requestDTO)).thenReturn(incoming);
+        when(userRepository.saveAndFlush(incoming)).thenReturn(incoming);
+
+        // Act
+        userService.saveUser(requestDTO, CALLER_KC_ID);
+
+        // Assert
+        verify(userRepository).saveAndFlush(incoming);
+    }
+
     @Test
     void updateProfileInfo_EmptyBody_ChangesNothing() {
         // Arrange — absent fields are left as they are

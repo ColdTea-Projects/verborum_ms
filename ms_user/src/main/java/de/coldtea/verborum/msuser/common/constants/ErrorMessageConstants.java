@@ -15,6 +15,9 @@ public final class ErrorMessageConstants {
             "displayName cannot be empty while the marketplace agreement is accepted; withdraw from the marketplace first";
     public static final String AGREEMENT_VERSION_REQUIRED =
             "marketplaceAgreementVersion is required to accept the marketplace agreement";
+    // SEC-10: names may repeat, but not ones that read as the platform itself (see DisplayNameUtils)
+    public static final String DISPLAY_NAME_RESERVED =
+            "displayName contains a reserved word (such as Verborum, admin, moderator, official or support); choose another name";
     // Duplicate profile data (409). Checked before saving; the constraint handler is the backstop for a race
     public static final String PROFILE_ALREADY_EXISTS =
             "This account already has a profile; load it with GET /users/me instead of creating another";

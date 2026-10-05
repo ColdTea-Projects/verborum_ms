@@ -154,6 +154,8 @@ unchanged (`creation_dt`/`update_dt`/`imported_at`).
   backstop for a race past the check. Before P4-15 both were 500s.
 
 ## Validation
+- `displayName` must not contain a reserved word (SEC-10, `DisplayNameUtils`: `verborum`, `admin`, … — 400
+  `DISPLAY_NAME_RESERVED`); names are deliberately **not** unique. Only a changed name is judged.
 - `displayName` is optional but at most 255 characters (`@Size`, P4-13) — the column is `VARCHAR(255)`,
   so before the limit a longer name was a 500.
 - `@ValidUUID` on `userId`/`keycloakId` (UserRequestDTO) and `dictionaryId` (VaultEntryRequestDTO)

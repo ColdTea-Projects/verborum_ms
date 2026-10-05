@@ -1448,6 +1448,34 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
   - Client guide: the "Yours" marking in browse lists is no longer needed.
 ---
 
+## Phase 4S — Security fixes (audit 2026-10-05)
+> Goal: close what the 2026-10-05 audit found before more client work builds on it. Every task's
+> evidence, fix and **Verify** step are in `docs/agent/security-audit-2026-10-05.md` under the same
+> `SEC-xx` id — read that section before starting. Client-side follow-ups are in
+> `docs/integration/client-findings-2026-10-05.md`; the client teams own those.
+
+- [ ] `SEC-01` **Word takeover via `POST`/`PUT /words`** (ms_dictionary) — **critical, do first**
+  - `WordServiceImpl.saveWords` must refuse (403) an existing `wordId` whose dictionary the caller does not
+    own, before anything is saved. Unit + web-slice regression tests.
+- [ ] `SEC-02` **Bind local infrastructure to loopback; LAN exposure opt-in** (docker-compose, ops docs)
+- [ ] `SEC-04` **Profile e-mail from the token, verified only** (ms_user)
+- [ ] `SEC-05` **Audience validation on all three services** (realm mapper + `JwtDecoder` validator)
+- [ ] `SEC-07` **Collection size limits and per-user quotas** (ms_dictionary) — limits need product sign-off
+- [ ] `SEC-09` **Remove direct `POST /users/{id}/vault`** (ms_user)
+- [ ] `SEC-14` **Ownership-table status-code consistency** (ms_dictionary, ms_user)
+- [ ] `SEC-06` **Refresh-token rotation + offline session max lifespan** (realm) — depends on the clients
+  confirming single-flight refresh (client findings §1)
+- [x] `SEC-10` **Reserved display names** (ms_user) — done 2026-10-05. Names stay non-unique by product decision;
+  reserved words are refused with 400 (`DisplayNameUtils`). 135/135 ms_user tests; verified live
+- [ ] `SEC-12` **Swagger off outside local** (all services)
+- [ ] `SEC-13` **Fresh login required for account deletion** (ms_user + clients)
+- [ ] `SEC-08` **Dependency audit in the build; plan Boot 3.4/3.5 + Keycloak 26 upgrade**
+- [ ] `SEC-03` **Per-service RabbitMQ users with topic permissions** — trigger: before any non-local environment
+- [ ] `SEC-11` **Non-local realm hardening** (sslRequired, redirect URIs, test users, events, password policy) —
+  trigger: before any non-local realm; absorbs `BL-03`
+
+---
+
 ## Phase 5 — API Gateway
 > Goal: Single entry point for all mobile traffic.
 > Depends on: Phase 4 complete

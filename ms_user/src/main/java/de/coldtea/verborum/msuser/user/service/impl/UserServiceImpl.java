@@ -28,11 +28,13 @@ import static de.coldtea.verborum.msuser.common.config.RabbitMQConfig.ROUTING_KE
 import static de.coldtea.verborum.msuser.common.config.RabbitMQConfig.ROUTING_KEY_USER_PROFILE_UPDATED;
 import static de.coldtea.verborum.msuser.common.constants.ErrorMessageConstants.AGREEMENT_VERSION_REQUIRED;
 import static de.coldtea.verborum.msuser.common.constants.ErrorMessageConstants.DISPLAY_NAME_REQUIRED_WHILE_AGREEMENT_ACCEPTED;
+import static de.coldtea.verborum.msuser.common.constants.ErrorMessageConstants.DISPLAY_NAME_RESERVED;
 import static de.coldtea.verborum.msuser.common.constants.ErrorMessageConstants.EMAIL_ALREADY_IN_USE;
 import static de.coldtea.verborum.msuser.common.constants.ErrorMessageConstants.NOT_THE_OWNER;
 import static de.coldtea.verborum.msuser.common.constants.ErrorMessageConstants.PROFILE_ALREADY_EXISTS;
 import static de.coldtea.verborum.msuser.common.constants.ErrorMessageConstants.USER_WAS_NOT_FOUND_ID;
 import static de.coldtea.verborum.msuser.common.constants.ErrorMessageConstants.USER_WAS_NOT_FOUND_KEYCLOAK_ID;
+import static de.coldtea.verborum.msuser.common.utils.DisplayNameUtils.isReserved;
 
 @Service
 @RequiredArgsConstructor
@@ -82,6 +84,7 @@ public class UserServiceImpl implements UserService {
         user.setMarketplaceAgreementVersion(existing.map(User::getMarketplaceAgreementVersion).orElse(null));
         user.setMarketplaceAgreementAcceptedAt(existing.map(User::getMarketplaceAgreementAcceptedAt).orElse(null));
 
+        requireAllowedDisplayName(user, previous);
         requireValidAgreementState(user);
 
         User savedUser = userRepository.saveAndFlush(user);
@@ -140,6 +143,7 @@ public class UserServiceImpl implements UserService {
                     normalizeVersion(profileInfo.getMarketplaceAgreementVersion()));
         }
 
+        requireAllowedDisplayName(user, previous);
         requireValidAgreementState(user);
 
         User savedUser = userRepository.saveAndFlush(user);
@@ -169,6 +173,18 @@ public class UserServiceImpl implements UserService {
         user.setMarketplaceAgreementVersion(version);
         if (newAcceptance) {
             user.setMarketplaceAgreementAcceptedAt(OffsetDateTime.now());
+        }
+    }
+
+    /**
+     * SEC-10: a display name may repeat another user's, but may not contain a reserved word (see
+     * DisplayNameUtils). Only a name this request changes is judged — a stored name that predates the
+     * rule is kept, so an unrelated PUT that re-sends it does not suddenly fail.
+     */
+    private static void requireAllowedDisplayName(User user, ProfileState previous) {
+        String displayName = user.getDisplayName();
+        if (displayName != null && !displayName.equals(previous.displayName()) && isReserved(displayName)) {
+            throw new InvalidProfileException(DISPLAY_NAME_RESERVED);
         }
     }
 
