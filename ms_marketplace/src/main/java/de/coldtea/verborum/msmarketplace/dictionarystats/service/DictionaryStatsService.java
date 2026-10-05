@@ -29,6 +29,12 @@ public interface DictionaryStatsService {
     /** Most imported first, newest first among equals, narrowed by whichever filters are set; never the caller's own. */
     SliceResponse<DictionaryListingResponseDTO> getPopularListings(ListingFilter filter, int page, int size, String callerId);
 
+    /**
+     * Best rated first (P4-21): by the Bayesian rating score, so a listing needs several good ratings to
+     * rise; newest first among equals. Only rated listings; same filters; never the caller's own.
+     */
+    SliceResponse<DictionaryListingResponseDTO> getTopRatedListings(ListingFilter filter, int page, int size, String callerId);
+
     /** One publisher's listings, newest first — "more from this publisher". */
     SliceResponse<DictionaryListingResponseDTO> getListingsByPublisher(String publisherId, int page, int size, String callerId);
 

@@ -9,6 +9,8 @@ public final class ResponseMessageConstants {
 
     //MarketplaceController
     public static final String DICTIONARY_IMPORTED_SUCCESSFULLY = "Imported successfully dictionary ";
+    public static final String DICTIONARY_RATED_SUCCESSFULLY = "Rated successfully dictionary ";
+    public static final String RATING_REMOVED_SUCCESSFULLY = "Removed rating of dictionary ";
 
     private ResponseMessageConstants() {
     }

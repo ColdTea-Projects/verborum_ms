@@ -42,6 +42,9 @@ public class DictionaryListingResponseDTO {
     private List<String> tags;
 
     private Integer importCount;
+    // Ratings (P4-21): the plain average to one decimal, null while nobody has rated it; and how many rated
+    private Double ratingAverage;
+    private Integer ratingCount;
 
     private OffsetDateTime publishedAt;
 }

@@ -5,8 +5,10 @@ import de.coldtea.verborum.msmarketplace.common.exception.ForbiddenOperationExce
 import de.coldtea.verborum.msmarketplace.common.exception.GlobalExceptionHandler;
 import de.coldtea.verborum.msmarketplace.common.exception.RecordNotFoundException;
 import de.coldtea.verborum.msmarketplace.common.exception.SelfImportException;
+import de.coldtea.verborum.msmarketplace.common.exception.SelfRatingException;
 import de.coldtea.verborum.msmarketplace.common.response.SliceResponse;
 import de.coldtea.verborum.msmarketplace.dictionaryimport.service.DictionaryImportService;
+import de.coldtea.verborum.msmarketplace.dictionaryrating.service.DictionaryRatingService;
 import de.coldtea.verborum.msmarketplace.dictionarystats.dto.DictionaryListingResponseDTO;
 import de.coldtea.verborum.msmarketplace.dictionarystats.dto.ListingFilter;
 import de.coldtea.verborum.msmarketplace.dictionarystats.service.DictionaryStatsService;
@@ -16,6 +18,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -26,6 +29,9 @@ import java.util.List;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -35,6 +41,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 /**
@@ -57,6 +64,9 @@ class MarketplaceControllerWebTest {
 
     @MockBean
     private DictionaryImportService dictionaryImportService;
+
+    @MockBean
+    private DictionaryRatingService dictionaryRatingService;
 
     /** The filter chain needs a decoder bean; the jwt() post-processor supplies the token itself. */
     @MockBean
@@ -385,5 +395,57 @@ class MarketplaceControllerWebTest {
         mockMvc.perform(delete("/marketplace/dictionaries").with(jwt().jwt(j -> j.subject(SUB))))
                 .andExpect(status().isMethodNotAllowed())
                 .andExpect(jsonPath("$.errorDetail").value("This HTTP method is not supported on this path"));
+    }
+
+    // ---- P4-20 / P4-21: ratings ----
+
+    @Test
+    void rateDictionary_RaterIsTheTokenSubject_Is201() throws Exception {
+        mockMvc.perform(put("/marketplace/dictionaries/dict1/rating").with(jwt().jwt(j -> j.subject(SUB)))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"stars\":4}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.message").value(startsWith("Rated successfully")));
+
+        verify(dictionaryRatingService).rateDictionary("dict1", SUB, 4);
+    }
+
+    @Test
+    void rateDictionary_StarsOutOfRangeOrMissing_Is400AndNeverReachesTheService() throws Exception {
+        for (String body : new String[] {"{\"stars\":0}", "{\"stars\":6}", "{}"}) {
+            mockMvc.perform(put("/marketplace/dictionaries/dict1/rating").with(jwt().jwt(j -> j.subject(SUB)))
+                            .contentType(MediaType.APPLICATION_JSON).content(body))
+                    .andExpect(status().isBadRequest());
+        }
+
+        verifyNoInteractions(dictionaryRatingService);
+    }
+
+    @Test
+    void rateDictionary_OwnDictionary_Is400() throws Exception {
+        doThrow(new SelfRatingException("own"))
+                .when(dictionaryRatingService).rateDictionary("dict1", SUB, 5);
+
+        mockMvc.perform(put("/marketplace/dictionaries/dict1/rating").with(jwt().jwt(j -> j.subject(SUB)))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"stars\":5}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("SelfRatingException"));
+    }
+
+    @Test
+    void removeRating_Is200() throws Exception {
+        mockMvc.perform(delete("/marketplace/dictionaries/dict1/rating").with(jwt().jwt(j -> j.subject(SUB))))
+                .andExpect(status().isOk());
+
+        verify(dictionaryRatingService).removeRating("dict1", SUB);
+    }
+
+    @Test
+    void getTopRated_PassesTheCallerAndReturnsTheSlice() throws Exception {
+        when(dictionaryStatsService.getTopRatedListings(any(), eq(0), eq(20), eq(SUB)))
+                .thenReturn(SliceResponse.<DictionaryListingResponseDTO>builder().items(List.of()).page(0).size(20).hasNext(false).build());
+
+        mockMvc.perform(get("/marketplace/dictionaries/top-rated").with(jwt().jwt(j -> j.subject(SUB))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.hasNext").value(false));
     }
 }

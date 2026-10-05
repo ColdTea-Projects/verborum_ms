@@ -75,6 +75,11 @@ to test the Join screen.
 
 Every member also imported 1–3 other dictionaries, so vaults and the rest of "popular" are not empty.
 
+**Ratings (P4-19..P4-22):** about 80% of imports are followed by a 1–5 star rating from the importer.
+Each dictionary has a fixed "quality" its raters roughly agree on, so averages spread from about 2 to 5
+and `/marketplace/dictionaries/top-rated` has a clear order. Imports without a rating are left as they
+are, so the "rate it" path stays testable. Publishers never rate their own, and non-members rate nothing.
+
 ## Reset
 
 `reset.py` only touches the 30 seed usernames. For each one it deletes the profile as that user —

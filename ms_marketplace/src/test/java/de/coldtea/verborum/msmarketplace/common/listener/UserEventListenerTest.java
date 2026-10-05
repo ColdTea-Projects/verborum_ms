@@ -2,12 +2,14 @@ package de.coldtea.verborum.msmarketplace.common.listener;
 
 import de.coldtea.verborum.msmarketplace.common.event.UserDeletedEvent;
 import de.coldtea.verborum.msmarketplace.common.event.UserProfileUpdatedEvent;
+import de.coldtea.verborum.msmarketplace.dictionaryrating.service.DictionaryRatingService;
 import de.coldtea.verborum.msmarketplace.dictionarystats.service.DictionaryStatsService;
 import de.coldtea.verborum.msmarketplace.publisher.service.PublisherService;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
@@ -26,6 +28,9 @@ class UserEventListenerTest {
 
     @Mock
     private PublisherService publisherService;
+
+    @Mock
+    private DictionaryRatingService dictionaryRatingService;
 
     @InjectMocks
     private UserEventListener userEventListener;
@@ -52,6 +57,17 @@ class UserEventListenerTest {
         // report success
         verify(dictionaryStatsService).deleteListingsByUser(KEYCLOAK_ID);
         verify(dictionaryStatsService, never()).deleteListingsByUser(USER_ID);
+    }
+
+    @Test
+    void handleUserDeleted_RemovesTheUsersRatingsBeforeTheirListings() {
+        // Act
+        userEventListener.handleUserDeleted(event());
+
+        // Assert — P4-22: the deleted rater's ratings leave other listings' averages first
+        InOrder inOrder = inOrder(dictionaryRatingService, dictionaryStatsService);
+        inOrder.verify(dictionaryRatingService).deleteRatingsByUser(KEYCLOAK_ID);
+        inOrder.verify(dictionaryStatsService).deleteListingsByUser(KEYCLOAK_ID);
     }
 
     @Test

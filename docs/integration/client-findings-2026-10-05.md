@@ -53,6 +53,7 @@ deployed yet; the roadmap ("Security fixes (audit 2026-10-05)") tracks them.
 | **SEC-02 local stack is loopback-only — live now** | Emulator testing is unchanged (`10.0.2.2` and `adb reverse` reach the host's loopback). A **physical device** now needs the backend dev to start the stack with `docker-compose.lan.yml` (see `docs/ops/local-development.md` §7); without it Keycloak is unreachable from the phone. The services on 8085–8087 still answer on the LAN |
 | **SEC-01 word ids are pinned to their dictionary — live now** | `POST`/`PUT /words` answers 403 when an existing `wordId` is sent under a different `dictionaryId`. Clients never move words, so nothing should change; if this 403 shows up, a local row has the wrong `dictionaryId` |
 | **SEC-10 reserved display names — live now** | `PUT /users/me/profile-info` and `POST`/`PUT /users/` answer 400 `displayName contains a reserved word …` for names with `Verborum`, `admin`, `moderator`, `official` (and `support`, `team`, `staff`, … as words). Show the message on the profile/Join screen and keep the input. Duplicate names are allowed by design |
+| **Ratings (P4-19..P4-22) — live now** | New listing fields `ratingAverage`/`ratingCount`, `/top-rated`, and `PUT`/`GET`/`DELETE …/{id}/rating` for importers. See §4.9 |
 | **P4-18 `isPublic` optional on `PUT` — live now** | Omit `isPublic` from upload-sync `PUT`s unless the user toggled sharing; still send it on create. See §4.1 |
 
 ---
@@ -148,9 +149,11 @@ real API:
   The single-sided `fromLanguage`/`toLanguage` in `ForumDictionaryFilter` cannot be expressed, so
   change the search panel to pick pairs.
 - **Fields that exist:** `publisherName` and `tags` are now on every listing; drop the per-listing tag
-  fetch. **Fields that don't exist:** `rating` and `wordCount`. Ratings are not designed, so hide that
-  UI or keep it behind a flag.
-- Also available: `GET /marketplace/dictionaries/popular`, and `/publisher/{publisherId}` for "more
+  fetch. **Ratings exist since 2026-10-05:** map `ratingAverage` (nullable, one decimal) and `ratingCount`; the
+  dummy `rating: Float` becomes `ratingAverage: Double?` — show "No ratings yet" for null, not 0 stars.
+  **`wordCount` still does not exist**, so hide it or keep it behind a flag.
+- **Rating flow (§4.9):** `PUT/GET/DELETE /marketplace/dictionaries/{id}/rating`, only for dictionaries the user imported.
+- Also available: `GET /marketplace/dictionaries/popular`, `/top-rated` (rated only, best first), and `/publisher/{publisherId}` for "more
   from this publisher".
 - **Base URL:** add `ROOT_URL_VERBORUM_MARKETPLACE_API` (`:8087`) to `core/build.gradle.kts`, and a
   `MarketplaceApi` Retrofit interface.
@@ -175,6 +178,17 @@ Not built in either client. Follow `marketplace-client-guide.md` §6.6–§6.9:
 - They must stay out of the upload set entirely, or every write is a 403.
 - Learning progress on imported words stays local.
 - A vault entry whose dictionary is no longer readable shows as "No longer available".
+
+### 4.9 Ratings (both clients) — live since 2026-10-05
+Importers rate a dictionary 1–5 stars (no text). The full contract is `marketplace-client-guide.md` §5.6, with the
+flow in §6.10:
+- **Listings:** `ratingAverage` (null when unrated) and `ratingCount` on every listing; a new
+  `GET /marketplace/dictionaries/top-rated` with the browse filters.
+- **The user's own rating:** `GET …/{id}/rating` (404 = not rated); `PUT {"stars": n}` to set or change it; `DELETE` to
+  remove it.
+- **When to offer it:** only on dictionaries the user **imported**, never on their own (403/400 otherwise). Online only.
+- **Test data:** the dev seed rates about 80% of imports. `emma.johnson` imported several showcases; non-members
+  (`oliver.brown`, …) cannot rate.
 
 ### 4.8 Stale docs in the client repos
 `verborum_android/docs/android-development.md` §2 and §7 still say authentication is "🔲 none" and

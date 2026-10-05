@@ -8,6 +8,7 @@ import de.coldtea.verborum.msmarketplace.common.event.DictionaryVisibilityEvent;
 import de.coldtea.verborum.msmarketplace.common.mapper.DictionaryStatsMapper;
 import de.coldtea.verborum.msmarketplace.common.response.SliceResponse;
 import de.coldtea.verborum.msmarketplace.common.utils.LanguagePairUtils;
+import de.coldtea.verborum.msmarketplace.common.utils.RatingScore;
 import de.coldtea.verborum.msmarketplace.dictionaryimport.entity.DictionaryImport;
 import de.coldtea.verborum.msmarketplace.dictionaryimport.repository.DictionaryImportRepository;
 import de.coldtea.verborum.msmarketplace.dictionarystats.dto.DictionaryListingResponseDTO;
@@ -44,6 +45,7 @@ import static de.coldtea.verborum.msmarketplace.common.utils.LikePatternUtils.to
 import static de.coldtea.verborum.msmarketplace.common.utils.ResponseUtils.toSliceResponse;
 import static de.coldtea.verborum.msmarketplace.dictionarystats.repository.DictionaryStatsSpecifications.hasAnyTag;
 import static de.coldtea.verborum.msmarketplace.dictionarystats.repository.DictionaryStatsSpecifications.hasLangPairIn;
+import static de.coldtea.verborum.msmarketplace.dictionarystats.repository.DictionaryStatsSpecifications.hasRatings;
 import static de.coldtea.verborum.msmarketplace.dictionarystats.repository.DictionaryStatsSpecifications.hasActivePublisher;
 import static de.coldtea.verborum.msmarketplace.dictionarystats.repository.DictionaryStatsSpecifications.isListed;
 import static de.coldtea.verborum.msmarketplace.dictionarystats.repository.DictionaryStatsSpecifications.isNotPublishedBy;
@@ -68,6 +70,8 @@ public class DictionaryStatsServiceImpl implements DictionaryStatsService {
             Sort.by(Sort.Order.desc("publishedAt"), Sort.Order.asc("dictionaryId"));
     private static final Sort MOST_IMPORTED_FIRST =
             Sort.by(Sort.Order.desc("importCount"), Sort.Order.desc("publishedAt"), Sort.Order.asc("dictionaryId"));
+    private static final Sort TOP_RATED_FIRST =
+            Sort.by(Sort.Order.desc("ratingScore"), Sort.Order.desc("publishedAt"), Sort.Order.asc("dictionaryId"));
 
     private final DictionaryStatsRepository dictionaryStatsRepository;
 
@@ -91,6 +95,13 @@ public class DictionaryStatsServiceImpl implements DictionaryStatsService {
     public SliceResponse<DictionaryListingResponseDTO> getPopularListings(ListingFilter filter, int page, int size, String callerId) {
         publisherService.requireMember(callerId);
         return browse(toSpecification(filter, callerId), PageRequest.of(page, size, MOST_IMPORTED_FIRST));
+    }
+
+    @Override
+    public SliceResponse<DictionaryListingResponseDTO> getTopRatedListings(ListingFilter filter, int page, int size, String callerId) {
+        publisherService.requireMember(callerId);
+        // Served by idx_dictionary_stats_listed_top_rated (WHERE is_listed AND rating_count > 0)
+        return browse(toSpecification(filter, callerId).and(hasRatings()), PageRequest.of(page, size, TOP_RATED_FIRST));
     }
 
     @Override
@@ -356,6 +367,9 @@ public class DictionaryStatsServiceImpl implements DictionaryStatsService {
                 // Both explicit — the column defaults do not apply through Hibernate (see the entity)
                 .isListed(listed)
                 .importCount(0)
+                .ratingCount(0)
+                .ratingSum(0)
+                .ratingScore(RatingScore.UNRATED)
                 // Best available "went public" time: the change that made it public is the latest
                 // change ms_dictionary reports for it. For a hidden row it is a placeholder, replaced
                 // when the row is listed

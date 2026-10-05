@@ -279,7 +279,7 @@ of the user's dictionaries private and joining makes them all public (ms_diction
 deleting the account deletes them. Any unique-constraint
 violation in ms_user is a 409 with a fixed message (P4-15), never a 500.
 
-### ms_marketplace — MarketplaceController (`/marketplace/dictionaries`, P4-06, P4-11..P4-15)
+### ms_marketplace — MarketplaceController (`/marketplace/dictionaries`, P4-06, P4-11..P4-15, P4-20..P4-21)
 Read-only browse, Forum members only (display name + accepted terms; 403 otherwise, P4-15). Every endpoint returns only **listed** dictionaries and
 takes `page` (zero-based, default 0, ≥ 0) and `size` (default 20, 1–100); anything else is a 400.
 
@@ -287,6 +287,7 @@ takes `page` (zero-based, default 0, ≥ 0) and `size` (default 20, 1–100); an
 |---|---|---|
 | GET | `/marketplace/dictionaries?pair=EN-TR&pair=FR-DE&tag=food&publisher=nna` | `SliceResponse<DictionaryListingResponseDTO>` — newest first. `pair` optional, repeatable or comma-separated, max 10; **direction ignored** (`EN-TR` → EN→TR and TR→EN); any case; 400 on an unsupported code, the same code twice or a malformed pair. `tag` optional, repeatable, max 10, each non-blank and ≤ 100 chars, any case; **any** of them matches (P4-12). `publisher` optional, 3–255 chars: part of the publisher's display name, any case — `nna` finds "Anna Bauer" (P4-13). Different filters are AND-ed |
 | GET | `/marketplace/dictionaries/popular?pair=...&tag=...&publisher=...` | same — most imported first, newest first among equals; same filters |
+| GET | `/marketplace/dictionaries/top-rated?pair=...&tag=...&publisher=...` | same — **rated listings only**, best Bayesian score first (`(sum+15)/(count+5)`), newest first among equals; same filters (P4-21) |
 | GET | `/marketplace/dictionaries/publisher/{publisherId}` | same — one publisher's listings, newest first; unknown id → empty slice |
 
 ```
@@ -299,13 +300,16 @@ DictionaryListingResponseDTO { dictionaryId, publisherId, publisherName, name, f
 (ownership always comes from the caller's token). **The Forum is for members both ways** (P4-13..P4-15):
 the caller must have a display name and accepted terms — otherwise **403** on every browse endpoint and
 on import — and only listings whose publisher is a member are returned or importable (a non-member's
-listing is a 404 on import). `GET` and `/popular` never return the caller's own listings (P4-17);
+listing is a 404 on import). `GET`, `/popular` and `/top-rated` never return the caller's own listings (P4-17);
 `/publisher/{publisherId}` does when asked for one's own id. `publisherName` carries the name. Language codes come back
 uppercase; `tags` lowercase and sorted (`[]` when untagged).
 
 | Method | Path | Returns |
 |---|---|---|
 | POST | `/marketplace/dictionaries/{dictionaryId}/import` | `Response` (201) — P4-07. 403 if the caller is not a Forum member (P4-15); 404 if unknown, private or deleted, or its publisher is not a member (P4-15); 400 (`SelfImportException`) for your own. Idempotent: a repeat is 201 again and counts nothing |
+| PUT | `/marketplace/dictionaries/{dictionaryId}/rating` `{"stars":1-5}` | `Response` (201) — P4-20. 403 not a member; 404 unknown/hidden/publisher not a member; 400 own (`SelfRatingException`); 403 not imported; 400 stars outside 1–5. Creates or changes the caller's one rating |
+| GET | `/marketplace/dictionaries/{dictionaryId}/rating` | `RatingResponseDTO {dictionaryId, stars, ratedAt}` — the caller's own rating; 404 if none (P4-20) |
+| DELETE | `/marketplace/dictionaries/{dictionaryId}/rating` | `Response` (200) — removes the caller's rating, also when absent (P4-20) |
 
 Import records `(dictionary, importer)` once in `dictionary_imports`, increments `import_count` only
 on a first import (unique importers), and publishes `dictionary.imported` on every successful call.

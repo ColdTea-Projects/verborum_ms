@@ -1,0 +1,64 @@
+{
+  "databaseChangeLog": [
+    {
+      "changeSet": {
+        "id": "20261005-01-dictionary-ratings",
+        "author": "claude (P4-19)",
+        "comment": "Ratings (decided 2026-10-05): only importers rate, 1-5 stars, no text; one rating per user per listing (UNIQUE), changeable. Real FK to dictionary_stats with ON DELETE CASCADE, like dictionary_imports: ratings survive hiding and re-sharing (the listing row is kept, is_listed=false) and go when the listing row goes (reconciliation, user.deleted of the publisher). fk_user_id is the rater's JWT subject, indexed for the user.deleted cleanup of a deleted rater's ratings. stars has a CHECK so the database refuses what the API would.",
+        "objectQuotingStrategy": "QUOTE_ONLY_RESERVED_WORDS",
+        "changes": [
+          {
+            "createTable": {
+              "tableName": "dictionary_ratings",
+              "columns": [
+                { "column": { "name": "rating_id", "type": "VARCHAR(255)",
+                    "constraints": { "nullable": false, "primaryKey": true, "primaryKeyName": "pk_dictionary_ratings" } } },
+                { "column": { "name": "fk_dictionary_id", "type": "VARCHAR(255)",
+                    "constraints": { "nullable": false } } },
+                { "column": { "name": "fk_user_id", "type": "VARCHAR(255)",
+                    "constraints": { "nullable": false } } },
+                { "column": { "name": "stars", "type": "SMALLINT",
+                    "constraints": { "nullable": false } } },
+                { "column": { "name": "creation_dt", "type": "TIMESTAMP WITH TIME ZONE",
+                    "constraints": { "nullable": false } } },
+                { "column": { "name": "update_dt", "type": "TIMESTAMP WITH TIME ZONE" } }
+              ]
+            }
+          },
+          {
+            "sql": {
+              "sql": "ALTER TABLE dictionary_ratings ADD CONSTRAINT ck_dictionary_ratings_stars CHECK (stars BETWEEN 1 AND 5);"
+            }
+          },
+          {
+            "addForeignKeyConstraint": {
+              "baseTableName": "dictionary_ratings",
+              "baseColumnNames": "fk_dictionary_id",
+              "referencedTableName": "dictionary_stats",
+              "referencedColumnNames": "dictionary_id",
+              "constraintName": "fk_dictionary_ratings_listing",
+              "onDelete": "CASCADE"
+            }
+          },
+          {
+            "addUniqueConstraint": {
+              "tableName": "dictionary_ratings",
+              "columnNames": "fk_dictionary_id, fk_user_id",
+              "constraintName": "uq_dictionary_ratings_dictionary_user"
+            }
+          },
+          {
+            "createIndex": {
+              "tableName": "dictionary_ratings",
+              "indexName": "idx_dictionary_ratings_user",
+              "columns": [ { "column": { "name": "fk_user_id" } } ]
+            }
+          }
+        ],
+        "rollback": [
+          { "dropTable": { "tableName": "dictionary_ratings" } }
+        ]
+      }
+    }
+  ]
+}

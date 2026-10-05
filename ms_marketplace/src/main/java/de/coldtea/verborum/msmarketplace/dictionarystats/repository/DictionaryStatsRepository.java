@@ -27,4 +27,24 @@ public interface DictionaryStatsRepository extends JpaRepository<DictionaryStats
     @Modifying(clearAutomatically = true)
     @Query("update DictionaryStats d set d.importCount = d.importCount + 1 where d.dictionaryId = :dictionaryId")
     int incrementImportCount(@Param("dictionaryId") String dictionaryId);
+
+    /**
+     * A rating was added, changed or removed (P4-19): one atomic UPDATE of all three aggregates, for the same
+     * reason as incrementImportCount — never read-modify-write in Java. Every right-hand side reads the
+     * row's values from before the UPDATE (SQL semantics), so the score is computed from the new count
+     * and sum by adding the deltas again. `1.0 *` keeps the division out of integer arithmetic.
+     */
+    // flushAutomatically: the caller's pending rating write (e.g. a delete) is on another table, so
+    // Hibernate's AUTO flush would skip it, and clearAutomatically would then discard it unwritten —
+    // the aggregate changed while the rating row stayed (found live, 2026-10-05)
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("""
+            update DictionaryStats d set
+                d.ratingCount = d.ratingCount + :countDelta,
+                d.ratingSum = d.ratingSum + :sumDelta,
+                d.ratingScore = (1.0 * (d.ratingSum + :sumDelta) + :priorTotal) / (d.ratingCount + :countDelta + :priorWeight)
+            where d.dictionaryId = :dictionaryId""")
+    int applyRatingChange(@Param("dictionaryId") String dictionaryId, @Param("countDelta") int countDelta,
+                          @Param("sumDelta") int sumDelta, @Param("priorTotal") double priorTotal,
+                          @Param("priorWeight") int priorWeight);
 }

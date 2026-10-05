@@ -15,6 +15,10 @@ public final class ErrorMessageConstants {
     //Import (P4-07)
     public static final String LISTING_WAS_NOT_FOUND_ID = "Listing was not found. ID: ";
     public static final String CANNOT_IMPORT_OWN_DICTIONARY = "A dictionary cannot be imported by its own publisher";
+    //Ratings (P4-20)
+    public static final String CANNOT_RATE_OWN_DICTIONARY = "A dictionary cannot be rated by its own publisher";
+    public static final String IMPORT_BEFORE_RATING = "Only users who imported this dictionary can rate it; import it first";
+    public static final String RATING_WAS_NOT_FOUND_ID = "You have not rated this dictionary. ID: ";
     // The Forum gate (403): browse and import are for marketplace members only
     public static final String MARKETPLACE_MEMBERSHIP_REQUIRED =
             "Join the marketplace first: set a display name and accept the marketplace terms in your profile";

@@ -133,6 +133,30 @@ class DictionaryStatsServiceImplTest {
     }
 
     @Test
+    void getTopRatedListings_BestScoreFirst() {
+        // Arrange
+        when(dictionaryStatsRepository.findSlice(any(), any(Pageable.class))).thenReturn(new SliceImpl<>(List.of()));
+
+        // Act
+        dictionaryStatsService.getTopRatedListings(new ListingFilter(null, null, null), 0, 20, CALLER);
+
+        // Assert — P4-21: the Bayesian score, newest first among equals, a unique last key
+        assertEquals(Sort.by(Sort.Order.desc("ratingScore"), Sort.Order.desc("publishedAt"), Sort.Order.asc("dictionaryId")),
+                capturedPageable().getSort());
+    }
+
+    @Test
+    void getTopRatedListings_CallerNotAMember_IsForbidden() {
+        // Arrange
+        doThrow(new ForbiddenOperationException("join first")).when(publisherService).requireMember(CALLER);
+
+        // Act & Assert
+        assertThrows(ForbiddenOperationException.class,
+                () -> dictionaryStatsService.getTopRatedListings(new ListingFilter(null, null, null), 0, 20, CALLER));
+        verifyNoInteractions(dictionaryStatsRepository);
+    }
+
+    @Test
     void getListingsByPublisher_NewestFirst() {
         // Arrange
         when(dictionaryStatsRepository.findSlice(any(), any(Pageable.class))).thenReturn(new SliceImpl<>(List.of()));

@@ -89,4 +89,9 @@ public class DictionaryStatsSpecifications {
     public static Specification<DictionaryStats> isNotPublishedBy(String publisherId) {
         return (root, query, criteriaBuilder) -> criteriaBuilder.notEqual(root.get("userId"), publisherId);
     }
+
+    /** Rated at least once (P4-21) — top-rated lists only listings someone has rated. */
+    public static Specification<DictionaryStats> hasRatings() {
+        return (root, query, criteriaBuilder) -> criteriaBuilder.greaterThan(root.get("ratingCount"), 0);
+    }
 }

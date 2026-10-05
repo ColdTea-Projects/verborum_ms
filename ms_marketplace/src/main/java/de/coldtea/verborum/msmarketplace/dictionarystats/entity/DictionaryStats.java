@@ -80,6 +80,19 @@ public class DictionaryStats {
     @Column(name = "import_count", nullable = false)
     private Integer importCount;
 
+    // Rating aggregates (P4-19), kept current in the same transaction as every rating write by one atomic
+    // UPDATE (DictionaryStatsRepository.applyRatingChange). Set explicitly on create, like importCount.
+    // The average shown on a listing is ratingSum / ratingCount; ratingScore is the Bayesian average
+    // top-rated browse orders by, so one 5-star vote cannot top the chart
+    @Column(name = "rating_count", nullable = false)
+    private Integer ratingCount;
+
+    @Column(name = "rating_sum", nullable = false)
+    private Integer ratingSum;
+
+    @Column(name = "rating_score", nullable = false)
+    private Double ratingScore;
+
     // When the dictionary (most recently) went public, taken from the event, not from this row's
     // insert time. Kept across updates; reset only when a hidden row is listed again, so a dictionary
     // re-published after a private spell counts as newly published

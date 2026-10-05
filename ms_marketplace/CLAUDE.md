@@ -17,7 +17,8 @@ request time — decided 2026-07-23, see roadmap `P4-03`.
   snapshot reconciliation fed by ms_dictionary events (P4-03), private → hidden (P4-04),
   deletion and `user.deleted` (P4-05), browse API (P4-06), import + `dictionary.imported` (P4-07),
   language-pair filter + slices + browse indexes (P4-11), tag filter (P4-12), publisher display names
-  + name filter (P4-13). The marketplace search plan (P4-11..P4-13) is complete.
+  + name filter (P4-13). The marketplace search plan (P4-11..P4-13) is complete. Ratings (P4-19..P4-22): 1–5 stars
+  by importers, aggregates on the listing, `/top-rated`.
 
 ## Entities
 - `DictionaryStats` (`dictionary_stats`) — `dictionaryId` (PK, ms_dictionary's id, no DB FK),
@@ -38,7 +39,12 @@ request time — decided 2026-07-23, see roadmap `P4-03`.
   - `isListed` (`is_listed`, P4-04) — false means the dictionary went private. The row is kept on
     purpose as a stale-event guard; **browse must filter `is_listed = true`**. Set explicitly on
     create (Hibernate ignores column defaults). Migration `2026/09/27-02-changelog.json`.
-  - `rating` / `viewCount` are deliberately absent until designed.
+  - `ratingCount` / `ratingSum` / `ratingScore` (P4-19) — aggregates of `dictionary_ratings`, changed only by
+    `DictionaryStatsRepository.applyRatingChange` (one atomic UPDATE, `flushAutomatically` + `clearAutomatically`:
+    without the flush a pending rating delete was discarded unwritten). `ratingScore` is the Bayesian average
+    `(sum + 15) / (count + 5)` (`RatingScore`: m = 3, C = 5) that `/top-rated` sorts by; the listing shows
+    `RatingScore.average` (sum/count, one decimal, null when unrated). Set to 0/0/3.0 explicitly on create.
+    Migration `2026/10/05-02`. `viewCount` is still absent until designed.
 - `Publisher` (`publishers`, P4-13) — `keycloakId` (PK, the JWT subject = `fk_user_id`), `displayName`
   (nullable, trimmed; blank stored as null), `marketplaceAgreementAccepted` (P4-14, NOT NULL, set
   explicitly; null in an event = pre-P4-14, keep held; new row without it = false), `sourceUpdatedAt`
@@ -51,6 +57,10 @@ request time — decided 2026-07-23, see roadmap `P4-03`.
   (real FK to `dictionary_stats`, ON DELETE CASCADE), `userId` (importer's subject), `importedAt`.
   UNIQUE (dictionary, user) — `import_count` counts unique importers. Migration
   `2026/09/27-05-changelog.json`. Own package `dictionaryimport/`.
+- `DictionaryRating` (`dictionary_ratings`, P4-19) — `ratingId` (server-generated), `dictionaryId` (real FK to
+  `dictionary_stats`, ON DELETE CASCADE: kept while hidden, gone with the listing), `userId` (rater's subject),
+  `stars` (1–5, CHECK), timestamps. UNIQUE (dictionary, user). Migration `2026/10/05-01`. Own package
+  `dictionaryrating/`. Only importers rate — checked against `dictionary_imports`, no call out (rule 5).
 
 ## Events (see `docs/agent/rabbitmq.md`)
 - **Consumes (P4-03):** `common/listener/DictionaryEventListener` → `DictionaryStatsService`, one
@@ -86,7 +96,9 @@ request time — decided 2026-07-23, see roadmap `P4-03`.
   `RabbitTemplate`). Payload `{dictionaryId, keycloakId, eventTimestamp}` — fixed by ms_user's P2-09
   consumer; **`keycloakId`** is the importer's JWT subject. Sent on every successful import, repeats
   included (the vault is idempotent; a re-send repairs a lost first event).
-- `user.deleted` also deletes the user's import records; their earlier imports stay counted.
+- `user.deleted` also deletes the user's import records; their earlier imports stay counted. Their **ratings** are
+  removed first and the aggregates corrected (`DictionaryRatingService.deleteRatingsByUser`, P4-22) — a rating is an
+  opinion, an import count is history.
 - `user.profile.updated` (from ms_user, P4-13) on `marketplace.user.profile.updated` →
   `UserEventListener.handleUserProfileUpdated` → `PublisherService.updateDisplayName` — upsert on
   `keycloakId`, dropped unless newer than the held `sourceUpdatedAt`. `user.deleted` also deletes the
@@ -135,6 +147,11 @@ request time — decided 2026-07-23, see roadmap `P4-03`.
   unknown (never reveal a private dictionary exists), 400 `SelfImportException` for your own, 201
   otherwise and on repeats. The count increment is one atomic `@Modifying` UPDATE in
   `DictionaryStatsRepository` — never read-modify-write it in Java.
+- `GET /top-rated` (P4-21) — same filters, `hasRatings()` (rated only), sorted `ratingScore` desc → `publishedAt` desc →
+  `dictionaryId`; served by the partial index `idx_dictionary_stats_listed_top_rated`.
+- `PUT|GET|DELETE /{dictionaryId}/rating` (P4-20) — `DictionaryRatingService`. PUT: member (403) → listed with an active
+  publisher (404) → not your own (400 `SelfRatingException`) → imported (403) → create or change. GET: your rating or
+  404. DELETE: 200, also when absent. No events — nothing else consumes ratings.
 
 ## Security
 - `common/config/SecurityConfig.java` is in place from the first commit: stateless JWT resource

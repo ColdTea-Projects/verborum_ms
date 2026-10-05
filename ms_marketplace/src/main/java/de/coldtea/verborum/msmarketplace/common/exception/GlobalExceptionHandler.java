@@ -74,6 +74,13 @@ public class GlobalExceptionHandler {
         return buildErrorResponse(HttpStatus.BAD_REQUEST, HttpMessageNotReadableException.class.getSimpleName(), ex.getMessage(), request);
     }
 
+    @ExceptionHandler(SelfRatingException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ResponseEntity<ErrorResponse> handleSelfRatingException(SelfRatingException ex, WebRequest request) {
+        log.warn("{}: {}", SelfRatingException.class.getCanonicalName(), ex.getMessage());
+        return buildErrorResponse(HttpStatus.BAD_REQUEST, SelfRatingException.class.getSimpleName(), ex.getMessage(), request);
+    }
+
     @ExceptionHandler(SelfImportException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ResponseEntity<ErrorResponse> handleSelfImportException(SelfImportException ex, WebRequest request) {

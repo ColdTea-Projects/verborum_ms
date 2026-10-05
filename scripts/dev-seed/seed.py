@@ -150,6 +150,7 @@ def main():
         c.wait_until(lambda: _listing_count(token, user["sub"]) == shared, what=f"{user['username']}'s hides")
 
     imports = 0
+    imported = []  # (importer, dictionary) — step 6 rates from these
     for owner in members:
         showcase = SHOWCASES.get(owner["display_name"])
         if not showcase:
@@ -158,6 +159,7 @@ def main():
         importers = RNG.sample([m for m in members if m is not owner], showcase["importers"])
         for importer in importers:
             _import(tokens, importer, dictionary)
+            imported.append((importer, dictionary))
             imports += 1
         log(f"  showcase '{dictionary['name'][:50]}' ({showcase['case']}): {len(importers)} importers")
 
@@ -166,10 +168,26 @@ def main():
                   for d in owner["dictionaries"] if not d["showcase"] and not d.get("hidden")]
         for dictionary in RNG.sample(others, RNG.randint(1, 3)):
             _import(tokens, importer, dictionary)
+            imported.append((importer, dictionary))
             imports += 1
     log(f"  {imports} imports in total")
 
-    # 6. Summary --------------------------------------------------------------------------------
+    # 6. Ratings (P4-19..P4-22) — only importers rate, and most of them do --------------------------
+    log("\n6. Rating")
+    quality = {}  # dictionary id -> how good it is, so its raters roughly agree
+    ratings = 0
+    for importer, dictionary in imported:
+        if RNG.random() < 0.2:  # some importers never rate — keeps the "rate it" path testable
+            continue
+        base = quality.setdefault(dictionary["id"], RNG.uniform(2.2, 4.9))
+        stars = max(1, min(5, round(base + RNG.uniform(-1.2, 1.2))))
+        token = tokens.get(importer["username"], PASSWORD)
+        c.request("PUT", f"{c.MARKETPLACE_URL}/marketplace/dictionaries/{dictionary['id']}/rating", token=token,
+                  body=dict(stars=stars))
+        ratings += 1
+    log(f"  {ratings} ratings on {len(quality)} dictionaries; the other imports are unrated")
+
+    # 7. Summary --------------------------------------------------------------------------------
     viewer = members[0]
     token = tokens.get(viewer["username"], PASSWORD)
     top = max(s["importers"] for s in SHOWCASES.values())
@@ -179,6 +197,12 @@ def main():
     log("\nTop of 'popular':")
     for listing in popular:
         log(f"  {listing['importCount']:>2} imports  {listing['fromLang']}-{listing['toLang']}  "
+            f"{listing['name'][:60]:<60}  by {listing['publisherName']}")
+
+    top_rated = c.request("GET", f"{c.MARKETPLACE_URL}/marketplace/dictionaries/top-rated?size=5", token=token)["items"]
+    log("\nTop of 'top rated':")
+    for listing in top_rated:
+        log(f"  {listing['ratingAverage']:.1f} ({listing['ratingCount']:>2})  {listing['fromLang']}-{listing['toLang']}  "
             f"{listing['name'][:60]:<60}  by {listing['publisherName']}")
 
     total_dictionaries = sum(len(u["dictionaries"]) for u in users)

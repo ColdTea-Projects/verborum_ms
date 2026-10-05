@@ -35,6 +35,12 @@ public final class DTOMessageConstants {
     public static final String TAG_BLANK = "must not be blank";
     public static final String TAG_TOO_LONG = "must be at most " + TAG_MAX_LENGTH + " characters";
 
+    // Ratings (P4-19): whole stars only
+    public static final int RATING_STARS_MIN = 1;
+    public static final int RATING_STARS_MAX = 5;
+    public static final String RATING_STARS_REQUIRED = "stars is mandatory";
+    public static final String RATING_STARS_OUT_OF_RANGE = "stars must be between " + RATING_STARS_MIN + " and " + RATING_STARS_MAX;
+
     //Marketplace browse (P4-13) — publisher display-name filter. Three characters is the shortest search
     //a trigram index can serve; the maximum matches ms_user's display_name column
     public static final int PUBLISHER_NAME_MIN = 3;

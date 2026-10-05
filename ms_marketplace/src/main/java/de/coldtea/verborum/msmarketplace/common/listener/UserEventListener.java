@@ -2,6 +2,7 @@ package de.coldtea.verborum.msmarketplace.common.listener;
 
 import de.coldtea.verborum.msmarketplace.common.event.UserDeletedEvent;
 import de.coldtea.verborum.msmarketplace.common.event.UserProfileUpdatedEvent;
+import de.coldtea.verborum.msmarketplace.dictionaryrating.service.DictionaryRatingService;
 import de.coldtea.verborum.msmarketplace.dictionarystats.service.DictionaryStatsService;
 import de.coldtea.verborum.msmarketplace.publisher.service.PublisherService;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +23,9 @@ public class UserEventListener {
 
     private final DictionaryStatsService dictionaryStatsService;
 
+    // P4-22: a deleted user's ratings go before their listings, so other listings' averages are corrected
+    private final DictionaryRatingService dictionaryRatingService;
+
     private final PublisherService publisherService;
 
     /**
@@ -36,6 +40,7 @@ public class UserEventListener {
         log.info("Received user.deleted event for keycloakId: {} (ms_user userId: {})",
                 event.getKeycloakId(), event.getUserId());
         try {
+            dictionaryRatingService.deleteRatingsByUser(event.getKeycloakId());
             dictionaryStatsService.deleteListingsByUser(event.getKeycloakId());
         } catch (Exception e) {
             // Re-thrown so the message is retried and finally dead-lettered rather than acknowledged

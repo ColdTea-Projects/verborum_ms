@@ -105,7 +105,8 @@ otherwise surface as unexplained 401 / 400 / 403 / 404 responses.
   **lose access**. Nothing is deleted; re-joining shares all of them again. Dictionaries are only
   deleted with the account.
 
-There is no rating, no view count, and no "make my own editable copy" (§10).
+Importers can **rate** a dictionary 1–5 stars (§5.6). There is no view count, no written review, and no "make
+my own editable copy" (§10).
 
 ---
 
@@ -311,9 +312,10 @@ member → 400). Prefer `profile-info` for anything on the profile page.
 |---|---|---|
 | `GET /marketplace/dictionaries?pair=EN-TR&tag=food&publisher=nna` | listings, optionally filtered | newest first |
 | `GET /marketplace/dictionaries/popular?…same filters…` | listings, same filters | most imported first; newest first among equals |
+| `GET /marketplace/dictionaries/top-rated?…same filters…` | **rated** listings only, same filters | best rated first by a weighted score (§5.6); newest first among equals |
 | `GET /marketplace/dictionaries/publisher/{publisherId}` | one publisher's listings | newest first |
 
-**Never your own.** `GET /marketplace/dictionaries` and `/popular` never return the caller's own
+**Never your own.** `GET /marketplace/dictionaries`, `/popular` and `/top-rated` never return the caller's own
 listings (since 2026-10-04) — the Forum shows other people's dictionaries. Only
 `/publisher/{publisherId}` with your own `sub` returns yours.
 
@@ -370,6 +372,8 @@ All three filters are optional and combine by **AND**; values of one filter comb
       "toLang":        "UK",
       "tags":          ["grammar", "travel"],
       "importCount":   7,
+      "ratingAverage": 4.3,
+      "ratingCount":   12,
       "publishedAt":   "2026-07-19T17:01:21.303971Z"
     }
   ],
@@ -390,6 +394,8 @@ All three filters are optional and combine by **AND**; values of one filter comb
 | `name`, `fromLang`, `toLang` | copies of the dictionary's fields, kept current within seconds; codes uppercase, real direction |
 | `tags` | the dictionary's tags, lowercase and sorted; `[]` when untagged. Kept current within seconds |
 | `importCount` | number of **distinct users** who imported it (a user importing twice counts once) |
+| `ratingAverage` | the plain average of its ratings, one decimal, 1.0–5.0; **`null` while nobody has rated it** (show "No ratings yet", not 0 stars) |
+| `ratingCount` | how many users rated it; `0` with `ratingAverage: null` |
 | `publishedAt` | when it (most recently) became public, ISO-8601 UTC. Private-then-public again resets it |
 
 This `SliceResponse` shape is Verborum's own contract, not Spring's `Slice` — map exactly these four
@@ -440,6 +446,36 @@ locale-independent conversion (`Locale.ROOT` / invariant culture) — Turkish lo
 | ms_dictionary | `GET /dictionaries/{id}/tags` | its tags (404 if not readable) |
 | ms_user | `GET /users/{userId}/vault` | the caller's vault: `[{vaultEntryId, userId, dictionaryId, importedAt}]` — `{userId}` is `id` from `/me`, **not** the `sub` |
 | ms_user | `DELETE /users/{userId}/vault/{dictionaryId}` | remove an imported dictionary from the vault (200, also when absent) |
+
+### 5.6 Ratings (since 2026-10-05)
+
+Users who **imported** a dictionary can rate it **1–5 whole stars**. There is no text, and one rating per
+user per dictionary, which they can change or remove. Listings carry `ratingAverage` and `ratingCount`
+(§5.2), and `/top-rated` (§5.1) lists rated dictionaries best first.
+
+| Request | Body | Result |
+|---|---|---|
+| `PUT /marketplace/dictionaries/{dictionaryId}/rating` | `{"stars": 4}` | **201**, creates or changes your rating. Idempotent: the same stars again changes nothing |
+| `GET /marketplace/dictionaries/{dictionaryId}/rating` | — | **200** `{"dictionaryId": "…", "stars": 4, "ratedAt": "…Z"}`, your own rating; **404** when you have not rated it |
+| `DELETE /marketplace/dictionaries/{dictionaryId}/rating` | — | **200**, removes your rating (also when you had none) |
+
+Rules for `PUT`, checked in this order:
+
+| Case | Status | `error` |
+|---|---|---|
+| caller is not a Forum member | 403 | `ForbiddenOperationException` |
+| listing unknown, hidden (made private), deleted, or its publisher left the Forum | 404 | `RecordNotFoundException` |
+| your own dictionary | 400 | `SelfRatingException` |
+| you have not imported it | 403 | `ForbiddenOperationException` ("…import it first") |
+| `stars` missing or outside 1–5 | 400 | validation error naming `stars` |
+
+- **Ratings survive hiding.** If the owner makes a dictionary private and later shares it again, its ratings
+  are still there. While it is hidden it cannot be rated (404), but you can still remove your rating.
+- **Importing is what counts.** Removing a dictionary from your vault does not take away your right to rate it.
+- **Deleted accounts:** their ratings are removed and the averages recomputed within seconds.
+- **Ranking:** `/top-rated` orders by a weighted score that treats every dictionary as if it already had 5
+  ratings of 3 stars. One 5-star rating therefore does not beat many 4-star ratings. Show `ratingAverage`
+  and `ratingCount` to users, never the score; it is not returned.
 
 ---
 
@@ -541,6 +577,14 @@ their dictionary (403).
   **Never upload an imported dictionary or its words through your normal sync** — they are not
   yours and every write is a 403. Keep them out of the local "unsynced/dirty" set entirely.
 
+### 6.10 Rating
+1. On the details screen of a dictionary **you imported**, call `GET …/{dictionaryId}/rating`. **404** means
+   not rated yet: show empty stars. **200** means show `stars` as selected.
+2. A tap on a star sends `PUT …/rating {"stars": n}`; tapping the selected star again may send `DELETE`.
+   Update the shown `ratingAverage`/`ratingCount` from the next listing fetch rather than computing it.
+3. Do not offer rating on a dictionary you have not imported, or on your own (the server answers 403/400).
+4. Online only, like import (§6.9). Do not queue a rating offline.
+
 ---
 
 ## 7. Error handling reference
@@ -640,7 +684,7 @@ show up — both are the rules, not bugs.
 
 | Missing | Status |
 |---|---|
-| Ratings, view counts | not designed |
+| View counts, written reviews | not designed |
 | Search by dictionary name or word text | not planned (filters are language pair, tag and publisher name) |
 | "Make my own editable copy" of an imported dictionary | not built — imports are references |
 | Automatic vault cleanup when a dictionary becomes unavailable | not built — clients handle it (§6.7) |

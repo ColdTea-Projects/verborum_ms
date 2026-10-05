@@ -1471,24 +1471,27 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
 > ms_marketplace — it already holds the import records, so "has this user imported it?" is a local
 > lookup, never a call to another service (rule 5).
 
-- [ ] `P4-19` **`dictionary_ratings` table + rating columns on `dictionary_stats`** (ms_marketplace)
+- [x] `P4-19` **`dictionary_ratings` table + rating columns on `dictionary_stats`** (ms_marketplace)
   - `dictionary_ratings`: `rating_id` (UUID), `fk_dictionary_id`, `fk_user_id` (rater = JWT sub), `stars`
     (SMALLINT, CHECK 1–5), `creation_dt`/`update_dt` (timestamptz); UNIQUE (`fk_dictionary_id`, `fk_user_id`).
   - `dictionary_stats` gains `rating_count` (INT, default 0), `rating_sum` (INT, default 0) and
     `rating_score` (NUMERIC, indexed) = Bayesian average `(rating_sum + C·m) / (rating_count + C)` with
     constants `m = 3`, `C = 5` (properties), so one 5-star vote cannot top the chart. Kept in the same
     transaction as every rating write.
-- [ ] `P4-20` **Rate endpoints** (ms_marketplace) — depends on P4-19
+- [x] `P4-20` **Rate endpoints** (ms_marketplace) — depends on P4-19
   - `PUT /marketplace/dictionaries/{id}/rating` `{ "stars": 1–5 }` → 201 (create or change; idempotent).
     `DELETE …/rating` → 200 (no-op when absent). `GET …/rating` → the caller's own `{stars, ratedAt}`, 404 if none.
   - Rules: Forum member (403 otherwise, the existing gate); listing must be listed (404 when hidden or
     deleted); must have imported it (a `dictionary_imports` row; else 403 "import it first"); never your own
     (400). Rater = token subject only.
-- [ ] `P4-21` **Ratings on listings + top-rated browse** (ms_marketplace) — depends on P4-19
+- [x] `P4-21` **Ratings on listings + top-rated browse** (ms_marketplace) — depends on P4-19
   - `DictionaryListingResponseDTO` gains `ratingAverage` (one decimal, `null` with no ratings) and
     `ratingCount`. New `GET /marketplace/dictionaries/top-rated` with the same filters and slice paging,
     ordered by `rating_score` desc, then `publishedAt` desc.
-- [ ] `P4-22` **Rating cascades + client contract** (ms_marketplace, docs) — depends on P4-20
+- [x] `P4-22` **Rating cascades + client contract** (ms_marketplace, docs) — depends on P4-20. **P4-19..P4-22 done 2026-10-05:**
+  174/174 marketplace tests (incl. `DictionaryRatingPersistenceTest` against Postgres); verified live — every rule, hide +
+  re-share keeps ratings, `user.deleted` corrects averages; dev seed now rates ~80% of imports. Deviation: dictionary
+  deletion removes ratings with the listing row (FK cascade at reconcile), like imports, not via its own event handler
   - `dictionary.deleted` → delete its ratings; `user.deleted` → delete that user's ratings and recompute the
     affected listings' counts (plus the listings of their own dictionaries go as today). Hiding keeps ratings.
     Leaving the Forum keeps the leaver's ratings; removing a vault entry does not revoke the right to rate

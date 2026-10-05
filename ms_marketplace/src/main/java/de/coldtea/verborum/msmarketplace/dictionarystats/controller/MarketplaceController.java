@@ -4,9 +4,13 @@ import de.coldtea.verborum.msmarketplace.common.response.Response;
 import de.coldtea.verborum.msmarketplace.common.response.SliceResponse;
 import de.coldtea.verborum.msmarketplace.common.utils.LanguagePair;
 import de.coldtea.verborum.msmarketplace.dictionaryimport.service.DictionaryImportService;
+import de.coldtea.verborum.msmarketplace.dictionaryrating.dto.RatingRequestDTO;
+import de.coldtea.verborum.msmarketplace.dictionaryrating.dto.RatingResponseDTO;
+import de.coldtea.verborum.msmarketplace.dictionaryrating.service.DictionaryRatingService;
 import de.coldtea.verborum.msmarketplace.dictionarystats.dto.DictionaryListingResponseDTO;
 import de.coldtea.verborum.msmarketplace.dictionarystats.dto.ListingFilter;
 import de.coldtea.verborum.msmarketplace.dictionarystats.service.DictionaryStatsService;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -14,9 +18,12 @@ import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -40,6 +47,8 @@ import static de.coldtea.verborum.msmarketplace.common.constants.DTOMessageConst
 import static de.coldtea.verborum.msmarketplace.common.constants.DTOMessageConstants.TOO_MANY_LANGUAGE_PAIRS;
 import static de.coldtea.verborum.msmarketplace.common.constants.DTOMessageConstants.TOO_MANY_TAGS;
 import static de.coldtea.verborum.msmarketplace.common.constants.ResponseMessageConstants.DICTIONARY_IMPORTED_SUCCESSFULLY;
+import static de.coldtea.verborum.msmarketplace.common.constants.ResponseMessageConstants.DICTIONARY_RATED_SUCCESSFULLY;
+import static de.coldtea.verborum.msmarketplace.common.constants.ResponseMessageConstants.RATING_REMOVED_SUCCESSFULLY;
 import static de.coldtea.verborum.msmarketplace.common.utils.ResponseUtils.buildResponse;
 import static de.coldtea.verborum.msmarketplace.common.utils.SecurityUtils.getCurrentUserId;
 
@@ -61,6 +70,8 @@ public class MarketplaceController {
     private final DictionaryStatsService dictionaryStatsService;
 
     private final DictionaryImportService dictionaryImportService;
+
+    private final DictionaryRatingService dictionaryRatingService;
 
     /**
      * Import a listed dictionary into the caller's vault (P4-07). The importer is the token subject,
@@ -109,6 +120,49 @@ public class MarketplaceController {
             @RequestParam(defaultValue = PAGE_SIZE_DEFAULT)
             @Min(value = 1, message = PAGE_SIZE_OUT_OF_RANGE) @Max(value = PAGE_SIZE_MAX, message = PAGE_SIZE_OUT_OF_RANGE) int size) {
         return new ResponseEntity<>(dictionaryStatsService.getPopularListings(new ListingFilter(pair, tag, publisher), page, size, getCurrentUserId()), HttpStatus.OK);
+    }
+
+    /**
+     * Best rated first (P4-21), with the same filters as {@link #getListings}. Ranked by a Bayesian
+     * average, so a listing needs several good ratings to rise; only listings someone has rated.
+     */
+    @GetMapping("/top-rated")
+    public ResponseEntity<SliceResponse<DictionaryListingResponseDTO>> getTopRatedListings(
+            @RequestParam(required = false)
+            @Size(max = LANGUAGE_PAIRS_MAX, message = TOO_MANY_LANGUAGE_PAIRS) List<@LanguagePair String> pair,
+            @RequestParam(required = false)
+            @Size(max = TAGS_MAX, message = TOO_MANY_TAGS)
+            List<@NotBlank(message = TAG_BLANK) @Size(max = TAG_MAX_LENGTH, message = TAG_TOO_LONG) String> tag,
+            @RequestParam(required = false)
+            @Size(min = PUBLISHER_NAME_MIN, max = PUBLISHER_NAME_MAX, message = PUBLISHER_NAME_LENGTH) String publisher,
+            @RequestParam(defaultValue = PAGE_DEFAULT) @Min(value = 0, message = PAGE_NEGATIVE) int page,
+            @RequestParam(defaultValue = PAGE_SIZE_DEFAULT)
+            @Min(value = 1, message = PAGE_SIZE_OUT_OF_RANGE) @Max(value = PAGE_SIZE_MAX, message = PAGE_SIZE_OUT_OF_RANGE) int size) {
+        return new ResponseEntity<>(dictionaryStatsService.getTopRatedListings(new ListingFilter(pair, tag, publisher), page, size, getCurrentUserId()), HttpStatus.OK);
+    }
+
+    /**
+     * Rate a listing 1–5 (P4-20), or change the caller's rating. Members only (403); listed (404); not
+     * your own (400); only after importing it (403). The rater is the token subject. Idempotent — 201.
+     */
+    @PutMapping("/{dictionaryId}/rating")
+    public ResponseEntity<Response> rateDictionary(@PathVariable String dictionaryId,
+                                                   @Valid @RequestBody RatingRequestDTO rating, WebRequest request) {
+        dictionaryRatingService.rateDictionary(dictionaryId, getCurrentUserId(), rating.getStars());
+        return buildResponse(HttpStatus.CREATED, DICTIONARY_RATED_SUCCESSFULLY, dictionaryId, request);
+    }
+
+    /** The caller's own rating of a listing (P4-20); 404 when they have not rated it. */
+    @GetMapping("/{dictionaryId}/rating")
+    public ResponseEntity<RatingResponseDTO> getMyRating(@PathVariable String dictionaryId) {
+        return new ResponseEntity<>(dictionaryRatingService.getMyRating(dictionaryId, getCurrentUserId()), HttpStatus.OK);
+    }
+
+    /** Withdraw the caller's rating (P4-20); 200 also when there was none. */
+    @DeleteMapping("/{dictionaryId}/rating")
+    public ResponseEntity<Response> removeRating(@PathVariable String dictionaryId, WebRequest request) {
+        dictionaryRatingService.removeRating(dictionaryId, getCurrentUserId());
+        return buildResponse(HttpStatus.OK, RATING_REMOVED_SUCCESSFULLY, dictionaryId, request);
     }
 
     /**
