@@ -48,6 +48,7 @@ deployed yet; the roadmap ("Security fixes (audit 2026-10-05)") tracks them.
 | **SEC-09 `POST /users/{id}/vault` removed** | Nothing; neither client calls it. Vault entries come only from `POST /marketplace/dictionaries/{id}/import` |
 | **SEC-13 account deletion needs a fresh login** (when built) | Before `DELETE /users/{id}`, start a login with `max_age=0` (or `prompt=login`), then delete with the new token |
 | **SEC-05 audience check** | Nothing; the audience mapper sits on the `verborum-app` client. Tokens issued before the switch fail once and refresh |
+| **SEC-01 word ids are pinned to their dictionary — live now** | `POST`/`PUT /words` answers 403 when an existing `wordId` is sent under a different `dictionaryId`. Clients never move words, so nothing should change; if this 403 shows up, a local row has the wrong `dictionaryId` |
 | **SEC-10 reserved display names — live now** | `PUT /users/me/profile-info` and `POST`/`PUT /users/` answer 400 `displayName contains a reserved word …` for names with `Verborum`, `admin`, `moderator`, `official` (and `support`, `team`, `staff`, … as words). Show the message on the profile/Join screen and keep the input. Duplicate names are allowed by design |
 | **`isPublic` handling** (being decided; see §4.1) | Wait for the backend decision before building the share toggle |
 

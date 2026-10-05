@@ -9,6 +9,9 @@ public final class ErrorMessageConstants {
     public static final String MEMBER_MUST_KEEP_ONE_SHARED =
             "A marketplace member must keep at least one dictionary shared; leave the marketplace to make all of them private";
     public static final String NOT_THE_OWNER = "This resource does not belong to the authenticated user";
+    // SEC-01: an existing wordId named under a different dictionary — never upserted across dictionaries
+    public static final String WORD_IN_ANOTHER_DICTIONARY =
+            "A word cannot be saved into a different dictionary than the one it belongs to";
     // Returned instead of an unhandled exception's own message, which would leak internals
     public static final String INTERNAL_SERVER_ERROR = "Internal server error";
 

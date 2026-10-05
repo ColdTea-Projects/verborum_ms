@@ -31,6 +31,7 @@ import java.util.stream.Stream;
 import static de.coldtea.verborum.msdictionary.common.config.RabbitMQConfig.ROUTING_KEY_WORD_CREATED;
 import static de.coldtea.verborum.msdictionary.common.constants.ErrorMessageConstants.DICTIONARY_WAS_NOT_FOUND_ID;
 import static de.coldtea.verborum.msdictionary.common.constants.ErrorMessageConstants.NOT_THE_OWNER;
+import static de.coldtea.verborum.msdictionary.common.constants.ErrorMessageConstants.WORD_IN_ANOTHER_DICTIONARY;
 import static de.coldtea.verborum.msdictionary.common.utils.DictionaryAccessUtils.isReadableBy;
 
 @Service
@@ -52,10 +53,22 @@ public class WordServiceImpl implements WordService {
         // saveWords() backs both POST and PUT, so work out which ids are genuinely new before the
         // save overwrites the evidence. Re-announcing an edited word as created would have
         // ms_autofil count the same translation twice (see P1-05 in roadmap.md)
-        Set<String> alreadyStored = wordRepository.findAllById(words.stream().map(Word::getWordId).toList())
+        Map<String, Word> alreadyStored = wordRepository.findAllById(words.stream().map(Word::getWordId).toList())
                 .stream()
-                .map(Word::getWordId)
-                .collect(Collectors.toSet());
+                .collect(Collectors.toMap(Word::getWordId, Function.identity()));
+
+        // SEC-01: convertToWordStream() proved the caller owns every *target* dictionary, but a wordId
+        // that already exists elsewhere would be upserted out of its own dictionary into the caller's —
+        // a takeover of someone else's word (public word ids are readable by every member since P4-10).
+        // An existing word must stay in the dictionary it is in; since that dictionary is the owned
+        // target, this is also the ownership check. Refused before anything is written
+        words.stream()
+                .filter(word -> alreadyStored.containsKey(word.getWordId()))
+                .filter(word -> !alreadyStored.get(word.getWordId()).getDictionaryId().equals(word.getDictionaryId()))
+                .findAny()
+                .ifPresent(word -> {
+                    throw new ForbiddenOperationException(WORD_IN_ANOTHER_DICTIONARY);
+                });
 
         wordRepository.saveAllAndFlush(words);
 
@@ -63,7 +76,7 @@ public class WordServiceImpl implements WordService {
         // exception later in this method can no longer leave events announcing words that were
         // rolled back
         publishWordCreatedEvents(words.stream()
-                .filter(word -> !alreadyStored.contains(word.getWordId()))
+                .filter(word -> !alreadyStored.containsKey(word.getWordId()))
                 .toList());
     }
 

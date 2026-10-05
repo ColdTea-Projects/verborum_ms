@@ -1446,6 +1446,54 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
     imports) or any of her listings in `/popular` and the DE-TR filter (43 of 53), Lukas sees hers but not
     his own; `/publisher/{anna}` still returns her 10.
   - Client guide: the "Yours" marking in browse lists is no longer needed.
+
+### Working order (decided 2026-10-05)
+> Phase 4 reopens for the two items below, interleaved with Phase 4S. Do them in this order — it
+> overrides "first `[ ]` wins" for Phases 4 and 4S only:
+> 1. `SEC-01` (critical) → 2. `P4-18` (unblocks client sharing) → 3. `P4-19`…`P4-22` (ratings — the
+> client teams are waiting on the contract) → 4. `SEC-04`, `SEC-09`, `SEC-07`, `SEC-05`, `SEC-02`, `SEC-14`,
+> `SEC-12` → 5. `SEC-06` (after the clients confirm single-flight refresh), `SEC-13`, `SEC-08` →
+> 6. Phase 5, with `SEC-03` and `SEC-11` before any non-local environment.
+
+- [ ] `P4-18` **`isPublic` optional on `PUT /dictionaries/`** (ms_dictionary) — found 2026-10-05
+  - Joining/leaving flips `isPublic` server-side (P4-16), and both clients' offline-first sync re-uploads
+    stale local copies with the old value — silently undoing the join/leave or hitting 400
+    `SharingRequiredException` (`docs/integration/dictionary-sharing-client-guide.md` §7 documents the race).
+  - Fix: `isPublic` becomes optional on `PUT` — **absent = unchanged**; present = an explicit user change,
+    still subject to the keep-one-shared rule. `POST` keeps requiring it. Backward compatible.
+  - Done when: a `PUT` without `isPublic` leaves the stored value; tests for both; sharing guide §4/§7 and
+    `client-findings-2026-10-05.md` §4.1 updated to "omit `isPublic` unless the user toggled it".
+
+### Ratings (requested 2026-10-05)
+> Decided with the product owner 2026-10-05: **only importers rate**, **1–5 stars, no text**, listings
+> show **average + count** and a new **top-rated** sort, ratings **survive hide/re-share**. Lives in
+> ms_marketplace — it already holds the import records, so "has this user imported it?" is a local
+> lookup, never a call to another service (rule 5).
+
+- [ ] `P4-19` **`dictionary_ratings` table + rating columns on `dictionary_stats`** (ms_marketplace)
+  - `dictionary_ratings`: `rating_id` (UUID), `fk_dictionary_id`, `fk_user_id` (rater = JWT sub), `stars`
+    (SMALLINT, CHECK 1–5), `creation_dt`/`update_dt` (timestamptz); UNIQUE (`fk_dictionary_id`, `fk_user_id`).
+  - `dictionary_stats` gains `rating_count` (INT, default 0), `rating_sum` (INT, default 0) and
+    `rating_score` (NUMERIC, indexed) = Bayesian average `(rating_sum + C·m) / (rating_count + C)` with
+    constants `m = 3`, `C = 5` (properties), so one 5-star vote cannot top the chart. Kept in the same
+    transaction as every rating write.
+- [ ] `P4-20` **Rate endpoints** (ms_marketplace) — depends on P4-19
+  - `PUT /marketplace/dictionaries/{id}/rating` `{ "stars": 1–5 }` → 201 (create or change; idempotent).
+    `DELETE …/rating` → 200 (no-op when absent). `GET …/rating` → the caller's own `{stars, ratedAt}`, 404 if none.
+  - Rules: Forum member (403 otherwise, the existing gate); listing must be listed (404 when hidden or
+    deleted); must have imported it (a `dictionary_imports` row; else 403 "import it first"); never your own
+    (400). Rater = token subject only.
+- [ ] `P4-21` **Ratings on listings + top-rated browse** (ms_marketplace) — depends on P4-19
+  - `DictionaryListingResponseDTO` gains `ratingAverage` (one decimal, `null` with no ratings) and
+    `ratingCount`. New `GET /marketplace/dictionaries/top-rated` with the same filters and slice paging,
+    ordered by `rating_score` desc, then `publishedAt` desc.
+- [ ] `P4-22` **Rating cascades + client contract** (ms_marketplace, docs) — depends on P4-20
+  - `dictionary.deleted` → delete its ratings; `user.deleted` → delete that user's ratings and recompute the
+    affected listings' counts (plus the listings of their own dictionaries go as today). Hiding keeps ratings.
+    Leaving the Forum keeps the leaver's ratings; removing a vault entry does not revoke the right to rate
+    (the import record stays — documented trade-off).
+  - `marketplace-client-guide.md` gains the rating endpoints and fields; `client-findings-2026-10-05.md`
+    points the client agents at it; dev seed gains ratings so the clients can test with dummy data.
 ---
 
 ## Phase 4S — Security fixes (audit 2026-10-05)
@@ -1454,7 +1502,7 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
 > `SEC-xx` id — read that section before starting. Client-side follow-ups are in
 > `docs/integration/client-findings-2026-10-05.md`; the client teams own those.
 
-- [ ] `SEC-01` **Word takeover via `POST`/`PUT /words`** (ms_dictionary) — **critical, do first**
+- [x] `SEC-01` **Word takeover via `POST`/`PUT /words`** (ms_dictionary) — **critical**, done 2026-10-05; 142/142 tests, verified live
   - `WordServiceImpl.saveWords` must refuse (403) an existing `wordId` whose dictionary the caller does not
     own, before anything is saved. Unit + web-slice regression tests.
 - [ ] `SEC-02` **Bind local infrastructure to loopback; LAN exposure opt-in** (docker-compose, ops docs)

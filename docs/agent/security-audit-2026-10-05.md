@@ -18,7 +18,7 @@ regression test exists where one is named.
 
 | Id | Severity | Area | One line |
 |---|---|---|---|
-| SEC-01 | **Critical** | ms_dictionary | Any user can overwrite and take over anyone's word by `wordId` |
+| SEC-01 | **Critical** — **fixed** | ms_dictionary | Any user could overwrite and take over anyone's word by `wordId` |
 | SEC-02 | **High** | compose | All infrastructure listens on every network interface with default credentials |
 | SEC-03 | **High** (before prod) | RabbitMQ | Every service shares one broker user; whoever holds it can forge `user.deleted` |
 | SEC-04 | Medium | ms_user | The profile e-mail comes from the request body, so it can be squatted |
@@ -35,7 +35,13 @@ regression test exists where one is named.
 
 ---
 
-## SEC-01 — Word takeover through `POST`/`PUT /words` (Critical, verified)
+## SEC-01 — Word takeover through `POST`/`PUT /words` (Critical, verified) — **FIXED 2026-10-05**
+
+**Status:** fixed in `WordServiceImpl.saveWords`. A `wordId` that already exists under a different
+dictionary is refused with 403 `WORD_IN_ANOTHER_DICTIONARY` before anything is saved. That includes
+moving a word between two of the caller's own dictionaries, which no client does. Two regression
+tests are in `WordServiceImplTest`, and the 403 mapping is covered by the web slice. **Verified live:** the probe
+below now gets 403, and the victim's word count is unchanged.
 
 **What:** `WordServiceImpl.saveWords` (`ms_dictionary/.../word/service/impl/WordServiceImpl.java`,
 around line 49) checks that the caller owns the **target** dictionary named in each bundle. It never

@@ -109,6 +109,9 @@ Full CRUD for **Dictionaries** and **Words** — the core vocabulary store.
   for marketplace browse and the later AI aggregation, so `Food`/`food `/`FOOD` must be one tag. If a
   client ever needs the original casing for display, that is a new column, not a change here.
 - Adding a tag is idempotent (`UNIQUE (fk_dictionary_id, tag)`); re-adding returns the existing row.
+- **A word never changes dictionary (SEC-01).** `saveWords` refuses (403 `WORD_IN_ANOTHER_DICTIONARY`) an
+  existing `wordId` sent under a different `dictionaryId`. Before the fix the upsert moved — took over —
+  another user's word into the caller's dictionary. Keep the check ahead of `saveAllAndFlush`.
 - Tags follow their dictionary's ownership rules: writes on someone else's dictionary 403, reads 404
   unless the dictionary is public (P4-10).
 - Authorization (P3-05/P3-08): services take an explicit `ownerId` — the token subject, passed in by

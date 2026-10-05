@@ -150,6 +150,40 @@ class WordServiceImplTest {
         assertEquals("brandNew", ((WordCreatedEvent) raised.get(0).payload()).getWordId());
     }
 
+    @Test
+    void saveWords_ExistingWordOfAnotherUsersDictionary_ThrowsForbiddenAndSavesNothing() {
+        // SEC-01: the caller owns the target dictionary, but the wordId belongs to a word in someone
+        // else's — the upsert would move it out of the victim's dictionary into the caller's
+        // Arrange
+        String ownDictionaryId = "own";
+        List<WordBundleRequestDTO> wordBundles = List.of(new WordBundleRequestDTO(ownDictionaryId, List.of(new WordRequestDTO())));
+
+        when(dictionaryRepository.findById(ownDictionaryId)).thenReturn(Optional.of(dictionary(ownDictionaryId)));
+        when(wordMapper.toWord(eq(ownDictionaryId), any(WordRequestDTO.class))).thenReturn(word("victimWord", ownDictionaryId));
+        when(wordRepository.findAllById(List.of("victimWord"))).thenReturn(List.of(word("victimWord", "victimsDictionary")));
+
+        // Act & Assert
+        assertThrows(ForbiddenOperationException.class, () -> wordService.saveWords(wordBundles, OWNER));
+        verify(wordRepository, never()).saveAllAndFlush(any());
+        verifyNoInteractions(eventPublisher);
+    }
+
+    @Test
+    void saveWords_ExistingWordMovedBetweenOwnDictionaries_ThrowsForbidden() {
+        // A word keeps its dictionary even between two of the caller's own — nothing announces a move,
+        // and the check cannot tell the two cases apart without a second ownership lookup
+        // Arrange
+        List<WordBundleRequestDTO> wordBundles = List.of(new WordBundleRequestDTO("ownB", List.of(new WordRequestDTO())));
+
+        when(dictionaryRepository.findById("ownB")).thenReturn(Optional.of(dictionary("ownB")));
+        when(wordMapper.toWord(eq("ownB"), any(WordRequestDTO.class))).thenReturn(word("myWord", "ownB"));
+        when(wordRepository.findAllById(List.of("myWord"))).thenReturn(List.of(word("myWord", "ownA")));
+
+        // Act & Assert
+        assertThrows(ForbiddenOperationException.class, () -> wordService.saveWords(wordBundles, OWNER));
+        verify(wordRepository, never()).saveAllAndFlush(any());
+    }
+
     /**
      * The service raises OutboundEvents; OutboundEventPublisher sends them after commit (rule 1),
      * so these tests assert on what was raised rather than on RabbitTemplate.
