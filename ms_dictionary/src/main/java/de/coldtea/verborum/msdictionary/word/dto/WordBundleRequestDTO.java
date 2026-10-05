@@ -4,6 +4,7 @@ import de.coldtea.verborum.msdictionary.common.utils.ValidUUID;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.Size;
 import lombok.*;
 
 import java.util.List;
@@ -23,5 +24,6 @@ public class WordBundleRequestDTO {
 
     @Valid
     @NotEmpty(message = WORD_WORD_LIST)
+    @Size(max = WORDS_PER_BUNDLE_MAX, message = TOO_MANY_WORDS_IN_BUNDLE)
     private List<WordRequestDTO> words;
 }

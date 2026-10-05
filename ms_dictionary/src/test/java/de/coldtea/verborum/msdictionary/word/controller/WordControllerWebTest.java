@@ -20,6 +20,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static java.util.Collections.nCopies;
+import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -149,5 +151,56 @@ class WordControllerWebTest {
                         .content(twoBundles))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.message").value("Updated successfully into dictionary " + DICTIONARY_ID));
+    }
+
+    // ---- SEC-07: collection limits ----
+
+    @Test
+    void createWords_TooManyBundles_Is400AndNeverReachesTheService() throws Exception {
+        String oneBundle = bundle(WORD_ID, "Haus").trim();
+        String bundles = "[" + String.join(",", nCopies(6, oneBundle.substring(1, oneBundle.length() - 1))) + "]";
+
+        mockMvc.perform(post("/words").with(jwt().jwt(j -> j.subject(SUB)))
+                        .contentType(MediaType.APPLICATION_JSON).content(bundles))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorDetail").value(containsString("at most 5 bundles per request")));
+
+        verifyNoInteractions(wordService);
+    }
+
+    @Test
+    void createWords_TooManyWordsInABundle_Is400AndNeverReachesTheService() throws Exception {
+        String word = """
+                {"wordId":"%s","word":"w","wordMeta":"{}","translation":"t","translationMeta":"{}"}""".formatted(WORD_ID);
+        String body = "[{\"dictionaryId\":\"%s\",\"words\":[%s]}]"
+                .formatted(DICTIONARY_ID, String.join(",", nCopies(501, word)));
+
+        mockMvc.perform(post("/words").with(jwt().jwt(j -> j.subject(SUB)))
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorDetail").value(containsString("at most 500 words per bundle")));
+
+        verifyNoInteractions(wordService);
+    }
+
+    @Test
+    void getWordsByIds_TooManyIds_Is400AndNeverReachesTheService() throws Exception {
+        String ids = String.join(",", nCopies(101, WORD_ID));
+
+        mockMvc.perform(get("/words/batch").param("ids", ids).with(jwt().jwt(j -> j.subject(SUB))))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorDetail").value(containsString("at most 100 ids per request")));
+
+        verifyNoInteractions(wordService);
+    }
+
+    @Test
+    void createWords_BodyOverTheLimit_Is413() throws Exception {
+        // RequestBodyLimitFilter is a @Component, so the web slice runs it; 2 MB + 1 from application.properties
+        mockMvc.perform(post("/words").with(jwt().jwt(j -> j.subject(SUB)))
+                        .contentType(MediaType.APPLICATION_JSON).content(new byte[2 * 1024 * 1024 + 1]))
+                .andExpect(status().isPayloadTooLarge());
+
+        verifyNoInteractions(wordService);
     }
 }

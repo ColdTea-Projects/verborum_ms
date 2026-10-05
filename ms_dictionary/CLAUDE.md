@@ -109,6 +109,10 @@ Full CRUD for **Dictionaries** and **Words** — the core vocabulary store.
   for marketplace browse and the later AI aggregation, so `Food`/`food `/`FOOD` must be one tag. If a
   client ever needs the original casing for display, that is a new column, not a change here.
 - Adding a tag is idempotent (`UNIQUE (fk_dictionary_id, tag)`); re-adding returns the existing row.
+- **Request limits (SEC-07):** 5 bundles × 500 words per `POST`/`PUT /words`, 100 batch ids (`@Size`, constants in
+  `DTOMessageConstants`); quotas 1,000 dictionaries/account and 5,000 words/dictionary on new rows only
+  (`QuotaExceededException` → 400); `common/config/RequestBodyLimitFilter` caps bodies at 2 MB (413) and refuses
+  chunked bodies (411) — it answers itself, because `/error` is behind the security chain.
 - **A word never changes dictionary (SEC-01).** `saveWords` refuses (403 `WORD_IN_ANOTHER_DICTIONARY`) an
   existing `wordId` sent under a different `dictionaryId`. Before the fix the upsert moved — took over —
   another user's word into the caller's dictionary. Keep the check ahead of `saveAllAndFlush`.

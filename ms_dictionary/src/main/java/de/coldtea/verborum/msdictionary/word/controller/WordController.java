@@ -9,6 +9,7 @@ import de.coldtea.verborum.msdictionary.word.dto.WordRequestDTO;
 import de.coldtea.verborum.msdictionary.word.dto.WordResponseDTO;
 import de.coldtea.verborum.msdictionary.word.service.WordService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -17,6 +18,10 @@ import org.springframework.web.context.request.WebRequest;
 
 import java.util.List;
 
+import static de.coldtea.verborum.msdictionary.common.constants.DTOMessageConstants.BATCH_IDS_MAX;
+import static de.coldtea.verborum.msdictionary.common.constants.DTOMessageConstants.TOO_MANY_IDS;
+import static de.coldtea.verborum.msdictionary.common.constants.DTOMessageConstants.TOO_MANY_WORD_BUNDLES;
+import static de.coldtea.verborum.msdictionary.common.constants.DTOMessageConstants.WORD_BUNDLES_MAX;
 import static de.coldtea.verborum.msdictionary.common.constants.ResponseMessageConstants.*;
 import static de.coldtea.verborum.msdictionary.common.utils.ResponseUtils.getDictionaryIds;
 import static de.coldtea.verborum.msdictionary.common.utils.SecurityUtils.getCurrentUserId;
@@ -30,14 +35,16 @@ public class WordController {
     private final WordService wordService;
 
     @PostMapping("")
-    public ResponseEntity<Response> createWords(@Valid @RequestBody List<WordBundleRequestDTO> bundles, WebRequest request) {
+    public ResponseEntity<Response> createWords(@Valid @RequestBody @Size(max = WORD_BUNDLES_MAX, message = TOO_MANY_WORD_BUNDLES) List<WordBundleRequestDTO> bundles,
+                                                WebRequest request) {
         wordService.saveWords(bundles, getCurrentUserId());
 
         return ResponseUtils.buildResponse(HttpStatus.CREATED, WORD_SAVED_SUCCESSFULLY, getDictionaryIds(bundles), request);
     }
 
     @PutMapping("")
-    public ResponseEntity<Response> updateWords(@Valid @RequestBody List<WordBundleRequestDTO> bundles, WebRequest request) {
+    public ResponseEntity<Response> updateWords(@Valid @RequestBody @Size(max = WORD_BUNDLES_MAX, message = TOO_MANY_WORD_BUNDLES) List<WordBundleRequestDTO> bundles,
+                                                WebRequest request) {
         wordService.saveWords(bundles, getCurrentUserId());
 
         return ResponseUtils.buildResponse(HttpStatus.CREATED, WORD_UPDATED_SUCCESSFULLY, getDictionaryIds(bundles), request);
@@ -84,7 +91,7 @@ public class WordController {
     }
 
     @GetMapping("/batch")
-    public List<WordResponseDTO> getWordsByIds(@RequestParam List<String> ids) {
+    public List<WordResponseDTO> getWordsByIds(@RequestParam @Size(max = BATCH_IDS_MAX, message = TOO_MANY_IDS) List<String> ids) {
         return wordService.getWordsByIds(ids, getCurrentUserId());
     }
 }

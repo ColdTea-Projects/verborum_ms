@@ -5,6 +5,7 @@ import de.coldtea.verborum.msdictionary.dictionary.service.DictionaryService;
 import de.coldtea.verborum.msdictionary.dictionary.dto.DictionaryRequestDTO;
 import de.coldtea.verborum.msdictionary.dictionary.dto.DictionaryResponseDTO;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -13,6 +14,8 @@ import org.springframework.web.context.request.WebRequest;
 
 import java.util.List;
 
+import static de.coldtea.verborum.msdictionary.common.constants.DTOMessageConstants.BATCH_IDS_MAX;
+import static de.coldtea.verborum.msdictionary.common.constants.DTOMessageConstants.TOO_MANY_IDS;
 import static de.coldtea.verborum.msdictionary.common.constants.ResponseMessageConstants.*;
 import static de.coldtea.verborum.msdictionary.common.utils.ResponseUtils.buildResponse;
 import static de.coldtea.verborum.msdictionary.common.utils.SecurityUtils.getCurrentUserId;
@@ -62,7 +65,7 @@ public class DictionaryController {
     }
 
     @GetMapping("/batch")
-    public ResponseEntity<List<DictionaryResponseDTO>> getDictionariesByIds(@RequestParam List<String> ids) {
+    public ResponseEntity<List<DictionaryResponseDTO>> getDictionariesByIds(@RequestParam @Size(max = BATCH_IDS_MAX, message = TOO_MANY_IDS) List<String> ids) {
         return new ResponseEntity<>(dictionaryService.getDictionariesByIds(ids, getCurrentUserId()), HttpStatus.OK);
     }
 

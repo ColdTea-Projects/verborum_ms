@@ -14,4 +14,7 @@ public interface WordRepository extends JpaRepository<Word, String> {
     void deleteWordsByDictionaryId(String dictionaryId);
     List<Word> findByDictionaryIdIn(List<String> dictionaryId);
 
+    // SEC-07: the per-dictionary word quota
+    long countByDictionaryId(String dictionaryId);
+
 }

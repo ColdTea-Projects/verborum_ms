@@ -3,6 +3,7 @@ package de.coldtea.verborum.msdictionary.word.service.impl;
 import de.coldtea.verborum.msdictionary.common.event.OutboundEvent;
 import de.coldtea.verborum.msdictionary.common.event.WordCreatedEvent;
 import de.coldtea.verborum.msdictionary.common.exception.ForbiddenOperationException;
+import de.coldtea.verborum.msdictionary.common.exception.QuotaExceededException;
 import de.coldtea.verborum.msdictionary.common.exception.RecordNotFoundException;
 import de.coldtea.verborum.msdictionary.common.mapper.WordMapper;
 import de.coldtea.verborum.msdictionary.dictionary.entity.Dictionary;
@@ -641,5 +642,40 @@ class WordServiceImplTest {
                 .translation("Haus")
                 .build();
     }
-}
 
+    // ---- SEC-07: per-dictionary word quota ----
+
+    @Test
+    void saveWords_NewWordOverTheQuota_ThrowsAndSavesNothing() {
+        // Arrange
+        String dictionaryId = "1";
+        List<WordBundleRequestDTO> wordBundles = List.of(new WordBundleRequestDTO(dictionaryId, List.of(new WordRequestDTO())));
+        when(dictionaryRepository.findById(dictionaryId)).thenReturn(Optional.of(dictionary(dictionaryId)));
+        when(wordMapper.toWord(eq(dictionaryId), any(WordRequestDTO.class))).thenReturn(word("new", dictionaryId));
+        when(wordRepository.findAllById(List.of("new"))).thenReturn(List.of());
+        when(wordRepository.countByDictionaryId(dictionaryId)).thenReturn(5000L);
+
+        // Act & Assert
+        assertThrows(QuotaExceededException.class, () -> wordService.saveWords(wordBundles, OWNER));
+        verify(wordRepository, never()).saveAllAndFlush(any());
+        verifyNoInteractions(eventPublisher);
+    }
+
+    @Test
+    void saveWords_EditAtTheQuota_IsNotCounted() {
+        // Arrange — a full dictionary can still have its words edited
+        String dictionaryId = "1";
+        List<WordBundleRequestDTO> wordBundles = List.of(new WordBundleRequestDTO(dictionaryId, List.of(new WordRequestDTO())));
+        when(dictionaryRepository.findById(dictionaryId)).thenReturn(Optional.of(dictionary(dictionaryId)));
+        when(wordMapper.toWord(eq(dictionaryId), any(WordRequestDTO.class))).thenReturn(word("stored", dictionaryId));
+        when(wordRepository.findAllById(List.of("stored"))).thenReturn(List.of(word("stored", dictionaryId)));
+        when(wordRepository.countByDictionaryId(dictionaryId)).thenReturn(5000L);
+
+        // Act
+        wordService.saveWords(wordBundles, OWNER);
+
+        // Assert
+        verify(wordRepository).saveAllAndFlush(any());
+        verify(wordRepository, never()).countByDictionaryId(any());
+    }
+}

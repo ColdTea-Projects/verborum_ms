@@ -7,6 +7,7 @@ import de.coldtea.verborum.msdictionary.common.event.DictionaryUpdatedEvent;
 import de.coldtea.verborum.msdictionary.common.event.DictionaryVisibilityEvent;
 import de.coldtea.verborum.msdictionary.common.event.OutboundEvent;
 import de.coldtea.verborum.msdictionary.common.exception.ForbiddenOperationException;
+import de.coldtea.verborum.msdictionary.common.exception.QuotaExceededException;
 import de.coldtea.verborum.msdictionary.common.exception.RecordNotFoundException;
 import de.coldtea.verborum.msdictionary.common.exception.SharingRequiredException;
 import de.coldtea.verborum.msdictionary.common.mapper.DictionaryMapper;
@@ -38,6 +39,8 @@ import static de.coldtea.verborum.msdictionary.common.config.RabbitMQConfig.ROUT
 import static de.coldtea.verborum.msdictionary.common.constants.ErrorMessageConstants.DICTIONARY_WAS_NOT_FOUND_ID;
 import static de.coldtea.verborum.msdictionary.common.constants.ErrorMessageConstants.MEMBER_MUST_KEEP_ONE_SHARED;
 import static de.coldtea.verborum.msdictionary.common.constants.ErrorMessageConstants.NOT_THE_OWNER;
+import static de.coldtea.verborum.msdictionary.common.constants.ErrorMessageConstants.DICTIONARY_QUOTA_EXCEEDED;
+import static de.coldtea.verborum.msdictionary.common.constants.DTOMessageConstants.DICTIONARIES_PER_USER_MAX;
 import static de.coldtea.verborum.msdictionary.common.utils.DictionaryAccessUtils.isReadableBy;
 
 @Service
@@ -77,6 +80,11 @@ public class DictionaryServiceImpl implements DictionaryService {
         // authenticated caller could POST someone else's dictionaryId and take the row over
         if (existing.isPresent() && !ownerId.equals(existing.get().getUserId())) {
             throw new ForbiddenOperationException(NOT_THE_OWNER);
+        }
+
+        // SEC-07: a new dictionary may not take the account past its quota; an edit never trips it
+        if (existing.isEmpty() && dictionaryRepository.countByUserId(ownerId) >= DICTIONARIES_PER_USER_MAX) {
+            throw new QuotaExceededException(DICTIONARY_QUOTA_EXCEEDED);
         }
 
         // P4-16: a member who has dictionaries keeps at least one shared. Only a change that takes

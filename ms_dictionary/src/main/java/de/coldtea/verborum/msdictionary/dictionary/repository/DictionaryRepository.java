@@ -27,4 +27,7 @@ public interface DictionaryRepository extends JpaRepository<Dictionary, String> 
     long countByUserIdAndDictionaryIdNot(String userId, String dictionaryId);
 
     long countByUserIdAndIsPublicTrueAndDictionaryIdNot(String userId, String dictionaryId);
+
+    // SEC-07: the per-account dictionary quota
+    long countByUserId(String userId);
 }

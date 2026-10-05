@@ -2,6 +2,7 @@ package de.coldtea.verborum.msdictionary.dictionary.service.impl;
 
 import de.coldtea.verborum.msdictionary.common.exception.ForbiddenOperationException;
 import de.coldtea.verborum.msdictionary.common.exception.RecordNotFoundException;
+import de.coldtea.verborum.msdictionary.common.exception.QuotaExceededException;
 import de.coldtea.verborum.msdictionary.common.mapper.DictionaryMapper;
 import de.coldtea.verborum.msdictionary.dictionary.dto.DictionaryRequestDTO;
 import de.coldtea.verborum.msdictionary.dictionary.dto.DictionaryResponseDTO;
@@ -1142,5 +1143,38 @@ class DictionaryServiceImplTest {
     private void givenAMember() {
         when(marketplaceMemberRepository.existsByKeycloakIdAndIsMemberTrue(OWNER)).thenReturn(true);
     }
-}
 
+    // ---- SEC-07: per-account dictionary quota ----
+
+    @Test
+    void saveDictionary_NewDictionaryOverTheQuota_ThrowsAndSavesNothing() {
+        // Arrange
+        DictionaryRequestDTO requestDTO = requestDTO("brand-new");
+        when(dictionaryRepository.findById("brand-new")).thenReturn(Optional.empty());
+        when(dictionaryRepository.countByUserId(OWNER)).thenReturn(1000L);
+
+        // Act & Assert
+        assertThrows(QuotaExceededException.class, () -> dictionaryService.saveDictionary(requestDTO, OWNER));
+        verify(dictionaryRepository, never()).saveAndFlush(any());
+        verifyNoInteractions(eventPublisher);
+    }
+
+    @Test
+    void saveDictionary_EditAtTheQuota_IsNotCounted() {
+        // Arrange — the account is full, but renaming an existing dictionary adds nothing
+        DictionaryRequestDTO requestDTO = requestDTO("existing");
+        requestDTO.setIsPublic(false);
+        Dictionary existing = dictionary("existing", false);
+        when(dictionaryRepository.findById("existing")).thenReturn(Optional.of(existing));
+        when(dictionaryRepository.countByUserId(OWNER)).thenReturn(1000L);
+        when(dictionaryMapper.toDictionary(requestDTO)).thenReturn(existing);
+        when(dictionaryRepository.saveAndFlush(existing)).thenReturn(existing);
+
+        // Act
+        dictionaryService.saveDictionary(requestDTO, OWNER);
+
+        // Assert
+        verify(dictionaryRepository).saveAndFlush(existing);
+        verify(dictionaryRepository, never()).countByUserId(any());
+    }
+}

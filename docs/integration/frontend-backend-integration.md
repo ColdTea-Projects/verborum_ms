@@ -135,6 +135,11 @@ backend (BE task P3-05).
 `POST /marketplace/dictionaries/{id}/import`. Full client guide — endpoints, flows, security rules and
 per-platform notes: `docs/integration/marketplace-client-guide.md`.
 
+**Request limits (SEC-07, since 2026-10-05):** `POST`/`PUT /words` takes at most 5 bundles of at most 500 words;
+batch reads take at most 100 ids (400 otherwise). An account holds at most 1,000 dictionaries and a dictionary
+at most 5,000 words (400 `QuotaExceededException` on the create that would exceed it). Any request body is at
+most 2 MB (413) and must declare `Content-Length` (411 for chunked). A wrong HTTP method is 405.
+
 **ms_autofil — BE Phase 6 (V2):** `GET /autofil?word=…&from=…&to=…` → ranked community
 translations.
 

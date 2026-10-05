@@ -3,6 +3,7 @@ package de.coldtea.verborum.msdictionary.word.service.impl;
 import de.coldtea.verborum.msdictionary.common.event.OutboundEvent;
 import de.coldtea.verborum.msdictionary.common.event.WordCreatedEvent;
 import de.coldtea.verborum.msdictionary.common.exception.ForbiddenOperationException;
+import de.coldtea.verborum.msdictionary.common.exception.QuotaExceededException;
 import de.coldtea.verborum.msdictionary.common.exception.RecordNotFoundException;
 import de.coldtea.verborum.msdictionary.common.mapper.WordMapper;
 import de.coldtea.verborum.msdictionary.common.utils.ListUtils;
@@ -32,6 +33,8 @@ import static de.coldtea.verborum.msdictionary.common.config.RabbitMQConfig.ROUT
 import static de.coldtea.verborum.msdictionary.common.constants.ErrorMessageConstants.DICTIONARY_WAS_NOT_FOUND_ID;
 import static de.coldtea.verborum.msdictionary.common.constants.ErrorMessageConstants.NOT_THE_OWNER;
 import static de.coldtea.verborum.msdictionary.common.constants.ErrorMessageConstants.WORD_IN_ANOTHER_DICTIONARY;
+import static de.coldtea.verborum.msdictionary.common.constants.ErrorMessageConstants.WORD_QUOTA_EXCEEDED;
+import static de.coldtea.verborum.msdictionary.common.constants.DTOMessageConstants.WORDS_PER_DICTIONARY_MAX;
 import static de.coldtea.verborum.msdictionary.common.utils.DictionaryAccessUtils.isReadableBy;
 
 @Service
@@ -70,6 +73,8 @@ public class WordServiceImpl implements WordService {
                     throw new ForbiddenOperationException(WORD_IN_ANOTHER_DICTIONARY);
                 });
 
+        requireWordQuota(words, alreadyStored.keySet());
+
         wordRepository.saveAllAndFlush(words);
 
         // Raising these only queues them; OutboundEventPublisher sends after commit (rule 1), so an
@@ -78,6 +83,22 @@ public class WordServiceImpl implements WordService {
         publishWordCreatedEvents(words.stream()
                 .filter(word -> !alreadyStored.containsKey(word.getWordId()))
                 .toList());
+    }
+
+    /**
+     * SEC-07: only new words count — an edit of a stored word never trips the quota. One count query
+     * per target dictionary, and a request carries at most WORD_BUNDLES_MAX of them.
+     */
+    private void requireWordQuota(List<Word> words, Set<String> storedWordIds) {
+        Map<String, Long> newWordsByDictionary = words.stream()
+                .filter(word -> !storedWordIds.contains(word.getWordId()))
+                .collect(Collectors.groupingBy(Word::getDictionaryId, Collectors.counting()));
+
+        newWordsByDictionary.forEach((dictionaryId, newWords) -> {
+            if (wordRepository.countByDictionaryId(dictionaryId) + newWords > WORDS_PER_DICTIONARY_MAX) {
+                throw new QuotaExceededException(WORD_QUOTA_EXCEEDED);
+            }
+        });
     }
 
     private void publishWordCreatedEvents(List<Word> createdWords) {

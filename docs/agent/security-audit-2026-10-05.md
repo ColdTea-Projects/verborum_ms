@@ -24,7 +24,7 @@ regression test exists where one is named.
 | SEC-04 | Medium — **fixed** | ms_user | The profile e-mail came from the request body, so it could be squatted |
 | SEC-05 | Medium | all services | No audience check: a token from any realm client is accepted |
 | SEC-06 | Medium | Keycloak | Refresh tokens can be reused, and offline sessions never expire |
-| SEC-07 | Medium | ms_dictionary | No limit on request collection sizes, and no per-user quotas |
+| SEC-07 | Medium — **fixed** | ms_dictionary | No limit on request collection sizes, and no per-user quotas |
 | SEC-08 | Medium | build | Spring Boot 3.2.2 and Keycloak 23.0.0 are past end of support |
 | SEC-09 | Low–Medium — **fixed** | ms_user | `POST /users/{id}/vault` bypassed the marketplace and the Forum gate |
 | SEC-10 | Low — **done** | ms_user | Reserved words (Verborum, admin, …) blocked in display names; names stay non-unique by design |
@@ -227,6 +227,19 @@ clients request `offline_access`.
 ---
 
 ## SEC-07 — No size limits on collections or totals (Medium, verified)
+
+**Status — FIXED 2026-10-05.** Both clients upload one word per request and never call the batch
+reads, so the limits are tight without touching them:
+- **Collections:** at most 5 bundles per request, 500 words per bundle, 100 ids per batch read. Each is a
+  400 that names the field.
+- **Quotas:** 1,000 dictionaries per account and 5,000 words per dictionary, counted on new rows only.
+  Over the quota is 400 `QuotaExceededException`.
+- **Body size:** `RequestBodyLimitFilter`, in ms_dictionary and ms_user, refuses a body over
+  `verborum.request.max-body-bytes` (`MAX_REQUEST_BODY_BYTES`, default 2 MB) with 413 before Jackson
+  reads it, and a chunked body with no `Content-Length` with 411.
+
+Suites: ms_dictionary 155, ms_user 139. **Verified live:** 501 words → 400; 2.2 MB → 413 in 17 ms;
+chunked → 411; one word → 201. Rate limiting is still open; that is `P5-04` at the gateway.
 
 **What:** fields have `@Size` limits (P3-07), but the lists have none: `POST /words` (bundles × words),
 `GET /dictionaries/batch` and `GET /words/batch` (a batch of 300 ids was rejected by Tomcat's URL

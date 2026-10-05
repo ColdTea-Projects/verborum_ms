@@ -29,6 +29,18 @@ public final class DTOMessageConstants {
     // reaches Postgres and fails as a 500 instead of a 400 naming the field.
     public static final int DICTIONARY_NAME_MAX = 255;
 
+    // SEC-07: collection sizes. The field limits above bound one word; nothing bounded how many came
+    // at once — 5,000 words in one POST /words held a request thread for 14 s. Both clients send one
+    // word per request and never call the batch reads, so these are far above any real use.
+    public static final int WORD_BUNDLES_MAX = 5;
+    public static final int WORDS_PER_BUNDLE_MAX = 500;
+    public static final int BATCH_IDS_MAX = 100;
+
+    // SEC-07: per-owner totals, checked when something new is created (an edit never trips them).
+    // Generous for a personal vocabulary; they exist so one account cannot grow the database unbounded.
+    public static final int DICTIONARIES_PER_USER_MAX = 1000;
+    public static final int WORDS_PER_DICTIONARY_MAX = 5000;
+
     //Word DTOs
     public static final String WORD_WORD_ID = "wordId is mandatory";
     public static final String WORD_DICTIONARY_ID = "dictionaryId is mandatory";
@@ -42,6 +54,9 @@ public final class DTOMessageConstants {
     public static final String WORD_WORD_META_TOO_LONG = "wordMeta must not exceed " + WORD_META_MAX + " characters";
     public static final String WORD_WORD_TRANSLATION_META_TOO_LONG = "translationMeta must not exceed " + WORD_META_MAX + " characters";
     public static final String WORD_LEVEL_OUT_OF_RANGE = "level must be between " + WORD_LEVEL_MIN + " and " + WORD_LEVEL_MAX;
+    public static final String TOO_MANY_WORD_BUNDLES = "at most " + WORD_BUNDLES_MAX + " bundles per request";
+    public static final String TOO_MANY_WORDS_IN_BUNDLE = "at most " + WORDS_PER_BUNDLE_MAX + " words per bundle";
+    public static final String TOO_MANY_IDS = "at most " + BATCH_IDS_MAX + " ids per request";
 
     //Dictionary DTOs
     public static final String DICTIONARY_DICTIONARY_ID = "dictionaryId is mandatory";
