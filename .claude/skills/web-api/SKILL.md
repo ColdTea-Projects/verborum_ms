@@ -86,7 +86,7 @@ reason a change ships broken, are the last three: tests, the API contract table 
 
 `springdoc-openapi-starter-webmvc-ui`. Swagger UI at `/swagger-ui.html`, spec at `/v3/api-docs`,
 both `permitAll` in `SecurityConfig`. Nothing is annotated by hand — the spec comes from the
-signatures.
+signatures. Both are switched by `SWAGGER_ENABLED` (SEC-12): on locally, `false` outside local development.
 
 ## Pitfalls
 

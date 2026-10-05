@@ -1519,7 +1519,8 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
   confirming single-flight refresh (client findings §1)
 - [x] `SEC-10` **Reserved display names** (ms_user) — done 2026-10-05. Names stay non-unique by product decision;
   reserved words are refused with 400 (`DisplayNameUtils`). 135/135 ms_user tests; verified live
-- [ ] `SEC-12` **Swagger off outside local** (all services)
+- [x] `SEC-12` **Swagger off outside local** (all services) — done 2026-10-05 (`SWAGGER_ENABLED`); stable error codes
+  instead of exception class names deferred, since it is a client contract change
 - [ ] `SEC-13` **Fresh login required for account deletion** (ms_user + clients)
 - [ ] `SEC-08` **Dependency audit in the build; plan Boot 3.4/3.5 + Keycloak 26 upgrade**
 - [ ] `SEC-03` **Per-service RabbitMQ users with topic permissions** — trigger: before any non-local environment

@@ -29,7 +29,7 @@ regression test exists where one is named.
 | SEC-09 | Low–Medium — **fixed** | ms_user | `POST /users/{id}/vault` bypassed the marketplace and the Forum gate |
 | SEC-10 | Low — **done** | ms_user | Reserved words (Verborum, admin, …) blocked in display names; names stay non-unique by design |
 | SEC-11 | Low (prod blocker) | Keycloak | Realm defaults that must not reach a shared realm |
-| SEC-12 | Low | all services | Swagger is open in every environment; errors expose exception names |
+| SEC-12 | Low — **Swagger fixed**; error names deferred | all services | Swagger was open in every environment; errors expose exception names |
 | SEC-13 | Low | ms_user | Account deletion accepts any valid access token, with no fresh login |
 | SEC-14 | Info — **fixed** | ms_dictionary / ms_user | Responses that broke the ownership-status table |
 
@@ -371,6 +371,15 @@ bootstrap step keyed on an `ENVIRONMENT` variable. Never put secrets in the JSON
 ---
 
 ## SEC-12 — Swagger open everywhere; errors show internals (Low)
+
+**Status — Swagger FIXED 2026-10-05.** All three services set `springdoc.api-docs.enabled` and
+`springdoc.swagger-ui.enabled` from `SWAGGER_ENABLED` (default `true`; set `false` outside local).
+**Verified live:** `false` → both 404; default → both 200.
+
+**Error class names: deferred on purpose.** Both apps match on the `error` field
+(`SharingRequiredException`, `ProfileConflictException`, …), so replacing class names with stable codes is a
+contract change to plan with the client teams. It is not a silent fix. The catch-all already hides
+messages.
 
 - `/v3/api-docs` and `/swagger-ui/**` are `permitAll` in all three services, in every environment.
   Fix: `springdoc.api-docs.enabled=${SWAGGER_ENABLED:true}` and the same for `swagger-ui.enabled`;
