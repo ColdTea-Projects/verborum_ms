@@ -203,4 +203,12 @@ class DictionaryControllerWebTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("SharingRequiredException"));
     }
+
+    @Test
+    void unsupportedMethod_Is405NotA500() throws Exception {
+        // Was swallowed by the catch-all as a 500 with a stack trace in the log
+        mockMvc.perform(patch("/dictionaries/").with(jwt().jwt(j -> j.subject(SUB))))
+                .andExpect(status().isMethodNotAllowed())
+                .andExpect(jsonPath("$.errorDetail").value("This HTTP method is not supported on this path"));
+    }
 }

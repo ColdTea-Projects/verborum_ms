@@ -14,6 +14,7 @@ public final class ErrorMessageConstants {
             "A word cannot be saved into a different dictionary than the one it belongs to";
     // Returned instead of an unhandled exception's own message, which would leak internals
     public static final String INTERNAL_SERVER_ERROR = "Internal server error";
+    public static final String METHOD_NOT_ALLOWED = "This HTTP method is not supported on this path";
 
     //OutboundEventPublisher — log message ({} placeholder)
     public static final String EVENT_PUBLISH_FAILED =

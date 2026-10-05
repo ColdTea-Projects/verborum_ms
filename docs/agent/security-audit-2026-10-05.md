@@ -26,7 +26,7 @@ regression test exists where one is named.
 | SEC-06 | Medium | Keycloak | Refresh tokens can be reused, and offline sessions never expire |
 | SEC-07 | Medium | ms_dictionary | No limit on request collection sizes, and no per-user quotas |
 | SEC-08 | Medium | build | Spring Boot 3.2.2 and Keycloak 23.0.0 are past end of support |
-| SEC-09 | Low–Medium | ms_user | `POST /users/{id}/vault` bypasses the marketplace and the Forum gate |
+| SEC-09 | Low–Medium — **fixed** | ms_user | `POST /users/{id}/vault` bypassed the marketplace and the Forum gate |
 | SEC-10 | Low — **done** | ms_user | Reserved words (Verborum, admin, …) blocked in display names; names stay non-unique by design |
 | SEC-11 | Low (prod blocker) | Keycloak | Realm defaults that must not reach a shared realm |
 | SEC-12 | Low | all services | Swagger is open in every environment; errors expose exception names |
@@ -273,6 +273,14 @@ documented suppressions.
 ---
 
 ## SEC-09 — Direct vault writes bypass the marketplace (Low–Medium, verified)
+
+**Status — FIXED 2026-10-05.** The `POST` endpoint and the public `VaultService.addVaultEntry` are gone;
+the find-or-create helper stays private behind `importDictionary`. Removing it exposed a second bug: in
+**all three services** a wrong HTTP method fell through to the catch-all as a **500** with a stack trace.
+Each `GlobalExceptionHandler` now maps `HttpRequestMethodNotSupportedException` → **405**
+(`METHOD_NOT_ALLOWED`). Tests: `VaultControllerWebTest` (new) plus a 405 test in the ms_dictionary and
+ms_marketplace web slices. Suites: 143 + 139 + 148. **Verified live:** direct `POST` → 405, `PATCH
+/dictionaries/` → 405, and a marketplace import still adds the vault entry.
 
 **What:** `POST /users/{userId}/vault` (`VaultController`) checks only that the path user is the
 caller. It accepts **any** `dictionaryId`. Verified live:

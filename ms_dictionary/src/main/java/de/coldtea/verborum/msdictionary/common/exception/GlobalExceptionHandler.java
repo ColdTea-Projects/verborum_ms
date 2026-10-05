@@ -10,6 +10,7 @@ import org.springframework.context.MessageSourceResolvable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
@@ -22,6 +23,7 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 import java.time.OffsetDateTime;
 import java.util.List;
 import static de.coldtea.verborum.msdictionary.common.constants.ErrorMessageConstants.INTERNAL_SERVER_ERROR;
+import static de.coldtea.verborum.msdictionary.common.constants.ErrorMessageConstants.METHOD_NOT_ALLOWED;
 
 @ControllerAdvice
 @Slf4j
@@ -40,6 +42,17 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleException(Exception ex, WebRequest request) {
         log.error(Exception.class.getCanonicalName(), ex);
         return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, Exception.class.getSimpleName(), INTERNAL_SERVER_ERROR, request);
+    }
+
+    /**
+     * A known path called with a method it does not have — e.g. the vault's removed POST (SEC-09).
+     * Without this the catch-all answered 500 and logged a stack trace for a plain client mistake.
+     */
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    @ResponseStatus(HttpStatus.METHOD_NOT_ALLOWED)
+    public ResponseEntity<ErrorResponse> handleHttpRequestMethodNotSupportedException(HttpRequestMethodNotSupportedException ex, WebRequest request) {
+        log.warn("{}: {}", HttpRequestMethodNotSupportedException.class.getCanonicalName(), ex.getMessage());
+        return buildErrorResponse(HttpStatus.METHOD_NOT_ALLOWED, HttpRequestMethodNotSupportedException.class.getSimpleName(), METHOD_NOT_ALLOWED, request);
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)

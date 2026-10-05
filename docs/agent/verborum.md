@@ -62,7 +62,7 @@ API Gateway ──► Autofil Service  (word suggestions from community data, No
   `dictionary.imported`, and Keycloak realm-role mapping (roadmap P2-03…P2-11 — all of Phase 2)
 - **Verified end-to-end 2026-07-23** (after P3-01/P3-02 brought Keycloak up): every `/users` and
   `/users/{userId}/vault` endpoint exercised over HTTP with a real Keycloak token — including
-  401 without a token, 404s, validation 400s, idempotent vault POST, and `DELETE /users/{id}`
+  401 without a token, 404s, validation 400s, idempotent vault POST (removed 2026-10-05, SEC-09), and `DELETE /users/{id}`
   publishing `user.deleted` on the wire.
 
 ### 🚧 ms_marketplace — SCAFFOLDED (P4-01), ENTITIES/ENDPOINTS TO BE BUILT

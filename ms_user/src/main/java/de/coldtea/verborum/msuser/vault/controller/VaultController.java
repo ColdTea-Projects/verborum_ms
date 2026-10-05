@@ -1,10 +1,8 @@
 package de.coldtea.verborum.msuser.vault.controller;
 
 import de.coldtea.verborum.msuser.common.response.Response;
-import de.coldtea.verborum.msuser.vault.dto.VaultEntryRequestDTO;
 import de.coldtea.verborum.msuser.vault.dto.VaultEntryResponseDTO;
 import de.coldtea.verborum.msuser.vault.service.VaultService;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -17,6 +15,13 @@ import static de.coldtea.verborum.msuser.common.constants.ResponseMessageConstan
 import static de.coldtea.verborum.msuser.common.utils.ResponseUtils.buildResponse;
 import static de.coldtea.verborum.msuser.common.utils.SecurityUtils.getCurrentKeycloakId;
 
+/**
+ * Read and prune the caller's vault. There is deliberately no POST (SEC-09): an entry is added only by
+ * a marketplace import (`POST /marketplace/dictionaries/{id}/import` → `dictionary.imported` →
+ * VaultService.importDictionary), which is where the Forum gate, the "not your own" rule and the
+ * import count live. A direct add accepted any dictionary id — another user's private one, or one
+ * added by a non-member — and skipped all three.
+ */
 @RestController
 @RequestMapping("/users/{userId}/vault")
 @RequiredArgsConstructor
@@ -27,15 +32,6 @@ public class VaultController {
     @GetMapping
     public ResponseEntity<List<VaultEntryResponseDTO>> getVaultEntriesByUser(@PathVariable String userId) {
         return new ResponseEntity<>(vaultService.getVaultEntriesByUser(userId, getCurrentKeycloakId()), HttpStatus.OK);
-    }
-
-    @PostMapping
-    public ResponseEntity<Response> addVaultEntry(@PathVariable String userId,
-                                                  @Valid @RequestBody VaultEntryRequestDTO vaultEntry,
-                                                  WebRequest request) {
-        VaultEntryResponseDTO vaultEntryResponseDTO = vaultService.addVaultEntry(userId, vaultEntry, getCurrentKeycloakId());
-        return buildResponse(HttpStatus.CREATED, VAULT_ENTRY_SAVED_SUCCESSFULLY,
-                vaultEntryResponseDTO.getVaultEntryId(), request);
     }
 
     @DeleteMapping("/{dictionaryId}")

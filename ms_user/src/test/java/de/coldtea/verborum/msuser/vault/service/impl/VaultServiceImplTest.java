@@ -88,61 +88,6 @@ class VaultServiceImplTest {
     }
 
     @Test
-    void addVaultEntry_Success() {
-        // Arrange
-        VaultEntryRequestDTO requestDTO = new VaultEntryRequestDTO(DICTIONARY_ID);
-        VaultEntry vaultEntry = new VaultEntry();
-        VaultEntryResponseDTO responseDTO = new VaultEntryResponseDTO();
-
-        when(vaultEntryRepository.findByUserIdAndDictionaryId(USER_ID, DICTIONARY_ID)).thenReturn(Optional.empty());
-        when(userRepository.existsById(USER_ID)).thenReturn(true);
-        when(vaultEntryMapper.toVaultEntry(anyString(), eq(USER_ID), eq(requestDTO))).thenReturn(vaultEntry);
-        when(vaultEntryRepository.saveAndFlush(vaultEntry)).thenReturn(vaultEntry);
-        when(vaultEntryMapper.toVaultEntryResponseDTO(vaultEntry)).thenReturn(responseDTO);
-
-        // Act
-        VaultEntryResponseDTO result = vaultService.addVaultEntry(USER_ID, requestDTO, CALLER_KC_ID);
-
-        // Assert
-        assertEquals(responseDTO, result);
-        verify(vaultEntryRepository).saveAndFlush(vaultEntry);
-    }
-
-    @Test
-    void addVaultEntry_AlreadyInVault_ReturnsExistingWithoutSaving() {
-        // Arrange
-        VaultEntryRequestDTO requestDTO = new VaultEntryRequestDTO(DICTIONARY_ID);
-        VaultEntry existingEntry = new VaultEntry();
-        VaultEntryResponseDTO responseDTO = new VaultEntryResponseDTO();
-
-        when(vaultEntryRepository.findByUserIdAndDictionaryId(USER_ID, DICTIONARY_ID))
-                .thenReturn(Optional.of(existingEntry));
-        when(vaultEntryMapper.toVaultEntryResponseDTO(existingEntry)).thenReturn(responseDTO);
-
-        // Act
-        VaultEntryResponseDTO result = vaultService.addVaultEntry(USER_ID, requestDTO, CALLER_KC_ID);
-
-        // Assert
-        assertEquals(responseDTO, result);
-        verify(vaultEntryRepository, never()).saveAndFlush(any());
-        verify(userRepository, never()).existsById(anyString());
-    }
-
-    @Test
-    void addVaultEntry_UnknownUser() {
-        // Arrange
-        VaultEntryRequestDTO requestDTO = new VaultEntryRequestDTO(DICTIONARY_ID);
-
-        when(vaultEntryRepository.findByUserIdAndDictionaryId(USER_ID, DICTIONARY_ID)).thenReturn(Optional.empty());
-        when(userRepository.existsById(USER_ID)).thenReturn(false);
-
-        // Act & Assert
-        assertThrows(RecordNotFoundException.class, () -> vaultService.addVaultEntry(USER_ID, requestDTO, CALLER_KC_ID));
-        verify(vaultEntryRepository, never()).saveAndFlush(any());
-        verifyNoInteractions(vaultEntryMapper);
-    }
-
-    @Test
     void importDictionary_ResolvesKeycloakIdToUserId() {
         // Arrange — the event carries keycloakId; fk_user_id must be ms_user's own user_id
         String keycloakId = "kc-1";
@@ -215,17 +160,6 @@ class VaultServiceImplTest {
         // Act & Assert
         assertThrows(ForbiddenOperationException.class,
                 () -> vaultService.getVaultEntriesByUser(USER_ID, CALLER_KC_ID));
-        verifyNoInteractions(vaultEntryRepository);
-    }
-
-    @Test
-    void addVaultEntry_AnotherUsersVault_IsForbidden() {
-        // Arrange
-        givenTheVaultBelongsToSomeoneElse();
-
-        // Act & Assert
-        assertThrows(ForbiddenOperationException.class,
-                () -> vaultService.addVaultEntry(USER_ID, new VaultEntryRequestDTO(DICTIONARY_ID), CALLER_KC_ID));
         verifyNoInteractions(vaultEntryRepository);
     }
 

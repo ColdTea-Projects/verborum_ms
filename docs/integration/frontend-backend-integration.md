@@ -127,7 +127,8 @@ backend (BE task P3-05).
 **ms_user — BE Phase 2:** `POST/PUT /users/`, `GET/DELETE /users/{userId}`, and since 2026-10-04
 `GET /users/me` + `PUT /users/me/profile-info` (profile page, marketplace agreement — marketplace guide
 §4), vault:
-`GET/POST /users/{userId}/vault`, `DELETE /users/{userId}/vault/{dictionaryId}`.
+`GET /users/{userId}/vault`, `DELETE /users/{userId}/vault/{dictionaryId}` (no POST since 2026-10-05 — entries come only from
+`POST /marketplace/dictionaries/{id}/import`).
 
 **ms_marketplace — live since BE Phase 4 (2026-09-27):** `GET /marketplace/dictionaries`
 (paginated, `?pair=EN-TR` filter since 2026-10-04), `…/popular`, `…/publisher/{publisherId}`,

@@ -54,14 +54,16 @@ unchanged (`creation_dt`/`update_dt`/`imported_at`).
 - `GET` list the user's imported dictionaries (**404** for an unknown or unowned profile — the P3-05
   ownership guard loads the user to compare `keycloakId`, so the pre-P3-05 "empty list" behaviour is
   gone; 404 also matches the P3-08 read rules) ·
-  `POST` add one (body: `{"dictionaryId": "..."}`) · `DELETE /{dictionaryId}` remove one.
+  `DELETE /{dictionaryId}` remove one. **No `POST` since SEC-09 (2026-10-05)** — it accepted any dictionary id
+  (another user's private one, or from a non-member) and skipped the Forum gate; it now answers 405. An entry
+  is added only by a marketplace import (`dictionary.imported` → `VaultService.importDictionary`).
 - `vaultEntryId` is **server-generated** (`UUID.randomUUID()`), unlike every other entity's
   client-supplied id — a vault entry is a system-owned row, and P2-09 creates identical rows from a
   `dictionary.imported` event that carries no client id.
-- **POST is idempotent**: an already-imported `(userId, dictionaryId)` returns the existing entry
-  rather than violating the composite UNIQUE. P2-09's listener should call `addVaultEntry` and get
-  redelivery-safety for free.
-- POST 404s on an unknown user (`fk_user_id` is a real FK — the DB would otherwise 500). DELETE of an
+- **Adding is idempotent** (import path only): an already-imported `(userId, dictionaryId)` returns the existing entry
+  rather than violating the composite UNIQUE, so a redelivered `dictionary.imported` is harmless (the private
+  `addVaultEntry` helper).
+- An import for an unknown user throws (`fk_user_id` is a real FK) and is dead-lettered. DELETE of an
   entry that is not there is a silent 200, matching `deleteUser`/`deleteDictionary`.
 
 ## Events (see `docs/agent/rabbitmq.md`)

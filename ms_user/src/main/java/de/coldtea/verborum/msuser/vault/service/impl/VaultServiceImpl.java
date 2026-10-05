@@ -44,17 +44,10 @@ public class VaultServiceImpl implements VaultService {
                 .toList();
     }
 
-    @Transactional
-    @Override
-    public VaultEntryResponseDTO addVaultEntry(String userId, VaultEntryRequestDTO vaultEntryRequestDTO, String callerKeycloakId) {
-        requireOwnProfile(userId, callerKeycloakId);
-        return addVaultEntry(userId, vaultEntryRequestDTO);
-    }
-
     /**
-     * Ownership-free overload for the two callers that are not a logged-in user: the ownership guard
-     * above, and importDictionary (driven by a marketplace event, where the actor is another
-     * service).
+     * The only way into a vault: importDictionary, driven by a marketplace event (SEC-09 removed the
+     * public add — see VaultController). No ownership check, because the actor is ms_marketplace,
+     * which already applied the Forum gate and the "not your own" rule.
      */
     private VaultEntryResponseDTO addVaultEntry(String userId, VaultEntryRequestDTO vaultEntryRequestDTO) {
         // Idempotent by design: a vault is a set, enforced by UNIQUE (fk_user_id, fk_dictionary_id).

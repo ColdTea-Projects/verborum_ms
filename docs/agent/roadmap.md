@@ -1510,7 +1510,7 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
 - [x] `SEC-04` **Profile e-mail from the token, verified only** (ms_user) — done 2026-10-05, verified live
 - [ ] `SEC-05` **Audience validation on all three services** (realm mapper + `JwtDecoder` validator)
 - [ ] `SEC-07` **Collection size limits and per-user quotas** (ms_dictionary) — limits need product sign-off
-- [ ] `SEC-09` **Remove direct `POST /users/{id}/vault`** (ms_user)
+- [x] `SEC-09` **Remove direct `POST /users/{id}/vault`** (ms_user) — done 2026-10-05, plus wrong-method 500 → 405 in all services
 - [ ] `SEC-14` **Ownership-table status-code consistency** (ms_dictionary, ms_user)
 - [ ] `SEC-06` **Refresh-token rotation + offline session max lifespan** (realm) — depends on the clients
   confirming single-flight refresh (client findings §1)

@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
@@ -17,6 +18,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import static de.coldtea.verborum.msmarketplace.common.constants.ErrorMessageConstants.INTERNAL_SERVER_ERROR;
+import static de.coldtea.verborum.msmarketplace.common.constants.ErrorMessageConstants.METHOD_NOT_ALLOWED;
 import static de.coldtea.verborum.msmarketplace.common.constants.ErrorMessageConstants.INVALID_PARAMETER;
 
 import java.time.OffsetDateTime;
@@ -53,6 +55,17 @@ public class GlobalExceptionHandler {
         return buildErrorResponse(HttpStatus.NOT_FOUND, RecordNotFoundException.class.getSimpleName(), ex.getMessage(), request);
     }
 
+
+    /**
+     * A known path called with a method it does not have — e.g. the vault's removed POST (SEC-09).
+     * Without this the catch-all answered 500 and logged a stack trace for a plain client mistake.
+     */
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    @ResponseStatus(HttpStatus.METHOD_NOT_ALLOWED)
+    public ResponseEntity<ErrorResponse> handleHttpRequestMethodNotSupportedException(HttpRequestMethodNotSupportedException ex, WebRequest request) {
+        log.warn("{}: {}", HttpRequestMethodNotSupportedException.class.getCanonicalName(), ex.getMessage());
+        return buildErrorResponse(HttpStatus.METHOD_NOT_ALLOWED, HttpRequestMethodNotSupportedException.class.getSimpleName(), METHOD_NOT_ALLOWED, request);
+    }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)

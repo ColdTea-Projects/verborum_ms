@@ -34,6 +34,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 /**
@@ -376,5 +377,13 @@ class MarketplaceControllerWebTest {
 
         mockMvc.perform(post("/marketplace/dictionaries/dict1/import").with(jwt().jwt(j -> j.subject(SUB))))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void unsupportedMethod_Is405NotA500() throws Exception {
+        // Was swallowed by the catch-all as a 500 with a stack trace in the log
+        mockMvc.perform(delete("/marketplace/dictionaries").with(jwt().jwt(j -> j.subject(SUB))))
+                .andExpect(status().isMethodNotAllowed())
+                .andExpect(jsonPath("$.errorDetail").value("This HTTP method is not supported on this path"));
     }
 }
