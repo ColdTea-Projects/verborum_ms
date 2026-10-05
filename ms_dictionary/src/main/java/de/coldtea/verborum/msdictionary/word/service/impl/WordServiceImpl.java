@@ -206,23 +206,19 @@ public class WordServiceImpl implements WordService {
     }
 
     /**
-     * Words of every dictionary the caller may read: their own and public ones (P4-10) — how an
-     * imported marketplace dictionary is opened. Unreadable ids are dropped, not refused (P3-08).
+     * `GET /words/dictionary/{id}` — one dictionary, addressed by id, so the by-id read rule applies:
+     * a dictionary that is absent or unreadable is a 404, exactly like the dictionary itself and its
+     * tags (SEC-14). It used to share the batch path below and answer `200 []`, which told an importer
+     * "this dictionary is empty" when it had in fact gone private or been deleted.
      */
     @Override
-    public List<WordResponseDTO> getWordsByDictionaryIds(List<String> dictionaryIds, String ownerId) {
-        List<Dictionary> readable = dictionaryRepository.findAllById(dictionaryIds).stream()
-                .filter(dictionary -> isReadableBy(dictionary, ownerId))
-                .toList();
+    public List<WordResponseDTO> getWordsByDictionary(String dictionaryId, String ownerId) {
+        Dictionary dictionary = dictionaryRepository.findById(dictionaryId)
+                .filter(found -> isReadableBy(found, ownerId))
+                .orElseThrow(() -> new RecordNotFoundException(DICTIONARY_WAS_NOT_FOUND_ID + dictionaryId));
 
-        if (readable.isEmpty()) {
-            return List.of();
-        }
-
-        Set<String> ownedIds = ownedDictionaryIds(readable, ownerId);
-        List<String> readableIds = readable.stream().map(Dictionary::getDictionaryId).toList();
-
-        return wordRepository.findByDictionaryIdIn(readableIds).stream()
+        Set<String> ownedIds = ownedDictionaryIds(List.of(dictionary), ownerId);
+        return wordRepository.findByDictionaryIdIn(List.of(dictionaryId)).stream()
                 .map(word -> toResponseForCaller(word, ownedIds))
                 .toList();
     }

@@ -67,7 +67,7 @@ public class WordController {
 
     @GetMapping("/dictionary/{dictionaryId}")
     public List<WordResponseDTO> getWordsByDictionary(@PathVariable String dictionaryId) {
-        return wordService.getWordsByDictionaryIds(List.of(dictionaryId), getCurrentUserId());
+        return wordService.getWordsByDictionary(dictionaryId, getCurrentUserId());
     }
 
     @GetMapping("/language/from/{language}")

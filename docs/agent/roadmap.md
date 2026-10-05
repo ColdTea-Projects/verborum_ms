@@ -1513,7 +1513,8 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
 - [x] `SEC-07` **Collection size limits and per-user quotas** (ms_dictionary) — done 2026-10-05: 5 bundles × 500 words,
   100 batch ids, 1,000 dictionaries/account, 5,000 words/dictionary, 2 MB body cap (also ms_user). Verified live
 - [x] `SEC-09` **Remove direct `POST /users/{id}/vault`** (ms_user) — done 2026-10-05, plus wrong-method 500 → 405 in all services
-- [ ] `SEC-14` **Ownership-table status-code consistency** (ms_dictionary, ms_user)
+- [x] `SEC-14` **Ownership-table status-code consistency** (ms_dictionary, ms_user) — done 2026-10-05; deleting another
+  user's word stays a 200 no-op by design
 - [ ] `SEC-06` **Refresh-token rotation + offline session max lifespan** (realm) — depends on the clients
   confirming single-flight refresh (client findings §1)
 - [x] `SEC-10` **Reserved display names** (ms_user) — done 2026-10-05. Names stay non-unique by product decision;

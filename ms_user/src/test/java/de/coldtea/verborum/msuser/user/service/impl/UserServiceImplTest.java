@@ -245,14 +245,14 @@ class UserServiceImplTest {
     }
 
     @Test
-    void getUserById_AnotherUsersProfile_IsForbidden() {
+    void getUserById_AnotherUsersProfile_Is404() {
         // Arrange
         String userId = "1";
         when(userRepository.findById(userId))
                 .thenReturn(Optional.of(User.builder().userId(userId).keycloakId("kc-someone-else").build()));
 
         // Act & Assert
-        assertThrows(ForbiddenOperationException.class, () -> userService.getUserById(userId, CALLER_KC_ID));
+        assertThrows(RecordNotFoundException.class, () -> userService.getUserById(userId, CALLER_KC_ID));
         verifyNoInteractions(userMapper);
     }
 

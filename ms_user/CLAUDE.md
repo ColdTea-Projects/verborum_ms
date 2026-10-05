@@ -44,7 +44,7 @@ unchanged (`creation_dt`/`update_dt`/`imported_at`).
 - **`GET /users/me`** (P4-14) — the caller's `ProfileResponseDTO` by token subject, 404 when there is no
   profile yet. **`PUT /users/me/profile-info`** (P4-14) — partial update of `displayName` and the
   marketplace agreement; null fields are left alone. Both rules below apply.
-- `POST /users/` create profile · `PUT /users/` update · `GET /users/{userId}` (404 if missing) ·
+- `POST /users/` create profile · `PUT /users/` update · `GET /users/{userId}` (404 if missing **or not yours**, SEC-14) ·
   `DELETE /users/{userId}`. Mirrors DictionaryController: `Response` envelope on mutations, DTO on
   read, `saveUser` backs both POST and PUT. `userId` is still client-supplied here — switching to the
   JWT subject is P3-05. DELETE relies on the DB cascade to clear stats/vault; the `user.deleted`

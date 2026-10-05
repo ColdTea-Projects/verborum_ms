@@ -109,6 +109,8 @@ Full CRUD for **Dictionaries** and **Words** — the core vocabulary store.
   for marketplace browse and the later AI aggregation, so `Food`/`food `/`FOOD` must be one tag. If a
   client ever needs the original casing for display, that is a new column, not a change here.
 - Adding a tag is idempotent (`UNIQUE (fk_dictionary_id, tag)`); re-adding returns the existing row.
+- **`GET /words/dictionary/{id}` is a by-id read (SEC-14):** 404 when the dictionary is absent or unreadable
+  (`getWordsByDictionary`), never `200 []` — an importer must be able to tell "gone private" from "empty".
 - **Request limits (SEC-07):** 5 bundles × 500 words per `POST`/`PUT /words`, 100 batch ids (`@Size`, constants in
   `DTOMessageConstants`); quotas 1,000 dictionaries/account and 5,000 words/dictionary on new rows only
   (`QuotaExceededException` → 400); `common/config/RequestBodyLimitFilter` caps bodies at 2 MB (413) and refuses

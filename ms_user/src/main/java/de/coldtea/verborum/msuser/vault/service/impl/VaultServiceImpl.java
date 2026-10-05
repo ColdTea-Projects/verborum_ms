@@ -33,10 +33,12 @@ public class VaultServiceImpl implements VaultService {
 
     @Override
     public List<VaultEntryResponseDTO> getVaultEntriesByUser(String userId, String callerKeycloakId) {
-        // 404 for an unknown OR unowned profile — the guard has to load the user anyway to compare
-        // keycloakId, so there is no cheap way to keep the older "unknown user gets an empty list"
-        // behaviour, and 404 is the more consistent answer next to the P3-08 read rules.
-        requireOwnProfile(userId, callerKeycloakId);
+        // 404 for an unknown OR unowned profile: a read by id, so a 403 would confirm the id exists
+        // (SEC-14 — until 2026-10-05 the unowned case was a 403 despite this rule). Writes keep the 403
+        // of requireOwnProfile
+        userRepository.findById(userId)
+                .filter(user -> callerKeycloakId.equals(user.getKeycloakId()))
+                .orElseThrow(() -> new RecordNotFoundException(USER_WAS_NOT_FOUND_ID + userId));
 
         return vaultEntryRepository.findByUserId(userId)
                 .stream()

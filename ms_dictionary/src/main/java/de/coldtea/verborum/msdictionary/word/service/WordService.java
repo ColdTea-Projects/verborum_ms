@@ -26,7 +26,8 @@ public interface WordService {
 
     List<WordResponseDTO> getWordsByUserId(String userId);
 
-    List<WordResponseDTO> getWordsByDictionaryIds(List<String> dictionaryIds, String ownerId);
+    /** One dictionary's words; 404 when it does not exist or the caller may not read it (SEC-14). */
+    List<WordResponseDTO> getWordsByDictionary(String dictionaryId, String ownerId);
 
     List<WordResponseDTO> getWordsByIds(List<String> wordIds, String ownerId);
 }

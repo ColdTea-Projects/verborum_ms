@@ -395,18 +395,16 @@ class WordServiceImplTest {
 
 
     @Test
-    void getWordsByDictionaryIds_Success() {
+    void getWordsByDictionary_Success() {
         // Arrange
-        List<String> dictionaryIds = List.of("1", "2");
+        List<String> dictionaryIds = List.of("1");
         List<Word> words = List.of(new Word());
-        // the caller owns both dictionaries — P3-08 resolves them before reading any words
-        when(dictionaryRepository.findAllById(dictionaryIds))
-                .thenReturn(List.of(dictionary("1"), dictionary("2")));
+        when(dictionaryRepository.findById("1")).thenReturn(Optional.of(dictionary("1")));
         when(wordRepository.findByDictionaryIdIn(dictionaryIds)).thenReturn(words);
         when(wordMapper.toWordResponseDTO(any())).thenReturn(new WordResponseDTO());
 
         // Act
-        List<WordResponseDTO> result = wordService.getWordsByDictionaryIds(dictionaryIds, OWNER);
+        List<WordResponseDTO> result = wordService.getWordsByDictionary("1", OWNER);
 
         // Assert
         assertNotNull(result);
@@ -416,15 +414,14 @@ class WordServiceImplTest {
     }
 
     @Test
-    void getWordsByDictionaryIds_NoWordsFound() {
+    void getWordsByDictionary_NoWordsFound() {
         // Arrange
-        List<String> dictionaryIds = List.of("1", "2");
-        when(dictionaryRepository.findAllById(dictionaryIds))
-                .thenReturn(List.of(dictionary("1"), dictionary("2")));
+        List<String> dictionaryIds = List.of("1");
+        when(dictionaryRepository.findById("1")).thenReturn(Optional.of(dictionary("1")));
         when(wordRepository.findByDictionaryIdIn(dictionaryIds)).thenReturn(List.of());
 
         // Act
-        List<WordResponseDTO> result = wordService.getWordsByDictionaryIds(dictionaryIds, OWNER);
+        List<WordResponseDTO> result = wordService.getWordsByDictionary("1", OWNER);
 
         // Assert
         assertNotNull(result);
@@ -536,18 +533,18 @@ class WordServiceImplTest {
     // ---- P4-10: public dictionaries are readable by any authenticated user ----
 
     @Test
-    void getWordsByDictionaryIds_AnotherUsersPublicDictionary_ReturnsWordsWithoutLevel() {
+    void getWordsByDictionary_AnotherUsersPublicDictionary_ReturnsWordsWithoutLevel() {
         // Arrange — how an imported marketplace dictionary is opened
         Dictionary theirs = dictionary("theirs", "someone-else", true);
         Word word = word("w1", "theirs");
         WordResponseDTO mapped = new WordResponseDTO();
         mapped.setLevel(4);
-        when(dictionaryRepository.findAllById(List.of("theirs"))).thenReturn(List.of(theirs));
+        when(dictionaryRepository.findById("theirs")).thenReturn(Optional.of(theirs));
         when(wordRepository.findByDictionaryIdIn(List.of("theirs"))).thenReturn(List.of(word));
         when(wordMapper.toWordResponseDTO(word)).thenReturn(mapped);
 
         // Act
-        List<WordResponseDTO> result = wordService.getWordsByDictionaryIds(List.of("theirs"), OWNER);
+        List<WordResponseDTO> result = wordService.getWordsByDictionary("theirs", OWNER);
 
         // Assert — level is the owner's mastery, not the reader's
         assertEquals(1, result.size());
@@ -555,35 +552,41 @@ class WordServiceImplTest {
     }
 
     @Test
-    void getWordsByDictionaryIds_OwnPublicDictionary_KeepsLevel() {
+    void getWordsByDictionary_OwnPublicDictionary_KeepsLevel() {
         // Arrange
         Dictionary mine = dictionary("mine", OWNER, true);
         Word word = word("w1", "mine");
         WordResponseDTO mapped = new WordResponseDTO();
         mapped.setLevel(4);
-        when(dictionaryRepository.findAllById(List.of("mine"))).thenReturn(List.of(mine));
+        when(dictionaryRepository.findById("mine")).thenReturn(Optional.of(mine));
         when(wordRepository.findByDictionaryIdIn(List.of("mine"))).thenReturn(List.of(word));
         when(wordMapper.toWordResponseDTO(word)).thenReturn(mapped);
 
         // Act
-        List<WordResponseDTO> result = wordService.getWordsByDictionaryIds(List.of("mine"), OWNER);
+        List<WordResponseDTO> result = wordService.getWordsByDictionary("mine", OWNER);
 
         // Assert
         assertEquals(4, result.get(0).getLevel());
     }
 
     @Test
-    void getWordsByDictionaryIds_AnotherUsersPrivateDictionary_ReturnsNothing() {
-        // Arrange
-        when(dictionaryRepository.findAllById(List.of("theirs")))
-                .thenReturn(List.of(dictionary("theirs", "someone-else", false)));
+    void getWordsByDictionary_AnotherUsersPrivateDictionary_Is404() {
+        // Arrange — by id, so the read rule: indistinguishable from not existing (SEC-14)
+        when(dictionaryRepository.findById("theirs")).thenReturn(Optional.of(dictionary("theirs", "someone-else", false)));
 
-        // Act
-        List<WordResponseDTO> result = wordService.getWordsByDictionaryIds(List.of("theirs"), OWNER);
-
-        // Assert — dropped, not refused, and no words are even queried
-        assertTrue(result.isEmpty());
+        // Act & Assert
+        assertThrows(RecordNotFoundException.class, () -> wordService.getWordsByDictionary("theirs", OWNER));
         verify(wordRepository, never()).findByDictionaryIdIn(any());
+    }
+
+    @Test
+    void getWordsByDictionary_UnknownDictionary_Is404() {
+        // Arrange
+        when(dictionaryRepository.findById("gone")).thenReturn(Optional.empty());
+
+        // Act & Assert
+        assertThrows(RecordNotFoundException.class, () -> wordService.getWordsByDictionary("gone", OWNER));
+        verifyNoInteractions(wordRepository);
     }
 
     @Test

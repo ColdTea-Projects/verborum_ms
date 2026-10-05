@@ -259,8 +259,10 @@ public class UserServiceImpl implements UserService {
     @Override
     public UserResponseDTO getUserById(String userId, String callerKeycloakId) {
         User user = userRepository.findById(userId)
+                // A read by id: someone else's profile is indistinguishable from none (SEC-14) — a 403 would
+                // confirm the id exists. Writes on it stay 403 (requireOwnProfile)
+                .filter(found -> callerKeycloakId.equals(found.getKeycloakId()))
                 .orElseThrow(() -> new RecordNotFoundException(USER_WAS_NOT_FOUND_ID + userId));
-        requireOwnProfile(user, callerKeycloakId);
         return userMapper.toUserResponseDTO(user);
     }
 

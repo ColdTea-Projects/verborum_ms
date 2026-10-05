@@ -31,7 +31,7 @@ regression test exists where one is named.
 | SEC-11 | Low (prod blocker) | Keycloak | Realm defaults that must not reach a shared realm |
 | SEC-12 | Low | all services | Swagger is open in every environment; errors expose exception names |
 | SEC-13 | Low | ms_user | Account deletion accepts any valid access token, with no fresh login |
-| SEC-14 | Info | ms_dictionary / ms_user | Responses that break the ownership-status table |
+| SEC-14 | Info — **fixed** | ms_dictionary / ms_user | Responses that broke the ownership-status table |
 
 ---
 
@@ -390,6 +390,17 @@ for this one endpoint. Check the token's `auth_time` is within, say, 5 minutes, 
 "reauthenticate" error. Clients then start a login with `max_age=0` before deleting.
 
 ## SEC-14 — Status codes that break the ownership table (Info)
+
+**Status — FIXED 2026-10-05.**
+- `GET /words/dictionary/{id}` has its own service method, `getWordsByDictionary`. An absent or unreadable
+  dictionary is now 404, matching the dictionary and its tags; the unused multi-dictionary read was removed.
+- `GET /users/{id}` and `GET /users/{id}/vault` of another user are now 404. The vault comment already
+  said 404, but the code answered 403. Writes stay 403.
+- `DELETE /words/{othersWordId}` → 200 is **kept by design**. The convention is "delete of something absent
+  is a 200 no-op", and a 403 would confirm the id exists (P3-08).
+
+Suites: ms_dictionary 156, ms_user 139. **Verified live:** private words → 404 (owner 200); unknown
+dictionary → 404; another profile or vault → 404; deleting another profile → 403.
 
 None of these leak data; they make client behaviour and tests ambiguous.
 

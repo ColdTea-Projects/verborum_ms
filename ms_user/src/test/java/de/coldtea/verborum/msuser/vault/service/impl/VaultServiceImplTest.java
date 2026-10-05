@@ -153,12 +153,12 @@ class VaultServiceImplTest {
     }
 
     @Test
-    void getVaultEntriesByUser_AnotherUsersVault_IsForbidden() {
+    void getVaultEntriesByUser_AnotherUsersVault_Is404() {
         // Arrange
         givenTheVaultBelongsToSomeoneElse();
 
         // Act & Assert
-        assertThrows(ForbiddenOperationException.class,
+        assertThrows(RecordNotFoundException.class,
                 () -> vaultService.getVaultEntriesByUser(USER_ID, CALLER_KC_ID));
         verifyNoInteractions(vaultEntryRepository);
     }
