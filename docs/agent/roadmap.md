@@ -1515,7 +1515,8 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
 - [x] `SEC-09` **Remove direct `POST /users/{id}/vault`** (ms_user) — done 2026-10-05, plus wrong-method 500 → 405 in all services
 - [x] `SEC-14` **Ownership-table status-code consistency** (ms_dictionary, ms_user) — done 2026-10-05; deleting another
   user's word stays a 200 no-op by design
-- [ ] `SEC-06` **Refresh-token rotation + offline session max lifespan** (realm) — depends on the clients
+- [ ] `SEC-06` **Refresh-token rotation + offline session max lifespan** (realm) — **decided 2026-10-05: offline max
+  lifespan 180 days** (15552000 s), rotation + reuse detection on. Depends on the clients
   confirming single-flight refresh (client findings §1)
 - [x] `SEC-10` **Reserved display names** (ms_user) — done 2026-10-05. Names stay non-unique by product decision;
   reserved words are refused with 400 (`DisplayNameUtils`). 135/135 ms_user tests; verified live

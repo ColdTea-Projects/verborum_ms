@@ -229,7 +229,7 @@ clients request `offline_access`.
 **Fix:**
 1. Realm: `revokeRefreshToken: true` and `refreshTokenMaxReuse: 0`, so reusing a rotated token kills
    the session. Also `offlineSessionMaxLifespanEnabled: true` with
-   `offlineSessionMaxLifespan: 15552000` (180 days); confirm the number with the product owner.
+   `offlineSessionMaxLifespan: 15552000` (180 days — **confirmed by the product owner 2026-10-05**).
 2. Apply it in `configure.sh` for existing realms too.
 3. **Coordinate with the clients first:** with rotation on, every refresh returns a new refresh token
    that must be stored atomically. Two refreshes racing with the old token log the user out. Android
