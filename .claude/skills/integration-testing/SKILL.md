@@ -96,3 +96,5 @@ Full-context tests need Postgres up; the slice tests do not.
 - Loading a full context where a slice or a plain Mockito test would do
 - Re-testing service logic through MockMvc
 - Leaving rows behind in the development database
+- Trusting mocked repositories for flush, clear or cascade behaviour — add a real-database test (references)
+- A slice missing an `@Import` for a plain `@Component` the controller uses, or a token without the claims it reads

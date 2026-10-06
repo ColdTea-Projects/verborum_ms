@@ -97,3 +97,43 @@ return dictionaryTagRepository.findByDictionaryIdAndTag(dictionaryId, tag)
         .map(dictionaryTagMapper::toDictionaryTagResponseDTO)
         .orElseGet(() -> createTag(dictionaryId, tag));
 ```
+
+## Atomic counters and aggregates
+
+Counts and sums that several users change at once (`import_count`; the rating aggregates in ms_marketplace)
+are updated by **one `@Modifying` JPQL `UPDATE`**, never read-modify-write in Java, where two concurrent
+writers both read 5 and both write 6.
+
+```java
+@Modifying(flushAutomatically = true, clearAutomatically = true)
+@Query("""
+        update DictionaryStats d set
+            d.ratingCount = d.ratingCount + :countDelta,
+            d.ratingSum   = d.ratingSum + :sumDelta,
+            d.ratingScore = (1.0 * (d.ratingSum + :sumDelta) + :priorTotal) / (d.ratingCount + :countDelta + :priorWeight)
+        where d.dictionaryId = :dictionaryId""")
+int applyRatingChange(...);
+```
+
+- **`clearAutomatically`:** the UPDATE bypasses the persistence context. An entity loaded earlier in the
+  transaction still holds the old value, and saving it later would write the old count back. Clearing
+  detaches it.
+- **`flushAutomatically` is required alongside it.** Hibernate's AUTO flush only runs before a query that
+  touches the *same* table. A pending write on another table (for example a rating `delete()` before the
+  `dictionary_stats` UPDATE) is not flushed, and `clearAutomatically` then discards it unwritten: the count
+  changes but the row stays. This happened, and mock-based unit tests cannot see it (`integration-testing`
+  covers the real-database test that pins it).
+- Every right-hand side reads the row's values from **before** the UPDATE, so a derived column computed in
+  the same statement must add the deltas again, as the score above does.
+- `1.0 *` keeps a division out of integer arithmetic.
+
+## Upserting by a client-supplied id
+
+Client-generated UUIDs mean `save()` upserts: an id that already exists is overwritten. The ownership
+check must therefore cover **the stored row**, not only the target named in the request.
+
+- Dictionaries: an existing `dictionaryId` owned by someone else → 403 before saving.
+- Words (SEC-01): the request names a dictionary the caller owns, but a reused `wordId` from someone else's
+  dictionary was upserted into it, a takeover. The fix loads the stored rows for the incoming ids (the
+  same `findAllById` the event logic needs) and refuses any existing word whose `dictionaryId` would change.
+- Do the check **before** `saveAllAndFlush`, so nothing is written on refusal.

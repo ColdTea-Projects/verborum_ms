@@ -139,3 +139,29 @@ ArgumentCaptor<Word> captor = ArgumentCaptor.forClass(Word.class);
 verify(repo).saveAndFlush(captor.capture());
 assertEquals("expected", captor.getValue().getWord());
 ```
+
+## When the class under test gains a dependency
+
+`@InjectMocks` uses constructor injection and **silently passes `null`** for a constructor argument that has
+no matching `@Mock`. The test compiles, then fails with a `NullPointerException` deep in the method, or
+worse, passes because the branch is never reached. When a constructor gains a parameter (e.g.
+`UserEventListener` gaining `DictionaryRatingService`), add the `@Mock` in every test class of that class.
+Then add a test for what the new dependency is for; `InOrder` when the order matters:
+
+```java
+InOrder inOrder = inOrder(dictionaryRatingService, dictionaryStatsService);
+inOrder.verify(dictionaryRatingService).deleteRatingsByUser(KEYCLOAK_ID);
+inOrder.verify(dictionaryStatsService).deleteListingsByUser(KEYCLOAK_ID);
+```
+
+## Fixtures send what a real client sends
+
+When a rule tightens (e.g. `isPublic` required on create), existing tests that built a bare
+`new DictionaryRequestDTO()` start failing. Fix the fixture by setting the field the way a real client
+does, with a short comment, rather than loosening the rule or deleting the test. The test then documents
+the contract.
+
+## Boxed numbers in assertions
+
+`assertEquals(2, entity.getStars())` is ambiguous when `getStars()` returns `Short` or `Long`. Compare
+`getStars().intValue()`, or use a typed literal such as `(short) 2`.

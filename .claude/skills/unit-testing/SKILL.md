@@ -96,3 +96,4 @@ an untested ownership branch matters more than three more percent.
 - Verifying `RabbitTemplate` from a service test — services raise application events instead
 - Only a happy path for a method that has an ownership check or a throw
 - `any()` where the specific argument is what the test is about
+- A new constructor dependency without a `@Mock` — `@InjectMocks` passes `null` silently (references)

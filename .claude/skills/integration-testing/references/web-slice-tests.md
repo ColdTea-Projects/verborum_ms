@@ -101,3 +101,26 @@ missing and malformed claims.
 - Service logic already covered by a unit test
 - Every validation annotation on every field — one case proves `@Valid` is wired
 - Happy-path reads for their own sake; the interesting cases are the refusals
+
+## What a slice loads, and the tokens it needs
+
+- **`@WebMvcTest` loads web beans only:** controllers, `@ControllerAdvice`, `Filter` beans. A plain
+  `@Component` the controller depends on (e.g. ms_user's `RecentLoginGuard`) is **not** loaded, and the
+  context fails to start. Add it to `@Import` next to `SecurityConfig` and `GlobalExceptionHandler`, or
+  `@MockBean` it if the test is not about it. A new service the controller calls needs a new `@MockBean`.
+- **Servlet filters annotated `@Component` do run in the slice** (e.g. `RequestBodyLimitFilter`), with their
+  `@Value` properties read from `application.properties`. That is how a 413 can be tested in a slice.
+- **Give the token the claims the endpoint reads.** `jwt().jwt(j -> j.subject(SUB))` has no `email`,
+  `email_verified` or `auth_time`:
+
+```java
+private static RequestPostProcessor verifiedUser() {           // POST/PUT /users/ (SEC-04)
+    return jwt().jwt(j -> j.subject(KEYCLOAK_ID).claim("email", VERIFIED_EMAIL).claim("email_verified", true));
+}
+// account deletion (SEC-13): a recent and a stale login
+jwt().jwt(j -> j.subject(KEYCLOAK_ID).claim("auth_time", Instant.now().minusSeconds(60).getEpochSecond()))
+jwt().jwt(j -> j.subject(KEYCLOAK_ID).issuedAt(Instant.now()).claim("auth_time", Instant.now().minusSeconds(3600).getEpochSecond()))
+```
+
+- **The slice mocks `JwtDecoder`, so it cannot prove audience or issuer validation.** Verify those live:
+  a token from another realm client must get 401.

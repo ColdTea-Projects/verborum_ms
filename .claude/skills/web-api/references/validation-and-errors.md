@@ -121,3 +121,23 @@ exactly what happened once actuator exposure was narrowed and `/actuator/env` st
 "No static resource".
 
 **Adding a new exception type means adding its handler in the same change.**
+
+## Status codes and limits added by the security audit
+
+| Situation | Status | Where |
+|---|---|---|
+| A known path called with a method it does not have | **405** `HttpRequestMethodNotSupportedException` | a handler in every `GlobalExceptionHandler`; without it the catch-all answered 500 with a stack trace |
+| An id-addressed read of a resource that is absent **or** not readable | **404**, never `200 []` and never 403 | e.g. `GET /words/dictionary/{id}` has its own `getWordsByDictionary`; the batch path (filter, 200) is a different endpoint |
+| A collection in the body, or an `ids` parameter, over its cap | **400** naming the field | `@Size(max = …)` on the `@RequestBody List` parameter (Spring MVC method validation, no class-level `@Validated`) and on the list field inside a DTO |
+| A create that would exceed a per-owner total | **400** `QuotaExceededException` | checked in the service on new rows only; an edit never trips it |
+| Well-formed, but incomplete for what it would do, in a way bean validation cannot express | **400** `InvalidRequestException`, message in `field: reason` form | e.g. `isPublic` optional on an update, required on a create, when POST and PUT share one save |
+| A request body over `verborum.request.max-body-bytes`, or a chunked body without `Content-Length` | **413** / **411** | `RequestBodyLimitFilter`, before Jackson reads the body |
+
+**A servlet filter writes its own error envelope.** `response.sendError(...)` forwards to `/error`, which
+the security chain guards, so the client gets a misleading **401**. Write the `ErrorResponse` JSON with the
+injected `ObjectMapper`, as `RequestBodyLimitFilter` does.
+
+**Optional on update, required on create.** When POST and PUT share one service method and either can
+create a row, make the field nullable in the DTO and resolve it in the service: absent on an existing row
+means "keep the stored value"; absent on a new row is `InvalidRequestException`. Resolve it **before**
+anything else in the method reads it (rules, events).

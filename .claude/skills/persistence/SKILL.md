@@ -51,7 +51,8 @@ public class Dictionary {
 - **`@Transactional` on every write.** Events are raised inside the transaction and sent after
   commit (`messaging`).
 
-Entity details — id strategies, the JSON-vs-TEXT choice, repository idioms — are in
+Entity details — id strategies, the JSON-vs-TEXT choice, repository idioms, atomic aggregate updates and
+upsert ownership — are in
 [references/entity-patterns.md](references/entity-patterns.md).
 
 ## Liquibase — the one rule that cannot be broken
@@ -87,3 +88,5 @@ repository, DTOs, mapper, service, verification in Adminer, documentation, revie
 - A database foreign key crossing a service boundary
 - Activating the commented-out Dictionary-to-Word association
 - A migration with no `rollback` and no `comment`
+- A shared counter or aggregate changed by read-modify-write in Java, or a `@Modifying` UPDATE with `clearAutomatically` but no `flushAutomatically`
+- An upsert by client-supplied id that checks the target but not who owns the existing row

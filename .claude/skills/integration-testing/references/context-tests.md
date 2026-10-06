@@ -88,3 +88,36 @@ necessary.
   same question, that is the cheaper tier.
 - **Throwaway verification scaffolding is not a test.** A full-context class written only to print
   an event payload should be run with `-Dtest=` and then deleted.
+
+## Real-database tests for what mocks cannot see
+
+Mocked repositories never exercise the persistence context: flush order, `clearAutomatically`, cascades,
+JPQL that only parses at startup. A bug there passes every unit test. Example: a rating `delete()` was
+discarded unwritten by the aggregate UPDATE's `clearAutomatically` (see `persistence`).
+
+Pattern (`DictionaryRatingPersistenceTest` in ms_marketplace):
+
+```java
+@SpringBootTest
+@Transactional                      // rolled back at the end; needs the local stack, like contextLoads
+class DictionaryRatingPersistenceTest {
+    // arrange rows through the repositories, call the real service, then assert the row AND the aggregate
+    // after every write (rate → change → remove)
+}
+```
+
+**Prove the test catches the bug:** temporarily revert only the fix (one annotation, say), run the test and
+see it fail on the expected line, then restore the fix and see it pass. Don't use `git stash` on the file
+for this, because it reverts every change in it.
+
+## Verifying against the running stack
+
+- Full-context tests need Postgres up (`docker compose up -d`). Without it they fail with
+  "Connection refused", which is an environment error, not a code failure. Report it as such.
+- Run the dev seed (`scripts/dev-seed/seed.py`) for realistic data. Without a local Python, run it in a
+  container with `host.docker.internal` URLs (`infra-ops` → verification-recipes).
+- **Test network exposure from the LAN address,** not from a container: Docker Desktop routes
+  `host.docker.internal` to the host's loopback, so a container reaches loopback-only ports that another
+  machine cannot.
+- After a live check that writes data, clean up (delete the probe accounts through `DELETE /users/{id}`) or
+  reset and reseed.

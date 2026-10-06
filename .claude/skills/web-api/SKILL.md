@@ -96,3 +96,5 @@ signatures. Both are switched by `SWAGGER_ENABLED` (SEC-12): on locally, `false`
 - Wrapping a read in `Response`
 - A new exception type with no handler
 - Shipping an endpoint that never reaches the contract table
+- A request collection or `ids` parameter with no `@Size` cap, or a missing 405 handler (see references)
+- A filter that answers with `sendError` — `/error` is behind security and turns it into a 401

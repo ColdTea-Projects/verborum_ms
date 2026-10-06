@@ -82,9 +82,9 @@ checking the dead-letter queue are in
   consumer is failing, not that delivery is broken.
 - **Mail** — Mailpit at http://localhost:8025 captures verification and email-code mail.
 
-**Test-data hygiene:** there is no seed script, so manual verification means creating rows through
-the API and deleting them afterwards. `DELETE /users/{userId}` is the cleanest reset — it cascades,
-publishes `user.deleted`, and removes the Keycloak account when the admin secret is set.
+**Test data:** `scripts/dev-seed/seed.py` creates 30 users with dictionaries, Forum membership, imports and
+ratings, and `reset.py` removes exactly them (both through the real APIs). Without a local Python, run them in a
+container (references/verification-recipes.md). Clean up your own probe users with `DELETE /users/{userId}`.
 
 ## Deployment
 

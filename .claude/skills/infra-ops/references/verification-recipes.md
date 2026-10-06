@@ -104,3 +104,29 @@ docker exec verborum-db-user psql -U coldtea -d vdbprofile -tAc \
 `DELETE /users/{userId}` is the cleanest reset: it cascades to stats and vault rows, publishes
 `user.deleted` (clearing that user's dictionaries and words in ms_dictionary), and removes the
 Keycloak account if the admin secret is configured.
+
+## Running the dev seed and Python probes without a local Python
+
+The seed and reset scripts are plain Python 3 with no packages. Run them in a throwaway container that
+reaches the host through `host.docker.internal` (Git Bash; `MSYS_NO_PATHCONV=1` keeps the paths intact):
+
+```bash
+H=host.docker.internal
+MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W)/scripts/dev-seed:/seed" \
+  -e SEED_KEYCLOAK_URL=http://$H:8180 -e SEED_USER_URL=http://$H:8086 \
+  -e SEED_DICTIONARY_URL=http://$H:8085 -e SEED_MARKETPLACE_URL=http://$H:8087 \
+  -e SEED_RABBIT_URL=http://$H:15672 python:3.12-slim python -u /seed/seed.py    # or reset.py
+```
+
+Keycloak keeps issuing tokens with `iss=http://localhost:8180/...` (the hostname is pinned), so tokens
+obtained this way are accepted by the services. If container→host connections drop
+(troubleshooting.md), mount a `sitecustomize.py` on `PYTHONPATH` that wraps `urllib.request.urlopen` to
+retry `URLError`/timeouts only.
+
+## Re-running the security probes
+
+`docs/agent/security-audit-2026-10-05.md` lists each finding's Verify step. After a change in auth,
+ownership, compose ports or the realm, re-run the probes that touch it:
+- exposure checks against the **LAN IP**
+- ownership checks with two seed users (e.g. a member and a non-member with private dictionaries)
+- token checks with a service-account token (must be 401)

@@ -38,3 +38,13 @@
   and a topic exchange discards a message with no bound queue.
 - **A WARN when deleting a profile locally** — `KEYCLOAK_ADMIN_CLIENT_SECRET` is unset, so the
   Keycloak identity is deliberately left alone.
+- **`keycloak-bootstrap` exits with `$'\r': command not found`.** The shell scripts were checked out with
+  Windows line endings (`core.autocrlf=true`). `.gitattributes` pins `*.sh` to LF. If a working copy still
+  has CRs, strip them (`tr -d '\r' < f > f.lf && mv f.lf f`) and re-run the bootstrap with
+  `docker compose up -d --force-recreate keycloak-bootstrap`.
+- **Requests from a container to the host time out at random (Docker Desktop on Windows).** The
+  connection is dropped before it reaches Tomcat; a thread dump shows every request thread idle. This is the
+  Docker network path, not the service. Retry *connection* errors in the test harness (never HTTP responses),
+  or run the client on the host.
+- **A changed `application.properties` value has no effect.** DevTools reloads classes, but a new or changed
+  property, a new migration or a new bean is only picked up reliably after a full restart of the service.

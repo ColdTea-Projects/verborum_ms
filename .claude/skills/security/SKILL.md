@@ -95,6 +95,6 @@ Stateless, CSRF disabled, `permitAll` only on `/actuator/**` and Swagger, everyt
 ## Pitfalls
 
 - Trusting a `userId` from the request body or path
-- `JwtGrantedAuthoritiesConverter` with a dotted claim name
-- Restoring actuator exposure `*`, or removing `jwk-set-uri` or `audiences`
+- `JwtGrantedAuthoritiesConverter` with a dotted claim name; actuator exposure `*`; dropping `jwk-set-uri` or `audiences`
 - 403 on an id-addressed read, or a service scaffolded without `SecurityConfig`
+- Identity fields from the body, irreversible actions on a stale login, realm settings in one place only — [references/account-and-session-rules.md](references/account-and-session-rules.md)
