@@ -51,9 +51,11 @@ class VaultServiceImplTest {
         MockitoAnnotations.openMocks(this);
 
         // Every caller-facing vault method resolves the profile to check ownership, so the default
-        // fixture is "the vault belongs to the caller". The forbidden cases re-stub this.
+        // fixture is "the vault belongs to the caller, a Forum member". The forbidden and non-member
+        // cases re-stub this.
         when(userRepository.findById(USER_ID))
-                .thenReturn(Optional.of(User.builder().userId(USER_ID).keycloakId(CALLER_KC_ID).build()));
+                .thenReturn(Optional.of(User.builder().userId(USER_ID).keycloakId(CALLER_KC_ID)
+                        .marketplaceAgreementAccepted(true).build()));
     }
 
     @Test
@@ -85,6 +87,23 @@ class VaultServiceImplTest {
         // Assert
         assertEquals(List.of(), result);
         verifyNoInteractions(vaultEntryMapper);
+    }
+
+    @Test
+    void getVaultEntriesByUser_NotAMember_ReturnsEmptyWithoutReading() {
+        // Arrange — never joined (null) or withdrew (false): the rows exist but stay hidden
+        for (Boolean accepted : new Boolean[]{false, null}) {
+            when(userRepository.findById(USER_ID))
+                    .thenReturn(Optional.of(User.builder().userId(USER_ID).keycloakId(CALLER_KC_ID)
+                            .marketplaceAgreementAccepted(accepted).build()));
+
+            // Act
+            List<VaultEntryResponseDTO> result = vaultService.getVaultEntriesByUser(USER_ID, CALLER_KC_ID);
+
+            // Assert
+            assertEquals(List.of(), result);
+        }
+        verifyNoInteractions(vaultEntryRepository, vaultEntryMapper);
     }
 
     @Test

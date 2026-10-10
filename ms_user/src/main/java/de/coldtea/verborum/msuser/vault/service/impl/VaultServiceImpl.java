@@ -36,9 +36,16 @@ public class VaultServiceImpl implements VaultService {
         // 404 for an unknown OR unowned profile: a read by id, so a 403 would confirm the id exists
         // (SEC-14 — until 2026-10-05 the unowned case was a 403 despite this rule). Writes keep the 403
         // of requireOwnProfile
-        userRepository.findById(userId)
-                .filter(user -> callerKeycloakId.equals(user.getKeycloakId()))
+        User user = userRepository.findById(userId)
+                .filter(profile -> callerKeycloakId.equals(profile.getKeycloakId()))
                 .orElseThrow(() -> new RecordNotFoundException(USER_WAS_NOT_FOUND_ID + userId));
+
+        // The vault belongs to the Forum: a user who is not a member (never joined, or withdrew) sees
+        // it empty. Nothing is deleted — the rows stay, so re-joining restores the library at once,
+        // and the entries keep matching dictionary_imports in ms_marketplace.
+        if (!Boolean.TRUE.equals(user.getMarketplaceAgreementAccepted())) {
+            return List.of();
+        }
 
         return vaultEntryRepository.findByUserId(userId)
                 .stream()

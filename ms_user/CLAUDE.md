@@ -54,7 +54,10 @@ unchanged (`creation_dt`/`update_dt`/`imported_at`).
 ## API — VaultController (`/users/{userId}/vault`)
 - `GET` list the user's imported dictionaries (**404** for an unknown or unowned profile — the P3-05
   ownership guard loads the user to compare `keycloakId`, so the pre-P3-05 "empty list" behaviour is
-  gone; 404 also matches the P3-08 read rules) ·
+  gone; 404 also matches the P3-08 read rules). **Returns `[]` while `marketplace_agreement_accepted`
+  is not true** — the vault belongs to the Forum; rows are kept (no delete on withdrawal), so re-joining
+  restores it and `dictionary_imports` in ms_marketplace stays consistent. A visibility filter, not
+  access control: public dictionaries stay readable by id in ms_dictionary (P4-10) ·
   `DELETE /{dictionaryId}` remove one. **No `POST` since SEC-09 (2026-10-05)** — it accepted any dictionary id
   (another user's private one, or from a non-member) and skipped the Forum gate; it now answers 405. An entry
   is added only by a marketplace import (`dictionary.imported` → `VaultService.importDictionary`).

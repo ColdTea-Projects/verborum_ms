@@ -444,7 +444,7 @@ locale-independent conversion (`Locale.ROOT` / invariant culture) — Turkish lo
 | ms_dictionary | `GET /dictionaries/batch?ids=a,b,c` | several at once — unreadable ids are **silently dropped** |
 | ms_dictionary | `GET /words/dictionary/{id}` | its words; **`level` is `null`** on another user's words; `[]` if it became private |
 | ms_dictionary | `GET /dictionaries/{id}/tags` | its tags (404 if not readable) |
-| ms_user | `GET /users/{userId}/vault` | the caller's vault: `[{vaultEntryId, userId, dictionaryId, importedAt}]` — `{userId}` is `id` from `/me`, **not** the `sub` |
+| ms_user | `GET /users/{userId}/vault` | the caller's vault: `[{vaultEntryId, userId, dictionaryId, importedAt}]` — `{userId}` is `id` from `/me`, **not** the `sub`. **`[]` while the caller is not a Forum member** (never joined or withdrew); entries are kept, so re-joining brings them back |
 | ms_user | `DELETE /users/{userId}/vault/{dictionaryId}` | remove an imported dictionary from the vault (200, also when absent) |
 
 ### 5.6 Ratings (since 2026-10-05)
@@ -554,7 +554,9 @@ Rules for `PUT`, checked in this order:
    vault update.
 
 ### 6.7 Opening an imported dictionary (vault)
-1. `GET /users/{userId}/vault` → `dictionaryId`s.
+1. `GET /users/{userId}/vault` → `dictionaryId`s. A non-member gets `[]` — hide the vault UI
+   instead of showing an empty state, keep any local cache, and **re-fetch after a join or leave**.
+   Nothing is deleted on leaving; the entries return when the user re-joins.
 2. `GET /dictionaries/batch?ids=…` → dictionaries still readable. **Any id missing from the result
    became private or was deleted.**
 3. For each unavailable one: show it as "No longer available" with a **Remove** action →
