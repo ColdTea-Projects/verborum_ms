@@ -1572,7 +1572,7 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
 > Depends on: Phase 4 complete (marketplace events and ratings exist).
 
 ### Stage 1 — Firebase and the backend core
-- [ ] `P4N-01` **Firebase projects and secret plumbing** (owner, console work)
+- [x] `P4N-01` **Firebase projects and secret plumbing** (owner, console work) — done 2026-10-14: `verborum-dev`, Android app `de.coldtea.verborum.app`, key outside the repos (700/600), `validate_only` returned 200. `verborum-prod` is created in `P4N-11`
   - Two projects, `verborum-dev` and `verborum-prod` (same Google account is fine). Cloud Messaging
     API (V1) enabled. One service account per project with only the **Firebase Cloud Messaging API
     Admin** role; its JSON key is downloaded once and kept **outside the repo**
@@ -1583,7 +1583,7 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
   - Steps: `push-notifications.md` §12 (Android only; no Web app, VAPID key or iOS app yet)
   - Done when: a `validate_only` call to `messages:send` with the dev service account returns 200. A real
     delivery to the emulator needs a device token, so it moves to `P4N-09`
-- [ ] `P4N-02` **Scaffold `ms_notification`** — agent `spring-boot-architect`; depends on `P4N-01`
+- [x] `P4N-02` **Scaffold `ms_notification`** — done 2026-10-14: port 8088, `vdbnotification` on 5435, Adminer 8083; 8/8 tests, `/actuator/health` 200, other paths 401. AMQP and the Firebase SDK are left out of the pom until `P4N-07`/`P4N-04`. Agent `spring-boot-architect`; depends on `P4N-01`
   - Mirror ms_marketplace. `SecurityConfig` from the first commit (JWT, audiences, actuator
     `health,info`, Swagger behind `SWAGGER_ENABLED`). Register in the aggregator `<modules>`
   - **Proposed, confirm at scaffold time (rule 7):** port **8088**, database `vdbnotification` on

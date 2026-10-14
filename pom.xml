@@ -13,5 +13,6 @@
         <module>ms_dictionary</module>
         <module>ms_user</module>
         <module>ms_marketplace</module>
+        <module>ms_notification</module>
     </modules>
 </project>
