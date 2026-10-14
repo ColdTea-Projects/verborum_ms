@@ -67,6 +67,12 @@ public class DeviceTokenServiceImpl implements DeviceTokenService {
         deviceTokenRepository.deleteByDeviceIdAndUserId(deviceId, ownerId);
     }
 
+    @Transactional
+    @Override
+    public void removeAllDevices(String keycloakId) {
+        deviceTokenRepository.deleteByUserId(keycloakId);
+    }
+
     /** A per-user quota (SEC-07 lesson): abandoned installs must not pile up. The freshest are kept. */
     private void evictSurplusDevices(String ownerId) {
         List<DeviceToken> devices = deviceTokenRepository.findByUserIdOrderByLastSeenAtAsc(ownerId);

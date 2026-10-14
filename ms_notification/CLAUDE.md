@@ -14,8 +14,8 @@ background. Design, contract and order of work: `docs/agent/push-notifications.m
 - **DB:** `vdbnotification` (PostgreSQL) — docker-compose in this module (Postgres on 5435 + Adminer on
   8083), and `db_notification` in the root compose on the same host port. Run one or the other.
 - **Base package:** `de.coldtea.verborum.msnotification`
-- **Status:** Scaffolded (P4N-02), device registration (P4N-03), FCM sender (P4N-04). No RabbitMQ yet,
-  so nothing triggers a push until `P4N-07`.
+- **Status:** Scaffolded (P4N-02), device registration (P4N-03), FCM sender (P4N-04), event consumers
+  (P4N-07). **Needs RabbitMQ** — use the root compose; with no broker `/actuator/health` is DOWN.
 
 ## Entities
 - `DeviceToken` (`device_tokens`) — `deviceId` (PK, client UUID of the app install), `userId`
@@ -53,10 +53,32 @@ background. Design, contract and order of work: `docs/agent/push-notifications.m
 - `FirebasePushSenderLiveTest` is opt-in (runs only with `FIREBASE_CREDENTIALS_FILE` set, always dry run).
 - **Netty is pinned to 4.1.138.Final** (SEC-08); `firebase-admin` brings 4.1.135 otherwise.
 
+## Events (P4N-07) — consumes only, publishes nothing
+| Routing key | Queue | From | Effect |
+|---|---|---|---|
+| `dictionary.changed` | `notification.dictionary.changed` | ms_dictionary | silent `SYNC` to the owner's **other** devices (the event's `deviceId` is skipped) |
+| `dictionary.imported` | `notification.dictionary.imported` | ms_marketplace | silent `REFRESH` to `publisherId` |
+| `dictionary.rated` | `notification.dictionary.rated` | ms_marketplace | silent `REFRESH` to `publisherId` |
+| `user.deleted` | `notification.user.deleted` | ms_user | deletes the user's tokens — **match on `keycloakId`** |
+
+- Listeners (`common/listener/`, one class per source service) delegate to `NotificationService` /
+  `DeviceTokenService` and re-throw, so retry (3 attempts, backoff) and then the dead-letter queue take over.
+  A `PushDeliveryException` (quota, outage) takes that path on purpose.
+- An event with no recipient (no `keycloakId`, or an import from before `publisherId`) is **ignored with a
+  WARN**, not thrown: it can never succeed, so retrying it would only fill the dead-letter queue.
+- The actor is never notified: `SYNC` skips the writing device, `REFRESH` is not sent when the publisher
+  is the actor. Collapse keys: `sync` and `refresh` — one pending message of each per user.
+- No server-side debounce (decided, see roadmap `P4N-07`): the collapse key and the client's unique sync
+  work already coalesce a burst, and a debounce either drops the last edit or needs state that does not
+  survive a restart.
+- The publisher's Forum membership is **not mirrored**: ms_marketplace only publishes these events for a
+  listing whose publisher is a member.
+- Event DTOs in `common/event/` are consumer-side copies; `RabbitMQConfigTest` pins the wire contract
+  through the real converter (INFERRED type precedence, unknown fields ignored).
+
 ## What arrives next
-- `P4N-06`/`P4N-07` events and consumers (adds `spring-boot-starter-amqp` and the RabbitMQ pins that
-  were left out of the pom on purpose — the AMQP health indicator would turn `/actuator/health`
-  DOWN with no broker)
+- `P4N-08` docs + `security-auditor` run, then the clients (`P4N-09` Android; web needs no push). The
+  service itself is feature-complete for the first release; `P4N-05` (preferences) is deferred.
 
 ## Quirks
 - Silent data messages only: no `notification` block, no preferences table (`P4N-05` is deferred).

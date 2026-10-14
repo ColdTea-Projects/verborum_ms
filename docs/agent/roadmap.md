@@ -1638,7 +1638,7 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
     `publisherId`) — they get their first end-to-end run with the consumers in `P4N-07`
   - Done when: each event reaches the routing-key table in `verborum.md`, is published after commit,
     and has a test for the positive and the negative case
-- [ ] `P4N-07` **`ms_notification` consumers** — depends on `P4N-03`, `P4N-04`, `P4N-06`
+- [x] `P4N-07` **`ms_notification` consumers** — done 2026-10-14: 69 tests (1 opt-in live), verified end to end (ms_dictionary → RabbitMQ → ms_notification → FCM dry run), dead-letter queue empty. Depends on `P4N-03`, `P4N-04`, `P4N-06`
   - One dead-lettered queue per routing key, `INFERRED` type precedence, idempotent handlers. **All
     messages are data-only** (no `notification` block)
   - **First:** `dictionary.changed` → the user's **other** devices, `data.type=SYNC`. Skip the
@@ -1647,6 +1647,16 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
   - Rules: never push to the actor's own device; collapse key `sync` per user so a burst of edits leaves
     one pending message (plus a short server-side debounce); normal priority; payload carries ids only;
     `user.deleted` removes every token, matched on `keycloakId`
+  - **Deviations from the brief, on purpose:** (1) *no server-side debounce.* A leading-edge debounce
+    drops the last edit of a burst, so the other device can end on stale data; a trailing one needs timer
+    state that is lost on restart and does not span instances. The collapse key already leaves one pending
+    message per user and the client coalesces syncs (unique work), so the cost is a few FCM calls to a
+    user's own 1–3 devices. Revisit if bursts show up in metrics. (2) *no membership mirror.*
+    ms_marketplace only publishes `imported`/`rated` for a listing whose publisher is a member (anything
+    else is a 404 there), so the recipient is a member by construction
+  - Queues (durable, dead-lettered): `notification.dictionary.changed`, `.dictionary.imported`,
+    `.dictionary.rated`, `.user.deleted`. Handlers ignore an event with no recipient instead of throwing,
+    so a message that can never succeed does not loop into the dead-letter queue
   - Done when: an edit on device A produces exactly one `SYNC` on device B and none on A; a burst of ten
     edits delivers at most a few; a redelivery does no harm
 - [ ] `P4N-08` **Docs, audit, contract** — depends on `P4N-07`

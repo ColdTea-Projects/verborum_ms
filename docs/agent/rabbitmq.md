@@ -67,9 +67,11 @@ Durable: true
 | `user.profile.updated` | ms_user | `marketplace.user.profile.updated` | Publisher display name and membership for listings, the name filter and the Forum gate (P4-13..P4-15) |
 | `user.profile.updated` | ms_user | `dictionary.user.profile.updated` | Join shares / leave unshares all the user's dictionaries (P4-16) |
 | `dictionary.imported` | ms_marketplace | `user.dictionary.imported` | Add to user vault |
-| `dictionary.imported` | ms_marketplace | `notification.dictionary.imported` (P4N-07) | Silent `REFRESH` to the publisher; carries `publisherId` |
-| `dictionary.rated` | ms_marketplace | `notification.dictionary.rated` (P4N-07) | Silent `REFRESH` to the publisher (P4N-06) |
-| `dictionary.changed` | ms_dictionary | `notification.dictionary.changed` (P4N-07) | Silent `SYNC` to the user's other devices (P4N-06) |
+| `dictionary.imported` | ms_marketplace | `notification.dictionary.imported` | Silent `REFRESH` to the publisher; carries `publisherId` |
+| `dictionary.rated` | ms_marketplace | `notification.dictionary.rated` | Silent `REFRESH` to the publisher (P4N-06) |
+| `dictionary.changed` | ms_dictionary | `notification.dictionary.changed` |
+| `user.deleted` | ms_user | `notification.user.deleted` | Drop the user's device tokens (match on keycloakId) |
+| (placeholder removed) | Silent `SYNC` to the user's other devices (P4N-06) |
 | `word.created` | ms_dictionary | `autofil.word.created` (V2) | Feed Autofil suggestions |
 
 ---

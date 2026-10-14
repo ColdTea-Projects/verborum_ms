@@ -82,7 +82,10 @@ API Gateway ──► Autofil Service  (word suggestions from community data, No
 - **Built:** `DeviceToken` (`device_tokens`, P4N-03) and `PUT /notifications/devices`,
   `DELETE /notifications/devices/{deviceId}` — see `ms_notification/CLAUDE.md` for the ownership rules
 - **Sender (P4N-04):** `PushDispatchService` over FCM (Firebase Admin SDK); silent data messages only; no
-  key configured = logging no-op sender. Nothing calls it until the consumers of `P4N-07`
+  key configured = logging no-op sender
+- **Consumers (P4N-07):** `dictionary.changed` → silent `SYNC` to the user's other devices;
+  `dictionary.imported`/`dictionary.rated` → silent `REFRESH` to the publisher; `user.deleted` → drops the
+  user's tokens. Needs the root compose stack (RabbitMQ) — health is DOWN without a broker
 - **Design, contract and order of work:** `docs/agent/push-notifications.md`; tasks `P4N-01`…`P4N-13`
 - **Security requirement:** `SecurityConfig` from the first commit; owner always from the JWT subject.
 
@@ -351,11 +354,11 @@ This is the single source of truth — every client's language enum must be a su
 | `dictionary.deleted` | ms_dictionary | ms_marketplace (`marketplace.dictionary.deleted`) | Dictionary deleted |
 | `dictionary.updated` | ms_dictionary | ms_marketplace (`marketplace.dictionary.updated`) | A public dictionary's `name`/`fromLang`/`toLang` changed and it stayed public, or a tag was actually added to/removed from it (P4-12; bumps its `updatedAt`) |
 | `dictionary.snapshot` | ms_dictionary | ms_marketplace (`marketplace.dictionary.snapshot`) | Schedule, nightly by default (`DICTIONARY_SNAPSHOT_CRON`) — every public dictionary in one message |
-| `user.deleted` | ms_user | ms_dictionary (`dictionary.user.deleted`), ms_marketplace (`marketplace.user.deleted`) | User account deleted |
+| `user.deleted` | ms_user | ms_dictionary (`dictionary.user.deleted`), ms_marketplace (`marketplace.user.deleted`), ms_notification (`notification.user.deleted`, drops the user's device tokens) | User account deleted |
 | `user.profile.updated` | ms_user | ms_marketplace (`marketplace.user.profile.updated`), ms_dictionary (`dictionary.user.profile.updated`, P4-16: joining shares all the user's dictionaries, leaving makes them all private) | A user's display name was set, changed or cleared (P4-13), or the marketplace agreement accepted or withdrawn (P4-14). `{keycloakId, displayName, marketplaceAgreementAccepted, updatedAt, eventTimestamp}`; `displayName: null` = no name now |
-| `dictionary.imported` | ms_marketplace | ms_user (`user.dictionary.imported`); ms_notification (P4N-07) | User imports a public dictionary. `{dictionaryId, keycloakId (importer), publisherId, eventTimestamp}` — `publisherId` added P4N-06, ignored by ms_user |
-| `dictionary.rated` | ms_marketplace | ms_notification (P4N-07) | A rating was created or its stars changed (never a repeat, never a removal). `{dictionaryId, publisherId, raterKeycloakId, stars, eventTimestamp}` (P4N-06) |
-| `dictionary.changed` | ms_dictionary | ms_notification (P4N-07) | A **real** change to a user's dictionary, any of its words, or its tags — create, edit, delete, tag, and the server flipping `isPublic` on join/leave. One event per dictionary per request, never on a re-upload of identical content. `{keycloakId, dictionaryId, deviceId?, eventTimestamp}`; `deviceId` is the writing install's `X-Device-Id` header (P4N-06) |
+| `dictionary.imported` | ms_marketplace | ms_user (`user.dictionary.imported`); ms_notification (`notification.dictionary.imported`) | User imports a public dictionary. `{dictionaryId, keycloakId (importer), publisherId, eventTimestamp}` — `publisherId` added P4N-06, ignored by ms_user |
+| `dictionary.rated` | ms_marketplace | ms_notification (`notification.dictionary.rated`) | A rating was created or its stars changed (never a repeat, never a removal). `{dictionaryId, publisherId, raterKeycloakId, stars, eventTimestamp}` (P4N-06) |
+| `dictionary.changed` | ms_dictionary | ms_notification (`notification.dictionary.changed`) | A **real** change to a user's dictionary, any of its words, or its tags — create, edit, delete, tag, and the server flipping `isPublic` on join/leave. One event per dictionary per request, never on a re-upload of identical content. `{keycloakId, dictionaryId, deviceId?, eventTimestamp}`; `deviceId` is the writing install's `X-Device-Id` header (P4N-06) |
 | `word.created` | ms_dictionary | ms_autofil (V2) | New word added |
 
 **Dead letter infrastructure:** `verborum.events.dlx` (type: `fanout`) → queue `verborum.dead-letter`.

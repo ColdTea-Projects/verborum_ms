@@ -174,6 +174,15 @@ class DeviceTokenServiceImplTest {
     }
 
     @Test
+    void removeAllDevices_DeletesEveryDeviceOfTheUser() {
+        // Act — the user.deleted cascade, matched on the JWT subject
+        deviceTokenService.removeAllDevices(OWNER);
+
+        // Assert
+        verify(deviceTokenRepository).deleteByUserId(OWNER);
+    }
+
+    @Test
     void removeDevice_IsScopedToTheCaller() {
         // Act
         deviceTokenService.removeDevice(DEVICE_ID, OWNER);

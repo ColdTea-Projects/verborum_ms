@@ -20,4 +20,10 @@ public interface DeviceTokenService {
 
     /** Removes the caller's device (logout). A no-op when it is absent or belongs to someone else. */
     void removeDevice(String deviceId, String ownerId);
+
+    /**
+     * Removes every device of a user — the `user.deleted` cascade (P4N-07). `keycloakId` is the JWT
+     * subject stored in `fk_user_id`; event-driven, so there is no caller to check. Idempotent.
+     */
+    void removeAllDevices(String keycloakId);
 }
