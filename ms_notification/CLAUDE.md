@@ -81,6 +81,17 @@ background. Design, contract and order of work: `docs/agent/push-notifications.m
   service itself is feature-complete for the first release; `P4N-05` (preferences) is deferred.
 
 ## Quirks
+- **A device row can be moved by anyone holding its FCM token** (audit P4N-08, accepted): the same token
+  under a new account proves it is the same phone, which is what makes a second account on one device
+  work. A leaked token is the only way to abuse it, the impact is a silent id-only push to the wrong
+  account, and each move is logged (both subjects, never the token).
+- **Fan-out is not rate-limited here** (audit P4N-08, accepted for now): every real write raises one
+  `dictionary.changed`, so a user scripting writes at API speed makes FCM sends in step. The caller can only
+  hurt their own devices and the shared FCM quota; per-user write limits belong at the gateway (`P5-04`).
+  The shared `verborum.dead-letter` queue has no TTL or length cap and **cannot be given one from a
+  service** — changing a live queue's arguments fails the declaration; do it with a new queue name.
+- `RequestBodyLimitFilter` refuses an unknown-length body only when `Transfer-Encoding` is present, like
+  ms_user's; Tomcat does not enable HTTP/2 here. Tighten in all services together, not in one.
 - Silent data messages only: no `notification` block, no preferences table (`P4N-05` is deferred).
 - The Firebase service-account key is a credential. It lives outside every repo
   (`~/.config/verborum/`), is read through `FIREBASE_CREDENTIALS_FILE`, and `.gitignore` guards its

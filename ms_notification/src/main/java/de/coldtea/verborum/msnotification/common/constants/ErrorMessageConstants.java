@@ -10,6 +10,7 @@ public final class ErrorMessageConstants {
     public static final String NOT_THE_OWNER = "This resource does not belong to the authenticated user";
     // Returned instead of an unhandled exception's own message, which would leak internals
     public static final String INTERNAL_SERVER_ERROR = "Internal server error";
+    public static final String MALFORMED_REQUEST_BODY = "The request body could not be read";
     public static final String METHOD_NOT_ALLOWED = "This HTTP method is not supported on this path";
     public static final String NO_AUTHENTICATED_USER = "No authenticated user found";
 

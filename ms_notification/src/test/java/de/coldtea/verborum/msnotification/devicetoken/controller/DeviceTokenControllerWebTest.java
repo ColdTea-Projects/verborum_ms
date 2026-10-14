@@ -15,6 +15,8 @@ import org.springframework.http.MediaType;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
@@ -23,6 +25,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -96,6 +99,17 @@ class DeviceTokenControllerWebTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"deviceId\":\"" + DEVICE_ID + "\",\"token\":\"t\",\"platform\":\"WEB\"}"))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void put_MalformedJson_Is400_AndTheBodyIsNotEchoed() throws Exception {
+        // Jackson's own message quotes the input, which here may be an FCM token
+        mockMvc.perform(put("/notifications/devices").with(jwt().jwt(j -> j.subject(SUB)))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"deviceId\":\"" + DEVICE_ID + "\",\"token\":\"SECRET-FCM-TOKEN-VALUE\",\"platform\":"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorDetail").value("The request body could not be read"))
+                .andExpect(content().string(not(containsString("SECRET-FCM-TOKEN-VALUE"))));
     }
 
     @Test

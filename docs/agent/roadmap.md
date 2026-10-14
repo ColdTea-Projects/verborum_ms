@@ -1659,9 +1659,16 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
     so a message that can never succeed does not loop into the dead-letter queue
   - Done when: an edit on device A produces exactly one `SYNC` on device B and none on A; a burst of ten
     edits delivers at most a few; a redelivery does no harm
-- [ ] `P4N-08` **Docs, audit, contract** — depends on `P4N-07`
+- [x] `P4N-08` **Docs, audit, contract** — done 2026-10-14: independent `security-auditor` run (no critical/high; 2 medium, 4 low; fixed or accepted below), client guide `docs/integration/push-notifications-client-guide.md`. Depends on `P4N-07`
   - `verborum.md` (service, tables, endpoints, events), `rabbitmq.md`, `ms_notification/CLAUDE.md`,
     port map in `infra-ops`, `docs/integration/` client heads-up. Run `security-auditor` on the service
+  - **Audit outcome:** no critical or high. Fixed: a malformed body no longer echoes Jackson's message
+    (it can quote an FCM token) and a token moving between accounts is logged. **Accepted, documented in
+    `ms_notification/CLAUDE.md`:** a row can be re-pointed by whoever holds its token (needed for two
+    accounts on one phone); no per-user fan-out throttle (belongs at the gateway, `P5-04`; the dead-letter
+    queue cannot be capped from a service without a new queue name). **Carried forward:** the stale-token
+    cleanup job (`P4N-11`, also covers a deleted user's late re-registration) and an osv-scan of the built
+    jar, since `grpc-netty-shaded` bundles netty that no pin reaches
   - Done when: the contract tables match the code and the audit has no open finding
 
 ### Stage 3 — Clients, local (client repos; tracked here)

@@ -20,6 +20,7 @@ import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import static de.coldtea.verborum.msnotification.common.constants.ErrorMessageConstants.DATA_CONFLICT;
 import static de.coldtea.verborum.msnotification.common.constants.ErrorMessageConstants.INTERNAL_SERVER_ERROR;
+import static de.coldtea.verborum.msnotification.common.constants.ErrorMessageConstants.MALFORMED_REQUEST_BODY;
 import static de.coldtea.verborum.msnotification.common.constants.ErrorMessageConstants.METHOD_NOT_ALLOWED;
 import static de.coldtea.verborum.msnotification.common.constants.ErrorMessageConstants.INVALID_PARAMETER;
 
@@ -71,8 +72,10 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(HttpMessageNotReadableException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ResponseEntity<ErrorResponse> handleHttpMessageNotReadableException(HttpMessageNotReadableException ex, WebRequest request) {
-        log.error(HttpMessageNotReadableException.class.getCanonicalName(), ex);
-        return buildErrorResponse(HttpStatus.BAD_REQUEST, HttpMessageNotReadableException.class.getSimpleName(), ex.getMessage(), request);
+        // Jackson's message quotes the offending input, and here that input can be an FCM token: neither
+        // the response nor the log gets it (security audit P4N-08)
+        log.warn("{}: unreadable request body", HttpMessageNotReadableException.class.getCanonicalName());
+        return buildErrorResponse(HttpStatus.BAD_REQUEST, HttpMessageNotReadableException.class.getSimpleName(), MALFORMED_REQUEST_BODY, request);
     }
 
     /**

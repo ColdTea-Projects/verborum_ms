@@ -331,6 +331,18 @@ on a first import (unique importers), and publishes `dictionary.imported` on eve
 The importer can open the dictionary only once public dictionaries are readable in ms_dictionary
 (P4-10).
 
+### ms_notification — DeviceTokenController (`/notifications/devices`, P4N-03)
+Owner only: every call acts on the token subject's own devices. Silent pushes only — no read endpoint.
+
+| Method | Path | Body | Returns |
+|---|---|---|---|
+| PUT | `/notifications/devices` | `{deviceId, token, platform ANDROID\|IOS, locale?, appVersion?}` | `Response` 201 — idempotent upsert. **403** when `deviceId` belongs to another user and the token differs; the same token moves the device to the caller. A token already stored under another `deviceId` replaces that row. At most 20 devices per user (oldest evicted). 409 on a concurrent unique race, 413 above 16 KB |
+| DELETE | `/notifications/devices/{deviceId}` | — | `Response` 200 — also when absent or not yours (no-op) |
+
+`GET` is 405 on purpose. Clients also send an optional `X-Device-Id` header on every ms_dictionary write
+(P4N-06) so the writing device is skipped by its own `SYNC`. Full client contract:
+`docs/integration/push-notifications-client-guide.md`.
+
 ---
 
 ## Supported Languages

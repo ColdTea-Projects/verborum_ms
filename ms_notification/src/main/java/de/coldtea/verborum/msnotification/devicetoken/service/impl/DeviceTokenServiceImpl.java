@@ -7,6 +7,7 @@ import de.coldtea.verborum.msnotification.devicetoken.repository.DeviceTokenRepo
 import de.coldtea.verborum.msnotification.devicetoken.service.DeviceTokenService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
@@ -15,6 +16,7 @@ import java.util.List;
 import static de.coldtea.verborum.msnotification.common.constants.DTOMessageConstants.MAX_DEVICES_PER_USER;
 import static de.coldtea.verborum.msnotification.common.constants.ErrorMessageConstants.NOT_THE_OWNER;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class DeviceTokenServiceImpl implements DeviceTokenService {
@@ -44,6 +46,13 @@ public class DeviceTokenServiceImpl implements DeviceTokenService {
                     deviceTokenRepository.delete(other);
                     deviceTokenRepository.flush();
                 });
+
+        if (device != null && !ownerId.equals(device.getUserId())) {
+            // Holding the token is the proof, and it is deliberately accepted (a second account on one
+            // phone) — but it is also the one way a leaked token could be re-pointed, so it leaves a
+            // trace: both subjects, never the token (security audit P4N-08)
+            log.info("Device {} moved from user {} to user {}", deviceId, device.getUserId(), ownerId);
+        }
 
         if (device == null) {
             device = DeviceToken.builder().deviceId(deviceId).build();

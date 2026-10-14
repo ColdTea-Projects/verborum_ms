@@ -47,6 +47,7 @@ project state and the long-form rationale behind them.
 | `docs/agent/clean-code.md` | Background on the naming and structure conventions |
 | `docs/agent/rabbitmq.md` | Background on messaging — the seven rules in full |
 | `docs/agent/push-notifications.md` | Any push-notification work (`P4N-xx` tasks, `ms_notification`, FCM, device tokens) — decisions, contract, per-platform steps, local testing |
+| `docs/integration/push-notifications-client-guide.md` | A client team (Android/KMP) integrating push — the endpoints, `X-Device-Id` header, message types and what the app must do |
 | `docs/agent/security.md` | The normative auth contract — realm, clients, tokens, ownership rules |
 | `docs/agent/security-audit-2026-10-05.md` | Working on any `SEC-xx` roadmap task, or asked about known security gaps — evidence, fix and verify step per finding |
 | `docs/agent/testing.md` | Background on test conventions |
