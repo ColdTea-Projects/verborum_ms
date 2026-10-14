@@ -81,7 +81,7 @@ notification_preferences  DEFERRED — silent pushes have no user-visible catego
 | PUT | `/notifications/devices` | `{deviceId, token, platform, locale?, appVersion?}` | 201, idempotent upsert. **403** if `deviceId` belongs to another user and the token differs; the same token moves the device to the caller. A token already stored under another `deviceId` replaces that row. At most 20 devices per user (oldest evicted). `platform` is `ANDROID` or `IOS` (web is 400) |
 | DELETE | `/notifications/devices/{deviceId}` | — | 200, no-op when absent or not yours |
 
-**Events.** New: `dictionary.rated` (ms_marketplace), `dictionary.changed`
+**Events (built, P4N-06).** New: `dictionary.rated` (ms_marketplace), `dictionary.changed`
 (ms_dictionary, any change to a user's dictionary or words — `dictionary.updated` only covers public
 listing fields). Changed: `dictionary.imported` gains `publisherId`. Every event is published after
 commit, fires on change only, and identifies users by `keycloakId`. Add each to the routing-key table
@@ -101,6 +101,12 @@ in `verborum.md` and `messaging`.
 (a path) with `FIREBASE_PROJECT_ID`; both are `${VAR:}` in `application.properties` with placeholders in
 `.env.example`. Never in Java, an image, the realm JSON or git — `.gitignore` guards the usual file
 names. With no file configured the sender logs a WARN and skips, so local development works without it.
+
+**Client contract for sync pushes:** send the app install's id on **every write** as the request header
+`X-Device-Id: <the same deviceId registered at /notifications/devices>` (ms_dictionary: dictionaries,
+words, tags). It is optional and ignored if it is not a UUID; with it, the writing device does not receive
+its own nudge. Without it that device simply syncs once more. A re-upload of identical content publishes
+nothing, so uploading everything on each sync is safe.
 
 ## 5. Android (`verborum_android`)
 

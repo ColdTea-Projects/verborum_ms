@@ -1620,7 +1620,7 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
   - Done when: a disabled category is skipped by the sender path
 
 ### Stage 2 — Events and delivery
-- [ ] `P4N-06` **Events the pushes need** — depends on `P4N-02`; agent `spring-boot-architect`
+- [x] `P4N-06` **Events the pushes need** — done 2026-10-14: ms_dictionary 183 tests, ms_marketplace 179, ms_user +2; `dictionary.changed` verified live over RabbitMQ (13 scenarios). Depends on `P4N-02`; agent `spring-boot-architect`
   - ms_marketplace `dictionary.imported`: add `publisherId` (additive; verify ms_user's listener still
     passes with the extra field)
   - ms_marketplace: publish `dictionary.rated` `{dictionaryId, publisherId, raterKeycloakId, stars,
@@ -1628,6 +1628,14 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
   - ms_dictionary: publish `dictionary.changed` `{keycloakId, dictionaryId, deviceId?, eventTimestamp}`
     after commit on **any** change to the user's dictionary or its words (`dictionary.updated` fires
     only for public listing fields and cannot serve sync). Fires on change only (rule 6)
+  - Built as `DictionaryChangeNotifier` (ms_dictionary): the services decide *whether* something changed,
+    the notifier raises the event and reads the optional `X-Device-Id` header (ambient, UUID-validated).
+    Change detection copies the stored values out before the save, so a re-upload of identical content
+    publishes nothing (no ping-pong between devices)
+  - `dictionary.changed` also fires for tag changes (public or private) and for the server's own
+    `isPublic` flip on join/leave. `dictionary.rated` is not published for a repeat or a removal
+  - Not verified live: the two ms_marketplace events (unit-tested; ms_user's converter proven to ignore
+    `publisherId`) — they get their first end-to-end run with the consumers in `P4N-07`
   - Done when: each event reaches the routing-key table in `verborum.md`, is published after commit,
     and has a test for the positive and the negative case
 - [ ] `P4N-07` **`ms_notification` consumers** — depends on `P4N-03`, `P4N-04`, `P4N-06`

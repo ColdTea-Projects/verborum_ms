@@ -353,7 +353,9 @@ This is the single source of truth — every client's language enum must be a su
 | `dictionary.snapshot` | ms_dictionary | ms_marketplace (`marketplace.dictionary.snapshot`) | Schedule, nightly by default (`DICTIONARY_SNAPSHOT_CRON`) — every public dictionary in one message |
 | `user.deleted` | ms_user | ms_dictionary (`dictionary.user.deleted`), ms_marketplace (`marketplace.user.deleted`) | User account deleted |
 | `user.profile.updated` | ms_user | ms_marketplace (`marketplace.user.profile.updated`), ms_dictionary (`dictionary.user.profile.updated`, P4-16: joining shares all the user's dictionaries, leaving makes them all private) | A user's display name was set, changed or cleared (P4-13), or the marketplace agreement accepted or withdrawn (P4-14). `{keycloakId, displayName, marketplaceAgreementAccepted, updatedAt, eventTimestamp}`; `displayName: null` = no name now |
-| `dictionary.imported` | ms_marketplace | ms_user | User imports a public dictionary |
+| `dictionary.imported` | ms_marketplace | ms_user (`user.dictionary.imported`); ms_notification (P4N-07) | User imports a public dictionary. `{dictionaryId, keycloakId (importer), publisherId, eventTimestamp}` — `publisherId` added P4N-06, ignored by ms_user |
+| `dictionary.rated` | ms_marketplace | ms_notification (P4N-07) | A rating was created or its stars changed (never a repeat, never a removal). `{dictionaryId, publisherId, raterKeycloakId, stars, eventTimestamp}` (P4N-06) |
+| `dictionary.changed` | ms_dictionary | ms_notification (P4N-07) | A **real** change to a user's dictionary, any of its words, or its tags — create, edit, delete, tag, and the server flipping `isPublic` on join/leave. One event per dictionary per request, never on a re-upload of identical content. `{keycloakId, dictionaryId, deviceId?, eventTimestamp}`; `deviceId` is the writing install's `X-Device-Id` header (P4N-06) |
 | `word.created` | ms_dictionary | ms_autofil (V2) | New word added |
 
 **Dead letter infrastructure:** `verborum.events.dlx` (type: `fanout`) → queue `verborum.dead-letter`.
@@ -363,7 +365,7 @@ The DLX is a fanout on purpose — dead-lettered messages keep their original ro
 direct DLX would fail to match and drop. See `docs/agent/rabbitmq.md`.
 
 **User-identifying events carry `keycloakId`.** This applies to `user.deleted` (below) and to
-`dictionary.imported`, whose payload is `{dictionaryId, keycloakId, eventTimestamp}` — fixed by the
+`dictionary.imported`, whose payload is `{dictionaryId, keycloakId, eventTimestamp}` (plus `publisherId` since P4N-06) — fixed by the
 P2-09 consumer, and published by ms_marketplace since P4-07. ms_marketplace and ms_dictionary only
 ever see the JWT subject; ms_user's `user_id` is private to ms_user, which resolves
 keycloakId → user_id on the way in.

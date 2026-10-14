@@ -6,6 +6,7 @@ import de.coldtea.verborum.msdictionary.common.exception.ForbiddenOperationExcep
 import de.coldtea.verborum.msdictionary.common.exception.QuotaExceededException;
 import de.coldtea.verborum.msdictionary.common.exception.RecordNotFoundException;
 import de.coldtea.verborum.msdictionary.common.mapper.WordMapper;
+import de.coldtea.verborum.msdictionary.common.utils.DictionaryChangeNotifier;
 import de.coldtea.verborum.msdictionary.dictionary.entity.Dictionary;
 import de.coldtea.verborum.msdictionary.dictionary.repository.DictionaryRepository;
 import de.coldtea.verborum.msdictionary.word.dto.WordBundleRequestDTO;
@@ -47,6 +48,10 @@ class WordServiceImplTest {
 
     @Mock
     private ApplicationEventPublisher eventPublisher;
+
+    // dictionary.changed (P4N-06) is decided by the service and queued by this collaborator
+    @Mock
+    private DictionaryChangeNotifier changeNotifier;
 
     @InjectMocks
     private WordServiceImpl wordService;

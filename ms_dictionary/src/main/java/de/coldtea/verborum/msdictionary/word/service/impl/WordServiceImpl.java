@@ -6,6 +6,7 @@ import de.coldtea.verborum.msdictionary.common.exception.ForbiddenOperationExcep
 import de.coldtea.verborum.msdictionary.common.exception.QuotaExceededException;
 import de.coldtea.verborum.msdictionary.common.exception.RecordNotFoundException;
 import de.coldtea.verborum.msdictionary.common.mapper.WordMapper;
+import de.coldtea.verborum.msdictionary.common.utils.DictionaryChangeNotifier;
 import de.coldtea.verborum.msdictionary.common.utils.ListUtils;
 import de.coldtea.verborum.msdictionary.dictionary.entity.Dictionary;
 import de.coldtea.verborum.msdictionary.dictionary.repository.DictionaryRepository;
@@ -21,7 +22,9 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -46,6 +49,8 @@ public class WordServiceImpl implements WordService {
     private final DictionaryRepository dictionaryRepository;
     private final WordMapper wordMapper;
     private final ApplicationEventPublisher eventPublisher;
+    // dictionary.changed (P4N-06): tells the user's other devices to sync
+    private final DictionaryChangeNotifier changeNotifier;
     private final ListUtils listUtils = new ListUtils();
 
     @Transactional
@@ -75,7 +80,19 @@ public class WordServiceImpl implements WordService {
 
         requireWordQuota(words, alreadyStored.keySet());
 
+        // Worked out before the save, like alreadyStored above: saveAllAndFlush merges the new values onto
+        // those managed instances, after which every stored word would compare equal to its edit. A word
+        // counts when it is new or any field a client edits differs; the same content re-uploaded does not,
+        // or two devices that each sync after the other's push would ping-pong forever (P4N-06)
+        Set<String> changedDictionaryIds = words.stream()
+                .filter(word -> !isUnchanged(alreadyStored.get(word.getWordId()), word))
+                .map(Word::getDictionaryId)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+
         wordRepository.saveAllAndFlush(words);
+
+        // One event per dictionary touched, not one per word — a bulk upload is one change
+        changedDictionaryIds.forEach(dictionaryId -> changeNotifier.dictionaryChanged(ownerId, dictionaryId));
 
         // Raising these only queues them; OutboundEventPublisher sends after commit (rule 1), so an
         // exception later in this method can no longer leave events announcing words that were
@@ -83,6 +100,16 @@ public class WordServiceImpl implements WordService {
         publishWordCreatedEvents(words.stream()
                 .filter(word -> !alreadyStored.containsKey(word.getWordId()))
                 .toList());
+    }
+
+    /** The fields a client edits. `createdAt`/`updatedAt` are server-set and never part of a change. */
+    private static boolean isUnchanged(Word stored, Word incoming) {
+        return stored != null
+                && Objects.equals(stored.getWord(), incoming.getWord())
+                && Objects.equals(stored.getWordMeta(), incoming.getWordMeta())
+                && Objects.equals(stored.getTranslation(), incoming.getTranslation())
+                && Objects.equals(stored.getTranslationMeta(), incoming.getTranslationMeta())
+                && Objects.equals(stored.getLevel(), incoming.getLevel());
     }
 
     /**
@@ -144,16 +171,19 @@ public class WordServiceImpl implements WordService {
         // A word carries no owner of its own, so resolve through its dictionary. Anything the caller
         // does not own is dropped from the delete rather than refused — a 403 would confirm the id
         // exists (P3-08)
-        List<String> ownedWordIds = wordRepository.findAllById(wordIdList).stream()
+        List<Word> ownedWords = wordRepository.findAllById(wordIdList).stream()
                 .filter(word -> ownsDictionary(word.getDictionaryId(), ownerId))
-                .map(Word::getWordId)
                 .toList();
 
-        if (ownedWordIds.isEmpty()) {
+        if (ownedWords.isEmpty()) {
             return;
         }
 
-        wordRepository.deleteAllById(ownedWordIds);
+        wordRepository.deleteAllById(ownedWords.stream().map(Word::getWordId).toList());
+
+        // Only words that were really removed change anything; one event per dictionary touched (P4N-06)
+        ownedWords.stream().map(Word::getDictionaryId).distinct()
+                .forEach(dictionaryId -> changeNotifier.dictionaryChanged(ownerId, dictionaryId));
     }
 
     @Override
@@ -166,7 +196,14 @@ public class WordServiceImpl implements WordService {
             throw new ForbiddenOperationException(NOT_THE_OWNER);
         }
 
+        // An already empty dictionary is a no-op and announces nothing (P4N-06)
+        boolean hadWords = wordRepository.countByDictionaryId(dictionaryId) > 0;
+
         wordRepository.deleteWordsByDictionaryId(dictionaryId);
+
+        if (hadWords) {
+            changeNotifier.dictionaryChanged(ownerId, dictionaryId);
+        }
     }
 
     @Override

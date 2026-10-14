@@ -75,6 +75,9 @@ public class DictionaryImportServiceImpl implements DictionaryImportService {
                         .dictionaryId(dictionaryId)
                         // The importer's JWT subject — ms_user matches on keycloakId, never its userId
                         .keycloakId(importerId)
+                        // Whom to tell (P4N-06). The listing's owner — not the importer, and never an id
+                        // taken from the request
+                        .publisherId(listing.getUserId())
                         .eventTimestamp(OffsetDateTime.now())
                         .build()));
     }

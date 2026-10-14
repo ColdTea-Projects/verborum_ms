@@ -17,6 +17,10 @@ import java.time.OffsetDateTime;
  * <p>
  * Sent on every successful import call, including a repeat: ms_user's vault insert is idempotent,
  * and re-sending repairs a vault entry whose first event was lost.
+ * <p>
+ * `publisherId` (P4N-06) is the listing owner's JWT subject, for ms_notification's silent push to the
+ * publisher. It is additive: ms_user's consumer deserializes with an object mapper that ignores unknown
+ * properties, so it neither needs the field nor breaks on it.
  */
 @Data
 @Builder
@@ -27,6 +31,8 @@ public class DictionaryImportedEvent {
     private String dictionaryId;
 
     private String keycloakId;
+
+    private String publisherId;
 
     private OffsetDateTime eventTimestamp;
 }

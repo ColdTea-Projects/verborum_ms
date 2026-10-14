@@ -41,6 +41,8 @@ public class RabbitMQConfig {
     public static final String ROUTING_KEY_DICTIONARY_UPDATED = "dictionary.updated";
     public static final String ROUTING_KEY_DICTIONARY_SNAPSHOT = "dictionary.snapshot";
     public static final String ROUTING_KEY_WORD_CREATED = "word.created";
+    // P4N-06: any real change to a user's dictionary, its words or its tags — drives own-device sync pushes
+    public static final String ROUTING_KEY_DICTIONARY_CHANGED = "dictionary.changed";
     public static final String ROUTING_KEY_USER_DELETED = "user.deleted";
     // P4-16: joining / leaving the marketplace shares / unshares all the user's dictionaries
     public static final String ROUTING_KEY_USER_PROFILE_UPDATED = "user.profile.updated";

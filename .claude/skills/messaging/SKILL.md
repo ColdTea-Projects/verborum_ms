@@ -45,7 +45,9 @@ One durable **topic** exchange for everything: `verborum.events`. Keys are `{dom
 | `word.created` | ms_dictionary | ms_autofil (V2) | new word added |
 | `user.deleted` | ms_user | `dictionary.user.deleted`, `marketplace.user.deleted` (live) | account deleted |
 | `user.profile.updated` | ms_user | `marketplace.user.profile.updated`, `dictionary.user.profile.updated` (live) | display name or marketplace agreement changed |
-| `dictionary.imported` | ms_marketplace | `user.dictionary.imported` (live) | listed dictionary imported (every successful call) |
+| `dictionary.imported` | ms_marketplace | `user.dictionary.imported` (live) | listed dictionary imported (every successful call); carries `publisherId` (P4N-06) |
+| `dictionary.rated` | ms_marketplace | ms_notification (P4N-07) | rating created or changed (P4N-06) |
+| `dictionary.changed` | ms_dictionary | ms_notification (P4N-07) | a real change to a user's dictionary, words or tags (P4N-06) |
 
 Both built services declare the exchange and the dead-letter infrastructure; declarations are
 idempotent, so whichever starts first creates them. Events with no bound queue are discarded by the

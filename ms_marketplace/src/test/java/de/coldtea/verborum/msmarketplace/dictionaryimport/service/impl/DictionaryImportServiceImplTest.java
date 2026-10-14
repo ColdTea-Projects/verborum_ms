@@ -96,6 +96,8 @@ class DictionaryImportServiceImplTest {
         assertEquals(DICTIONARY_ID, event.getDictionaryId());
         // ms_user matches on keycloakId — the importer's subject
         assertEquals(IMPORTER, event.getKeycloakId());
+        // P4N-06: who to tell — the listing's owner, never the importer
+        assertEquals(PUBLISHER, event.getPublisherId());
         assertNotNull(event.getEventTimestamp());
     }
 

@@ -12,6 +12,7 @@ import de.coldtea.verborum.msdictionary.common.exception.QuotaExceededException;
 import de.coldtea.verborum.msdictionary.common.exception.RecordNotFoundException;
 import de.coldtea.verborum.msdictionary.common.exception.SharingRequiredException;
 import de.coldtea.verborum.msdictionary.common.mapper.DictionaryMapper;
+import de.coldtea.verborum.msdictionary.common.utils.DictionaryChangeNotifier;
 import de.coldtea.verborum.msdictionary.dictionary.dto.DictionaryRequestDTO;
 import de.coldtea.verborum.msdictionary.dictionary.dto.DictionaryResponseDTO;
 import de.coldtea.verborum.msdictionary.dictionary.entity.Dictionary;
@@ -64,6 +65,9 @@ public class DictionaryServiceImpl implements DictionaryService {
     // Not RabbitTemplate: the service raises application events and OutboundEventPublisher sends
     // them after commit (rule 1 in docs/agent/rabbitmq.md)
     private final ApplicationEventPublisher eventPublisher;
+
+    // dictionary.changed (P4N-06): tells the user's other devices to sync. Decided here, queued there
+    private final DictionaryChangeNotifier changeNotifier;
 
 
     @Transactional
@@ -119,6 +123,8 @@ public class DictionaryServiceImpl implements DictionaryService {
         // Copied out now, not read from `existing` after the save: saveAndFlush merges the new values
         // onto that same managed instance, so afterwards it would always compare equal to the save
         ListingFields previousListing = existing.map(ListingFields::of).orElse(null);
+        // Same reason, for the sync event (P4N-06): every field a client edits, and null for a create
+        EditableFields previousEditable = existing.map(EditableFields::of).orElse(null);
 
         Dictionary dictionary = dictionaryMapper.toDictionary(dictionaryRequestDTO);
         dictionary.setUserId(ownerId);
@@ -131,6 +137,12 @@ public class DictionaryServiceImpl implements DictionaryService {
         publishVisibilityChange(savedDictionary, wasPublic);
         publishListingUpdate(savedDictionary, wasPublic, previousListing);
 
+        // A create or a real edit tells the user's other devices; a re-upload of identical content must
+        // not, or two devices that each sync after the other's push would ping-pong forever
+        if (!EditableFields.of(savedDictionary).equals(previousEditable)) {
+            changeNotifier.dictionaryChanged(ownerId, savedDictionary.getDictionaryId());
+        }
+
         return dictionaryMapper.toDictionaryResponseDTO(savedDictionary);
     }
 
@@ -141,6 +153,14 @@ public class DictionaryServiceImpl implements DictionaryService {
     private record ListingFields(String name, String fromLang, String toLang) {
         static ListingFields of(Dictionary dictionary) {
             return new ListingFields(dictionary.getName(), dictionary.getFromLang(), dictionary.getToLang());
+        }
+    }
+
+    /** What a client can edit on a dictionary — the sync event fires when any of these differ (P4N-06). */
+    private record EditableFields(String name, String fromLang, String toLang, boolean isPublic) {
+        static EditableFields of(Dictionary dictionary) {
+            return new EditableFields(dictionary.getName(), dictionary.getFromLang(), dictionary.getToLang(),
+                    Boolean.TRUE.equals(dictionary.getIsPublic()));
         }
     }
 
@@ -174,13 +194,18 @@ public class DictionaryServiceImpl implements DictionaryService {
     @Transactional
     @Override
     public void publishTagChange(String dictionaryId) {
-        dictionaryRepository.findById(dictionaryId)
-                .filter(dictionary -> Boolean.TRUE.equals(dictionary.getIsPublic()))
-                .ifPresent(dictionary -> {
-                    // Setting it makes the row dirty; @UpdateTimestamp then stamps the flush time
-                    dictionary.setUpdatedAt(OffsetDateTime.now());
-                    publishUpdated(dictionaryRepository.saveAndFlush(dictionary));
-                });
+        dictionaryRepository.findById(dictionaryId).ifPresent(dictionary -> {
+            // The caller only gets here after a real tag change, and tags are part of the dictionary the
+            // user's other devices hold — public or private (P4N-06)
+            changeNotifier.dictionaryChanged(dictionary.getUserId(), dictionaryId);
+
+            // The marketplace only lists public dictionaries
+            if (Boolean.TRUE.equals(dictionary.getIsPublic())) {
+                // Setting it makes the row dirty; @UpdateTimestamp then stamps the flush time
+                dictionary.setUpdatedAt(OffsetDateTime.now());
+                publishUpdated(dictionaryRepository.saveAndFlush(dictionary));
+            }
+        });
     }
 
     private void publishUpdated(Dictionary dictionary) {
@@ -299,6 +324,9 @@ public class DictionaryServiceImpl implements DictionaryService {
                 .ifPresent(dictionary -> requireMemberKeepsOneShared(ownerId, dictionaryId, false));
 
         deleteDictionaryInternal(dictionaryId);
+
+        // Only a dictionary that really existed is announced; an unknown id stays a silent 200 (P4N-06)
+        existing.ifPresent(dictionary -> changeNotifier.dictionaryChanged(ownerId, dictionaryId));
     }
 
     /**
@@ -337,6 +365,9 @@ public class DictionaryServiceImpl implements DictionaryService {
             }
             dictionary.setIsPublic(isPublic);
             publishVisibilityChange(dictionaryRepository.saveAndFlush(dictionary), wasPublic);
+            // The server flipped isPublic itself: every device of the user is stale until it re-fetches
+            // (P4N-06). No request here, so no writing device to skip
+            changeNotifier.dictionaryChanged(userId, dictionary.getDictionaryId());
             changed++;
         }
         return changed;

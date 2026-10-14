@@ -95,7 +95,12 @@ request time — decided 2026-07-23, see roadmap `P4-03`.
   `OutboundEvent` → `OutboundEventPublisher` after commit (the only class here touching
   `RabbitTemplate`). Payload `{dictionaryId, keycloakId, eventTimestamp}` — fixed by ms_user's P2-09
   consumer; **`keycloakId`** is the importer's JWT subject. Sent on every successful import, repeats
-  included (the vault is idempotent; a re-send repairs a lost first event).
+  included (the vault is idempotent; a re-send repairs a lost first event). **`publisherId`** (the
+  listing owner's JWT subject, P4N-06) rides along for ms_notification's push; ms_user ignores it
+  (`RabbitMQConfigTest` there pins that).
+- **Publishes:** `dictionary.rated` (P4N-06) from `DictionaryRatingServiceImpl.rateDictionary`, only for a
+  new rating or changed stars — never a repeat of the same stars, never a removal. Payload
+  `{dictionaryId, publisherId, raterKeycloakId, stars, eventTimestamp}`.
 - `user.deleted` also deletes the user's import records; their earlier imports stay counted. Their **ratings** are
   removed first and the aggregates corrected (`DictionaryRatingService.deleteRatingsByUser`, P4-22) — a rating is an
   opinion, an import count is history.

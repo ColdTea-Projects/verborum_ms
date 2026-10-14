@@ -1,5 +1,7 @@
 package de.coldtea.verborum.msmarketplace.dictionaryrating.service.impl;
 
+import de.coldtea.verborum.msmarketplace.common.event.DictionaryRatedEvent;
+import de.coldtea.verborum.msmarketplace.common.event.OutboundEvent;
 import de.coldtea.verborum.msmarketplace.common.exception.ForbiddenOperationException;
 import de.coldtea.verborum.msmarketplace.common.exception.RecordNotFoundException;
 import de.coldtea.verborum.msmarketplace.common.exception.SelfRatingException;
@@ -14,11 +16,15 @@ import de.coldtea.verborum.msmarketplace.dictionarystats.repository.DictionarySt
 import de.coldtea.verborum.msmarketplace.publisher.service.PublisherService;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
+import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
+import static de.coldtea.verborum.msmarketplace.common.config.RabbitMQConfig.ROUTING_KEY_DICTIONARY_RATED;
 import static de.coldtea.verborum.msmarketplace.common.constants.ErrorMessageConstants.CANNOT_RATE_OWN_DICTIONARY;
 import static de.coldtea.verborum.msmarketplace.common.constants.ErrorMessageConstants.IMPORT_BEFORE_RATING;
 import static de.coldtea.verborum.msmarketplace.common.constants.ErrorMessageConstants.LISTING_WAS_NOT_FOUND_ID;
@@ -37,6 +43,9 @@ public class DictionaryRatingServiceImpl implements DictionaryRatingService {
 
     // The Forum gate, and whether a listing's publisher is still a member
     private final PublisherService publisherService;
+
+    // Not RabbitTemplate: OutboundEventPublisher sends after this transaction commits (rule 1)
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     @Override
@@ -61,9 +70,26 @@ public class DictionaryRatingServiceImpl implements DictionaryRatingService {
             throw new ForbiddenOperationException(IMPORT_BEFORE_RATING);
         }
 
-        DictionaryRating rating = dictionaryRatingRepository.findByDictionaryIdAndUserId(dictionaryId, raterId)
-                .map(existing -> changeStars(existing, stars))
+        Optional<DictionaryRating> existing = dictionaryRatingRepository.findByDictionaryIdAndUserId(dictionaryId, raterId);
+        // The same stars again changes nothing — and so announces nothing (rule 6, P4N-06)
+        boolean changed = existing.map(rating -> rating.getStars() != stars).orElse(true);
+
+        DictionaryRating rating = existing
+                .map(current -> changeStars(current, stars))
                 .orElseGet(() -> addRating(dictionaryId, raterId, stars));
+
+        if (changed) {
+            eventPublisher.publishEvent(new OutboundEvent(
+                    ROUTING_KEY_DICTIONARY_RATED,
+                    DictionaryRatedEvent.builder()
+                            .dictionaryId(dictionaryId)
+                            // The listing's owner is who hears about it; never taken from the request
+                            .publisherId(listing.getUserId())
+                            .raterKeycloakId(raterId)
+                            .stars(stars)
+                            .eventTimestamp(OffsetDateTime.now())
+                            .build()));
+        }
 
         return toResponse(rating);
     }

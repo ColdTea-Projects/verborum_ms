@@ -33,7 +33,20 @@ Full CRUD for **Dictionaries** and **Words** — the core vocabulary store.
   guarantee is proven once, in ms_user's `UserDeletedAfterCommitTest` — both services share the
   listener.
 - **Publishes:** `dictionary.visibility.public/private`, `dictionary.deleted`, `dictionary.updated`,
-  `dictionary.snapshot`, `word.created`
+  `dictionary.snapshot`, `word.created`, `dictionary.changed`
+- `dictionary.changed` (P4N-06) drives the silent sync push to the user's **other devices**. It fires on
+  a *real* change only — otherwise two devices that each sync after the other's push would ping-pong:
+  - dictionary: create, or any of `name`/`fromLang`/`toLang`/`isPublic` differs (`EditableFields`,
+    copied out before the save like `ListingFields`); an identical re-upload is silent
+  - words: new, or any of `word`/`wordMeta`/`translation`/`translationMeta`/`level` differs — computed
+    *before* `saveAllAndFlush`, which merges onto the stored instances. One event per dictionary per
+    request, not per word. Deleting words or the words of a non-empty dictionary also fires
+  - tags: an actual add/remove (via `publishTagChange`), public or private
+  - the server flipping `isPublic` on join/leave (`setVisibilityOfAll`), with no device id
+  - `DictionaryChangeNotifier` raises it. It reads the optional **`X-Device-Id`** header from the current
+    request (UUID or dropped) so the consumer can skip the writing device — deliberately ambient, since it
+    is event decoration and not ownership (owner is always an explicit argument). Clients should send it
+    on every write
 - `dictionary.updated` (P4-03) fires only when a dictionary that was public **and stays public**
   changes `name`, `fromLang` or `toLang`. A visibility flip never also fires it. The old values are
   copied out *before* `saveAndFlush`, which merges the new values onto the managed instance

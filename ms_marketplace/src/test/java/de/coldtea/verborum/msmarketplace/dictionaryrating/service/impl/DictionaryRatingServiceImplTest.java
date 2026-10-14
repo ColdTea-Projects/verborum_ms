@@ -1,5 +1,7 @@
 package de.coldtea.verborum.msmarketplace.dictionaryrating.service.impl;
 
+import de.coldtea.verborum.msmarketplace.common.event.DictionaryRatedEvent;
+import de.coldtea.verborum.msmarketplace.common.event.OutboundEvent;
 import de.coldtea.verborum.msmarketplace.common.exception.ForbiddenOperationException;
 import de.coldtea.verborum.msmarketplace.common.exception.RecordNotFoundException;
 import de.coldtea.verborum.msmarketplace.common.exception.SelfRatingException;
@@ -17,11 +19,14 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.List;
 import java.util.Optional;
 
+import static de.coldtea.verborum.msmarketplace.common.config.RabbitMQConfig.ROUTING_KEY_DICTIONARY_RATED;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyDouble;
@@ -51,6 +56,9 @@ class DictionaryRatingServiceImplTest {
 
     @Mock
     private PublisherService publisherService;
+
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
 
     @InjectMocks
     private DictionaryRatingServiceImpl dictionaryRatingService;
@@ -87,6 +95,74 @@ class DictionaryRatingServiceImplTest {
         assertEquals((short) 4, captor.getValue().getStars());
         verify(dictionaryStatsRepository).applyRatingChange(DICTIONARY_ID, 1, 4, PRIOR_TOTAL, PRIOR_WEIGHT);
         assertEquals(4, result.getStars());
+    }
+
+    // ---- dictionary.rated (P4N-06) ----
+
+    private DictionaryRatedEvent publishedRatedEvent() {
+        ArgumentCaptor<OutboundEvent> captor = ArgumentCaptor.forClass(OutboundEvent.class);
+        verify(eventPublisher).publishEvent(captor.capture());
+        assertEquals(ROUTING_KEY_DICTIONARY_RATED, captor.getValue().routingKey());
+        return (DictionaryRatedEvent) captor.getValue().payload();
+    }
+
+    @Test
+    void rateDictionary_FirstRating_PublishesRatedToThePublisher() {
+        // Act
+        dictionaryRatingService.rateDictionary(DICTIONARY_ID, RATER, 4);
+
+        // Assert
+        DictionaryRatedEvent event = publishedRatedEvent();
+        assertEquals(DICTIONARY_ID, event.getDictionaryId());
+        // the recipient is the listing's owner, the actor is the rater — both JWT subjects
+        assertEquals(PUBLISHER, event.getPublisherId());
+        assertEquals(RATER, event.getRaterKeycloakId());
+        assertEquals(4, event.getStars());
+        assertNotNull(event.getEventTimestamp());
+    }
+
+    @Test
+    void rateDictionary_ChangedStars_PublishesRatedWithTheNewStars() {
+        // Arrange
+        when(dictionaryRatingRepository.findByDictionaryIdAndUserId(DICTIONARY_ID, RATER)).thenReturn(Optional.of(rating(2)));
+
+        // Act
+        dictionaryRatingService.rateDictionary(DICTIONARY_ID, RATER, 5);
+
+        // Assert
+        assertEquals(5, publishedRatedEvent().getStars());
+    }
+
+    @Test
+    void rateDictionary_SameStarsAgain_PublishesNothing() {
+        // Arrange
+        when(dictionaryRatingRepository.findByDictionaryIdAndUserId(DICTIONARY_ID, RATER)).thenReturn(Optional.of(rating(4)));
+
+        // Act
+        dictionaryRatingService.rateDictionary(DICTIONARY_ID, RATER, 4);
+
+        // Assert
+        verifyNoInteractions(eventPublisher);
+    }
+
+    @Test
+    void rateDictionary_Refused_PublishesNothing() {
+        // Arrange — the publisher rating their own dictionary
+        // Act & Assert
+        assertThrows(SelfRatingException.class, () -> dictionaryRatingService.rateDictionary(DICTIONARY_ID, PUBLISHER, 5));
+        verifyNoInteractions(eventPublisher);
+    }
+
+    @Test
+    void removeRating_PublishesNothing() {
+        // Arrange
+        when(dictionaryRatingRepository.findByDictionaryIdAndUserId(DICTIONARY_ID, RATER)).thenReturn(Optional.of(rating(3)));
+
+        // Act
+        dictionaryRatingService.removeRating(DICTIONARY_ID, RATER);
+
+        // Assert — only a new or changed rating is announced
+        verifyNoInteractions(eventPublisher);
     }
 
     @Test

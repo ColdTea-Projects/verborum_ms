@@ -47,6 +47,8 @@ public class RabbitMQConfig {
     public static final String ROUTING_KEY_USER_PROFILE_UPDATED = "user.profile.updated";
     // Published by this service (P4-07); ms_user consumes it on `user.dictionary.imported`
     public static final String ROUTING_KEY_DICTIONARY_IMPORTED = "dictionary.imported";
+    // P4N-06: a rating was created or changed — ms_notification refreshes the publisher's app
+    public static final String ROUTING_KEY_DICTIONARY_RATED = "dictionary.rated";
 
     public static final String QUEUE_DICTIONARY_VISIBILITY_PUBLIC = "marketplace.dictionary.visibility.public";
     public static final String QUEUE_DICTIONARY_VISIBILITY_PRIVATE = "marketplace.dictionary.visibility.private";
