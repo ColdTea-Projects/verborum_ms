@@ -19,6 +19,7 @@ non-managed artifacts carry a `<version>`.
 | `org.mapstruct:mapstruct` | `1.6.3` | | |
 | `org.mapstruct:mapstruct-processor` | `1.6.3` | | |
 | `org.springdoc:springdoc-openapi-starter-webmvc-ui` | `2.8.17` | | Swagger UI + `/v3/api-docs` |
+| `com.google.firebase:firebase-admin` | `9.11.0` | | ms_notification only (P4N-04); brings netty 4.1.135 — pin `netty.version` |
 | `org.jetbrains:annotations` | `26.1.0` | | never `RELEASE` — a floating version breaks reproducible builds and dependency scanning |
 | `spring-boot-starter-test` | managed | `test` | JUnit 5 + Mockito + AssertJ + MockMvc |
 | `spring-security-test` | managed | `test` | the `jwt()` MockMvc post-processor |

@@ -1601,10 +1601,17 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
     token is 403; the same token proves the same phone and moves it), a per-user quota of 20 devices
     (oldest evicted), a 16 KB body cap (`RequestBodyLimitFilter`, SEC-07) and 409 on a unique race
   - Done when: unit + web-slice tests prove 401, validation 400s, the upsert and the cross-user case
-- [ ] `P4N-04` **FCM sender** — depends on `P4N-02`
+- [x] `P4N-04` **FCM sender** — done 2026-10-14: 51 tests (1 opt-in live), real FCM accepted the key in a dry run, service verified with no key / key + dry run / bad path. Depends on `P4N-02`
   - Firebase Admin SDK behind a `PushSender` interface. Credentials from the file path property,
     absent → WARN and skip (local dev works without a key). `UNREGISTERED` deletes the token; 429
     and 5xx throw so retry and the dead-letter queue work; batches of at most 500 tokens
+  - Built: `PushSender` (FCM and a logging no-op), `PushDispatchService.sendToUser(keycloakId, message,
+    excludeDeviceId)` for the listeners of `P4N-07`, `FIREBASE_DRY_RUN` for local validation. Messages are
+    data-only, normal priority, collapse key, 1 h TTL; APNs gets a `background` push. `UNREGISTERED` and
+    `SENDER_ID_MISMATCH` delete the token; quota/outage/internal throw `PushDeliveryException`;
+    `INVALID_ARGUMENT` is neither deleted nor retried
+  - `firebase-admin` 9.11.0 pulled netty 4.1.135 (flagged by SEC-08); pinned to 4.1.138.Final. The
+    `grpc-netty-shaded` jar bundles its own copy, which a pin cannot reach — re-scan when bumping
   - Done when: unit tests cover success, unregistered cleanup and the throw path
 - [ ] `P4N-05` **Notification preferences** — **DEFERRED 2026-10-14**: silent pushes show nothing, so
   there is nothing for a user to switch off. Pull in when the first visible alert is planned

@@ -14,7 +14,8 @@ background. Design, contract and order of work: `docs/agent/push-notifications.m
 - **DB:** `vdbnotification` (PostgreSQL) — docker-compose in this module (Postgres on 5435 + Adminer on
   8083), and `db_notification` in the root compose on the same host port. Run one or the other.
 - **Base package:** `de.coldtea.verborum.msnotification`
-- **Status:** Scaffolded (P4N-02), device registration (P4N-03). No RabbitMQ or Firebase code yet.
+- **Status:** Scaffolded (P4N-02), device registration (P4N-03), FCM sender (P4N-04). No RabbitMQ yet,
+  so nothing triggers a push until `P4N-07`.
 
 ## Entities
 - `DeviceToken` (`device_tokens`) — `deviceId` (PK, client UUID of the app install), `userId`
@@ -35,8 +36,24 @@ background. Design, contract and order of work: `docs/agent/push-notifications.m
 - No `GET`: a token is a delivery address, not data a client needs back (405).
 - `RequestBodyLimitFilter` caps a body at 16 KB (`MAX_REQUEST_BODY_BYTES`), 413 above it (SEC-07).
 
+## Push sending (`push/`, P4N-04)
+- `PushMessage(type, dictionaryId, collapseKey)` — a **silent data message**: no `notification` block, ids
+  only. `PushSender` is the channel: `FirebasePushSender` (Admin SDK, `sendEach`) or `NoOpPushSender`.
+  `FirebaseConfig` picks one: **no `FIREBASE_CREDENTIALS_FILE` = no-op with a WARN** (local dev works
+  without a key); a path that is set but unreadable **fails the start-up**.
+- `PushDispatchService.sendToUser(keycloakId, message, excludeDeviceId)` — the entry point for listeners.
+  Loads the user's tokens, skips the writing device, sends in batches of ≤ 500, deletes dead tokens, then
+  throws `PushDeliveryException` if anything failed transiently (so the broker redelivers). It is
+  deliberately **not `@Transactional`**: a network call must not hold a database connection.
+- FCM verdicts: `UNREGISTERED`/`SENDER_ID_MISMATCH` → token deleted; `QUOTA_EXCEEDED`/`UNAVAILABLE`/
+  `INTERNAL`/`THIRD_PARTY_AUTH_ERROR` → retry; `INVALID_ARGUMENT` → neither (payload and token look alike).
+- Android: normal priority + collapse key + 1 h TTL. iOS: `background` push (`content-available`), which
+  Apple throttles — never relied on.
+- `FIREBASE_DRY_RUN=true` validates every request with FCM and delivers nothing.
+- `FirebasePushSenderLiveTest` is opt-in (runs only with `FIREBASE_CREDENTIALS_FILE` set, always dry run).
+- **Netty is pinned to 4.1.138.Final** (SEC-08); `firebase-admin` brings 4.1.135 otherwise.
+
 ## What arrives next
-- `P4N-04` FCM sender (Firebase Admin SDK; adds the dependency and `FIREBASE_CREDENTIALS_FILE`)
 - `P4N-06`/`P4N-07` events and consumers (adds `spring-boot-starter-amqp` and the RabbitMQ pins that
   were left out of the pom on purpose — the AMQP health indicator would turn `/actuator/health`
   DOWN with no broker)

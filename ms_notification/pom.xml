@@ -22,6 +22,7 @@
         <jackson-bom.version>2.21.7</jackson-bom.version>         <!-- 2.21.4: GHSA-cxp5-3px4-pw24, GHSA-7hhh-6rmp-j9qf -->
         <commons-lang3.version>3.18.0</commons-lang3.version>     <!-- 3.17.0: GHSA-j288-q9x7-2f5v -->
         <log4j2.version>2.25.5</log4j2.version>                   <!-- 2.24.3: GHSA-qv9r-c865-cp47 -->
+        <netty.version>4.1.138.Final</netty.version>              <!-- 4.1.135 (via firebase-admin): netty-handler, netty-codec CVEs (CVSS up to 9.1); grpc-netty-shaded bundles its own shaded copy, which this pin cannot reach -->
     </properties>
     <dependencies>
         <dependency>
@@ -77,9 +78,16 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
-        <!-- RabbitMQ (spring-boot-starter-amqp) and its pins (rabbit-amqp-client, netty) arrive with P4N-07;
-             the Firebase Admin SDK arrives with P4N-04. Neither belongs in the empty shell: the AMQP
-             health indicator would turn /actuator/health DOWN whenever no broker is running. -->
+        <!-- FCM sender (P4N-04). Pulls in google-auth, google-http-client, gRPC and guava transitively -
+             re-run the osv-scanner check in the maven skill's dependency-set reference when bumping it. -->
+        <dependency>
+            <groupId>com.google.firebase</groupId>
+            <artifactId>firebase-admin</artifactId>
+            <version>9.11.0</version>
+        </dependency>
+
+        <!-- RabbitMQ (spring-boot-starter-amqp) and its pins (rabbit-amqp-client, netty) arrive with P4N-07:
+             the AMQP health indicator would turn /actuator/health DOWN whenever no broker is running. -->
         <!-- https://mvnrepository.com/artifact/org.mapstruct/mapstruct -->
         <dependency>
             <groupId>org.mapstruct</groupId>

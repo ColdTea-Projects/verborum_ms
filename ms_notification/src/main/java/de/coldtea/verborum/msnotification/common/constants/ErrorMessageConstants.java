@@ -13,6 +13,9 @@ public final class ErrorMessageConstants {
     public static final String METHOD_NOT_ALLOWED = "This HTTP method is not supported on this path";
     public static final String NO_AUTHENTICATED_USER = "No authenticated user found";
 
+    // Push delivery (P4N-04) — log message, never sent to a client
+    public static final String PUSH_SEND_FAILED = "FCM could not be reached or refused the request";
+
     // A unique constraint tripped by a concurrent write — a fixed message, never the constraint text
     public static final String DATA_CONFLICT = "The request conflicts with existing data";
     // RequestBodyLimitFilter (SEC-07)

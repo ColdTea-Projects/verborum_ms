@@ -81,6 +81,8 @@ API Gateway ──► Autofil Service  (word suggestions from community data, No
   `db_notification` in the root compose) · **Base package:** `de.coldtea.verborum.msnotification`
 - **Built:** `DeviceToken` (`device_tokens`, P4N-03) and `PUT /notifications/devices`,
   `DELETE /notifications/devices/{deviceId}` — see `ms_notification/CLAUDE.md` for the ownership rules
+- **Sender (P4N-04):** `PushDispatchService` over FCM (Firebase Admin SDK); silent data messages only; no
+  key configured = logging no-op sender. Nothing calls it until the consumers of `P4N-07`
 - **Design, contract and order of work:** `docs/agent/push-notifications.md`; tasks `P4N-01`…`P4N-13`
 - **Security requirement:** `SecurityConfig` from the first commit; owner always from the JWT subject.
 
