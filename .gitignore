@@ -13,5 +13,10 @@ Thumbs.db
 # Local-only Spring overrides (e.g. KEYCLOAK_ADMIN_CLIENT_SECRET)
 application-local.properties
 
+# Firebase / FCM service-account keys — a credential, never committed (docs/agent/push-notifications.md)
+*firebase-adminsdk*.json
+firebase-credentials*.json
+service-account*.json
+
 # Python bytecode (scripts/dev-seed)
 __pycache__/

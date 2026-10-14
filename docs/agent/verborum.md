@@ -74,6 +74,13 @@ API Gateway ──► Autofil Service  (word suggestions from community data, No
 - **Security requirement:** Must be built with Spring Security + Keycloak JWT validation
   from the start — do not scaffold without it. See `docs/agent/security.md`.
 
+### 📋 ms_notification — PLANNED (decided 2026-10-14, Phase 4N)
+- **What it does:** device tokens and notification preferences; consumes marketplace/dictionary events
+  and sends pushes through FCM (Firebase Admin SDK)
+- **Proposed, to confirm at scaffold time:** port 8088, DB `vdbnotification` (host port 5435)
+- **Design, contract and order of work:** `docs/agent/push-notifications.md`; tasks `P4N-01`…`P4N-13`
+- **Security requirement:** `SecurityConfig` from the first commit; owner always from the JWT subject.
+
 ### ❌ ms_autofil — V2, NOT STARTED
 - **DB:** NoSQL (TBD — MongoDB or Redis)
 - **What it does:** Returns top community translations for a given word + language pair

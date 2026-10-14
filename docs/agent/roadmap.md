@@ -1539,6 +1539,143 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
 
 ---
 
+## Phase 4N — Push Notifications (decided 2026-10-14)
+> Goal: users get updates immediately, with the app closed. Long-form design, contract and rules:
+> `docs/agent/push-notifications.md` (read it before any task here). Research and cost:
+> `docs/ops/push-notifications-guideline.pdf`.
+>
+> **Decided by the owner 2026-10-14:** provider **FCM direct** · code lives in a **new service
+> `ms_notification`** · iOS uses the **Firebase SDK** · **no Apple Developer account yet**, so iOS is last.
+>
+> **Scope, clarified by the owner 2026-10-14:** every push is a **silent data message** that keeps the
+> app up to date in the background. **No visible alert is planned**, so there is no
+> `POST_NOTIFICATIONS` prompt, no channels and no per-category preference (`P4N-05` is deferred).
+> - **Primary category — own-device `SYNC`:** a change a user makes on one device (web, Android, later
+>   iOS) nudges that user's **other** devices, so they do not edit stale data. A few devices per user.
+> - **Not built — subscriber fan-out:** a publisher's edits are **not** pushed to the hundreds of users
+>   who imported the dictionary. Importers are read-only and the apps do a full sync whenever the
+>   dictionary list opens, so a late update is fine.
+> - **Second step, silent and single-recipient:** `import received` and `rating received` to the
+>   publisher (refresh nudge only).
+> - **Cancelled (owner, 2026-10-14):** `dictionary.unavailable`. A dictionary that went private or was
+>   deleted disappears from an importer's vault on the next sync (the vault read already drops
+>   unreadable ids), so no event and no push are needed.
+> - Silent pushes are an optimisation, never a correctness mechanism: a force-quit app, Doze, Low
+>   Power Mode or "Background App Refresh" off can all drop them (iOS throttles them hardest).
+>
+> **Order (owner):** backend + Android on a local stack → web (refetch on focus) → Android + web
+> release → iOS build and release. Tasks run in the stage order below; the client tasks live in the
+> client repos but are tracked here so the dependency is visible.
+>
+> Placed before Phase 5 on the owner's instruction. Nothing here depends on the gateway: clients call
+> `ms_notification` directly, as they call the other services today.
+> Depends on: Phase 4 complete (marketplace events and ratings exist).
+
+### Stage 1 — Firebase and the backend core
+- [ ] `P4N-01` **Firebase projects and secret plumbing** (owner, console work)
+  - Two projects, `verborum-dev` and `verborum-prod` (same Google account is fine). Cloud Messaging
+    API (V1) enabled. One service account per project with only the **Firebase Cloud Messaging API
+    Admin** role; its JSON key is downloaded once and kept **outside the repo**
+  - Register the Android app in `verborum-dev` (package name from `app/build.gradle.kts`) and take
+    `google-services.json`. No Web app or VAPID key: web does not use FCM (`P4N-10`, decided 2026-10-14)
+  - Never paste the service-account JSON into chat, a commit or an image. `.gitignore` guards the
+    common file names (done 2026-10-14)
+  - Steps: `push-notifications.md` §12 (Android only; no Web app, VAPID key or iOS app yet)
+  - Done when: a `validate_only` call to `messages:send` with the dev service account returns 200. A real
+    delivery to the emulator needs a device token, so it moves to `P4N-09`
+- [ ] `P4N-02` **Scaffold `ms_notification`** — agent `spring-boot-architect`; depends on `P4N-01`
+  - Mirror ms_marketplace. `SecurityConfig` from the first commit (JWT, audiences, actuator
+    `health,info`, Swagger behind `SWAGGER_ENABLED`). Register in the aggregator `<modules>`
+  - **Proposed, confirm at scaffold time (rule 7):** port **8088**, database `vdbnotification` on
+    host port **5435**, Adminer shared. Add `db_notification` to the root compose and the new
+    variables to `.env.example` (`FIREBASE_CREDENTIALS_FILE`, `FIREBASE_PROJECT_ID`, no secret values)
+  - Done when: the service starts, `/actuator/health` is up, and an unauthenticated call is 401
+- [ ] `P4N-03` **`device_tokens` and the device endpoints** — depends on `P4N-02`
+  - Table `device_tokens` (`device_id` PK client UUID, `fk_user_id` JWT subject, `platform`
+    ANDROID|IOS|WEB, `token` UNIQUE, `locale`, `app_version`, `last_seen_at`, timestamps). One
+    Liquibase changeset. No FK to another service
+  - `PUT /notifications/devices` (201, idempotent upsert; a token that moves account is reassigned),
+    `DELETE /notifications/devices/{deviceId}` (200, no-op when absent, 404-style ownership: another
+    user's id is also a no-op)
+  - Done when: unit + web-slice tests prove 401, validation 400s, the upsert and the cross-user case
+- [ ] `P4N-04` **FCM sender** — depends on `P4N-02`
+  - Firebase Admin SDK behind a `PushSender` interface. Credentials from the file path property,
+    absent → WARN and skip (local dev works without a key). `UNREGISTERED` deletes the token; 429
+    and 5xx throw so retry and the dead-letter queue work; batches of at most 500 tokens
+  - Done when: unit tests cover success, unregistered cleanup and the throw path
+- [ ] `P4N-05` **Notification preferences** — **DEFERRED 2026-10-14**: silent pushes show nothing, so
+  there is nothing for a user to switch off. Pull in when the first visible alert is planned
+  - Table `notification_preferences` (`fk_user_id`, `category`, `enabled`; UNIQUE pair). Default is
+    enabled. `GET`/`PUT /notifications/preferences`
+  - Done when: a disabled category is skipped by the sender path
+
+### Stage 2 — Events and delivery
+- [ ] `P4N-06` **Events the pushes need** — depends on `P4N-02`; agent `spring-boot-architect`
+  - ms_marketplace `dictionary.imported`: add `publisherId` (additive; verify ms_user's listener still
+    passes with the extra field)
+  - ms_marketplace: publish `dictionary.rated` `{dictionaryId, publisherId, raterKeycloakId, stars,
+    eventTimestamp}` on a new or changed rating only
+  - ms_dictionary: publish `dictionary.changed` `{keycloakId, dictionaryId, deviceId?, eventTimestamp}`
+    after commit on **any** change to the user's dictionary or its words (`dictionary.updated` fires
+    only for public listing fields and cannot serve sync). Fires on change only (rule 6)
+  - Done when: each event reaches the routing-key table in `verborum.md`, is published after commit,
+    and has a test for the positive and the negative case
+- [ ] `P4N-07` **`ms_notification` consumers** — depends on `P4N-03`, `P4N-04`, `P4N-06`
+  - One dead-lettered queue per routing key, `INFERRED` type precedence, idempotent handlers. **All
+    messages are data-only** (no `notification` block)
+  - **First:** `dictionary.changed` → the user's **other** devices, `data.type=SYNC`. Skip the
+    originating device when the event carries its `deviceId`
+  - **Then:** `dictionary.imported` and `dictionary.rated` → the publisher only, `data.type=REFRESH`
+  - Rules: never push to the actor's own device; collapse key `sync` per user so a burst of edits leaves
+    one pending message (plus a short server-side debounce); normal priority; payload carries ids only;
+    `user.deleted` removes every token, matched on `keycloakId`
+  - Done when: an edit on device A produces exactly one `SYNC` on device B and none on A; a burst of ten
+    edits delivers at most a few; a redelivery does no harm
+- [ ] `P4N-08` **Docs, audit, contract** — depends on `P4N-07`
+  - `verborum.md` (service, tables, endpoints, events), `rabbitmq.md`, `ms_notification/CLAUDE.md`,
+    port map in `infra-ops`, `docs/integration/` client heads-up. Run `security-auditor` on the service
+  - Done when: the contract tables match the code and the audit has no open finding
+
+### Stage 3 — Clients, local (client repos; tracked here)
+- [ ] `P4N-09` **Android: FCM on a local stack** — depends on `P4N-03`, `P4N-07`
+  - Firebase BoM + messaging, Hilt-aware `FirebaseMessagingService`, token registration through a
+    `PostLoginHook` with a WorkManager retry, `onMessageReceived` enqueues the existing sync worker
+    for `SYNC`/`REFRESH` (never syncs inline), logout deletes the token. No permission prompt and no
+    channel: data messages show nothing
+  - Done when: an edit on device A makes device B sync with its app in the background
+- [ ] `P4N-10` **Web: refetch on focus (no FCM)** — **decided by the owner 2026-10-14**; client-only, so
+  it has no backend or Android dependency and can be built at any time (it is still a Stage 3 item
+  for release purposes)
+  - Refetch the open screen's data when the tab becomes visible (`visibilitychange`), and on a slow
+    timer (about 60 s) only while the tab is visible. Browsers throttle timers in hidden tabs, so the
+    focus trigger is the one that matters
+  - Existing endpoints only. No service worker, token, VAPID key, permission prompt or CSP change
+  - Why not push: Chrome requires every web push to show a visible notification, and the owner wants
+    silent updates. Upgrade paths are `BL-01` (cheap change check) and `BL-05` (SSE stream)
+  - The web app still **causes** `SYNC` pushes: any API write emits `dictionary.changed`, so Android
+    hears about web edits
+  - Done when: an Android edit shows up in an open web tab on focus, or within one timer interval
+    while the tab stays visible
+
+### Stage 4 — Android + web release
+- [ ] `P4N-11` **Release prerequisites** — depends on `P4N-09`, `P4N-10`; also `SEC-03`, `SEC-11`
+  - Production Firebase project and key as a platform secret (not in an image), Dockerfile and
+    deployment entry for `ms_notification`, stale-token job (30 days), metrics, privacy text naming
+    Google as a processor of the device token
+  - Done when: a release build on a real phone receives a push from the production stack
+
+### Stage 5 — iOS (starts only when an Apple Developer account exists)
+- [ ] `P4N-12` **iOS build** — depends on `P4N-11`, an Apple Developer Program membership
+  - Push Notifications capability and Background Modes, APNs auth key uploaded to both Firebase
+    projects, Firebase iOS SDK (Swift Package Manager), thin Swift bridge, `PushTokenRegistrar`
+    interface in `commonMain` with a Koin binding
+  - Done when: the Stage 3 test passes on a real iPhone
+- [ ] `P4N-13` **iOS release** — depends on `P4N-12`
+  - TestFlight run, production `aps-environment`, App Store listing disclosure
+  - Done when: a TestFlight build receives a production push
+
+---
+
 ## Phase 5 — API Gateway
 > Goal: Single entry point for all mobile traffic.
 > Depends on: Phase 4 complete
@@ -1552,6 +1689,7 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
   - `/words/**` → ms_dictionary (8085)
   - `/users/**` → ms_user (8086)
   - `/marketplace/**` → ms_marketplace (8087)
+  - `/notifications/**` → ms_notification (8088; Phase 4N, add when it exists)
   - Done when: all routes work end-to-end through the gateway
 - [ ] `P5-03` **Add JWT validation at gateway level**
   - Validate token once at the gateway, forward user info in headers
@@ -1637,3 +1775,11 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
     realms; add `notUsername` and stronger complexity to the prod password policy (see `P3B-08`)
   - Trigger: before any non-local realm exists. The Google/Facebook secrets were pasted into chat, so
     rotate those two earlier if that chat left this machine
+- [ ] `BL-05` **Instant updates in an open web tab via Server-Sent Events** (added 2026-10-14, from `P4N-10`)
+  - A stream endpoint in `ms_notification` that forwards `dictionary.changed` to the user's open tabs
+    (under one second). Costs: an open connection per tab, a fetch-based client (`EventSource` cannot
+    send `Authorization`), a reconnect with a fresh token, gateway timeouts and stream pass-through,
+    and one event copy per instance if the service scales out. The Ktor JS client's SSE support is
+    not verified
+  - Trigger: refetch on focus proves too slow for real use. Reuses the existing event; the backend
+    design does not change
