@@ -1590,13 +1590,16 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
     host port **5435**, Adminer shared. Add `db_notification` to the root compose and the new
     variables to `.env.example` (`FIREBASE_CREDENTIALS_FILE`, `FIREBASE_PROJECT_ID`, no secret values)
   - Done when: the service starts, `/actuator/health` is up, and an unauthenticated call is 401
-- [ ] `P4N-03` **`device_tokens` and the device endpoints** — depends on `P4N-02`
+- [x] `P4N-03` **`device_tokens` and the device endpoints** — done 2026-10-14: 30/30 tests, verified live over HTTP (201/403/200, rows checked in Postgres). Depends on `P4N-02`
   - Table `device_tokens` (`device_id` PK client UUID, `fk_user_id` JWT subject, `platform`
-    ANDROID|IOS|WEB, `token` UNIQUE, `locale`, `app_version`, `last_seen_at`, timestamps). One
+    ANDROID|IOS (no WEB: web does not use FCM), `token` UNIQUE, `locale`, `app_version`, `last_seen_at`, timestamps). One
     Liquibase changeset. No FK to another service
   - `PUT /notifications/devices` (201, idempotent upsert; a token that moves account is reassigned),
     `DELETE /notifications/devices/{deviceId}` (200, no-op when absent, 404-style ownership: another
     user's id is also a no-op)
+  - Built beyond the brief: an owner check on the stored row (another user's `deviceId` with a different
+    token is 403; the same token proves the same phone and moves it), a per-user quota of 20 devices
+    (oldest evicted), a 16 KB body cap (`RequestBodyLimitFilter`, SEC-07) and 409 on a unique race
   - Done when: unit + web-slice tests prove 401, validation 400s, the upsert and the cross-user case
 - [ ] `P4N-04` **FCM sender** — depends on `P4N-02`
   - Firebase Admin SDK behind a `PushSender` interface. Credentials from the file path property,

@@ -79,6 +79,8 @@ API Gateway ──► Autofil Service  (word suggestions from community data, No
   and sends pushes through FCM (Firebase Admin SDK)
 - **Port:** 8088 · **DB:** `vdbnotification` (host port 5435; Adminer 8083 in the module compose,
   `db_notification` in the root compose) · **Base package:** `de.coldtea.verborum.msnotification`
+- **Built:** `DeviceToken` (`device_tokens`, P4N-03) and `PUT /notifications/devices`,
+  `DELETE /notifications/devices/{deviceId}` — see `ms_notification/CLAUDE.md` for the ownership rules
 - **Design, contract and order of work:** `docs/agent/push-notifications.md`; tasks `P4N-01`…`P4N-13`
 - **Security requirement:** `SecurityConfig` from the first commit; owner always from the JWT subject.
 

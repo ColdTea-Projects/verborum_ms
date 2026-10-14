@@ -1,0 +1,58 @@
+{
+  "databaseChangeLog": [
+    {
+      "changeSet": {
+        "id": "20261014-01-device-tokens",
+        "author": "claude (P4N-03)",
+        "comment": "Push delivery addresses (decided 2026-10-14). device_id is the app install's client-generated UUID and the primary key; fk_user_id is the owner's JWT subject, a cross-service reference with no database FK (ms_user owns users). token is UNIQUE: an FCM token addresses exactly one device, and the service moves a token that re-registers under a new device id. platform is ANDROID or IOS (web does not use FCM) and has a CHECK so the database refuses what the API would. last_seen_at is set on every register call and drives the stale-token cleanup. fk_user_id is indexed for the per-user quota and the user.deleted cascade.",
+        "objectQuotingStrategy": "QUOTE_ONLY_RESERVED_WORDS",
+        "changes": [
+          {
+            "createTable": {
+              "tableName": "device_tokens",
+              "columns": [
+                { "column": { "name": "device_id", "type": "VARCHAR(255)",
+                    "constraints": { "nullable": false, "primaryKey": true, "primaryKeyName": "pk_device_tokens" } } },
+                { "column": { "name": "fk_user_id", "type": "VARCHAR(255)",
+                    "constraints": { "nullable": false } } },
+                { "column": { "name": "platform", "type": "VARCHAR(20)",
+                    "constraints": { "nullable": false } } },
+                { "column": { "name": "token", "type": "VARCHAR(1024)",
+                    "constraints": { "nullable": false } } },
+                { "column": { "name": "locale", "type": "VARCHAR(35)" } },
+                { "column": { "name": "app_version", "type": "VARCHAR(50)" } },
+                { "column": { "name": "last_seen_at", "type": "TIMESTAMP WITH TIME ZONE",
+                    "constraints": { "nullable": false } } },
+                { "column": { "name": "creation_dt", "type": "TIMESTAMP WITH TIME ZONE",
+                    "constraints": { "nullable": false } } },
+                { "column": { "name": "update_dt", "type": "TIMESTAMP WITH TIME ZONE" } }
+              ]
+            }
+          },
+          {
+            "sql": {
+              "sql": "ALTER TABLE device_tokens ADD CONSTRAINT ck_device_tokens_platform CHECK (platform IN ('ANDROID', 'IOS'));"
+            }
+          },
+          {
+            "addUniqueConstraint": {
+              "tableName": "device_tokens",
+              "columnNames": "token",
+              "constraintName": "uq_device_tokens_token"
+            }
+          },
+          {
+            "createIndex": {
+              "tableName": "device_tokens",
+              "indexName": "idx_device_tokens_user",
+              "columns": [ { "column": { "name": "fk_user_id" } } ]
+            }
+          }
+        ],
+        "rollback": [
+          { "dropTable": { "tableName": "device_tokens" } }
+        ]
+      }
+    }
+  ]
+}

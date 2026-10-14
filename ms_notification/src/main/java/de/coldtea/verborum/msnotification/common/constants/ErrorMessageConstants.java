@@ -13,6 +13,12 @@ public final class ErrorMessageConstants {
     public static final String METHOD_NOT_ALLOWED = "This HTTP method is not supported on this path";
     public static final String NO_AUTHENTICATED_USER = "No authenticated user found";
 
+    // A unique constraint tripped by a concurrent write — a fixed message, never the constraint text
+    public static final String DATA_CONFLICT = "The request conflicts with existing data";
+    // RequestBodyLimitFilter (SEC-07)
+    public static final String REQUEST_BODY_TOO_LARGE = "The request body must not exceed ";
+    public static final String REQUEST_BODY_LENGTH_REQUIRED = "A request body must declare its Content-Length";
+
     // Request parameter that does not convert to its type; the parameter name is appended
     public static final String INVALID_PARAMETER = "Invalid value for parameter: ";
 

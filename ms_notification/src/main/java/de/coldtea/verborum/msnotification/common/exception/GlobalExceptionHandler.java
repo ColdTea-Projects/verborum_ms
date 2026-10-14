@@ -3,6 +3,7 @@ package de.coldtea.verborum.msnotification.common.exception;
 import de.coldtea.verborum.msnotification.common.response.ErrorResponse;
 import de.coldtea.verborum.msnotification.common.utils.ResponseUtils;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -17,6 +18,7 @@ import org.springframework.web.method.annotation.HandlerMethodValidationExceptio
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
+import static de.coldtea.verborum.msnotification.common.constants.ErrorMessageConstants.DATA_CONFLICT;
 import static de.coldtea.verborum.msnotification.common.constants.ErrorMessageConstants.INTERNAL_SERVER_ERROR;
 import static de.coldtea.verborum.msnotification.common.constants.ErrorMessageConstants.METHOD_NOT_ALLOWED;
 import static de.coldtea.verborum.msnotification.common.constants.ErrorMessageConstants.INVALID_PARAMETER;
@@ -71,6 +73,18 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleHttpMessageNotReadableException(HttpMessageNotReadableException ex, WebRequest request) {
         log.error(HttpMessageNotReadableException.class.getCanonicalName(), ex);
         return buildErrorResponse(HttpStatus.BAD_REQUEST, HttpMessageNotReadableException.class.getSimpleName(), ex.getMessage(), request);
+    }
+
+    /**
+     * A unique constraint tripped by a concurrent write — two retries of the same PUT racing each other
+     * (P4N-03). 409, not 500, and a fixed message: `ex.getMessage()` names the table and constraint.
+     */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public ResponseEntity<ErrorResponse> handleDataIntegrityViolationException(DataIntegrityViolationException ex,
+                                                                               WebRequest request) {
+        log.warn("{}: {}", DataIntegrityViolationException.class.getCanonicalName(), ex.getMostSpecificCause().getMessage());
+        return buildErrorResponse(HttpStatus.CONFLICT, DataIntegrityViolationException.class.getSimpleName(), DATA_CONFLICT, request);
     }
 
     @ExceptionHandler(ForbiddenOperationException.class)

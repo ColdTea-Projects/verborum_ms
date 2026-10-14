@@ -69,7 +69,7 @@ Mirror `ms_marketplace`. `SecurityConfig` ships in the first commit. Skills: `sp
 **Tables** (Liquibase JSON, one changeset per change, UUID string ids, `timestamptz`):
 
 ```
-device_tokens            device_id PK (client UUID) · fk_user_id (JWT subject) · platform ANDROID|IOS|WEB
+device_tokens            device_id PK (client UUID) · fk_user_id (JWT subject) · platform ANDROID|IOS
                          token UNIQUE · locale · app_version · last_seen_at · creation_dt · update_dt
 notification_preferences  DEFERRED — silent pushes have no user-visible category to switch off
 ```
@@ -78,7 +78,7 @@ notification_preferences  DEFERRED — silent pushes have no user-visible catego
 
 | Method | Path | Body | Result |
 |---|---|---|---|
-| PUT | `/notifications/devices` | `{deviceId, token, platform, locale?, appVersion?}` | 201, idempotent upsert; a token that moves account is reassigned |
+| PUT | `/notifications/devices` | `{deviceId, token, platform, locale?, appVersion?}` | 201, idempotent upsert. **403** if `deviceId` belongs to another user and the token differs; the same token moves the device to the caller. A token already stored under another `deviceId` replaces that row. At most 20 devices per user (oldest evicted). `platform` is `ANDROID` or `IOS` (web is 400) |
 | DELETE | `/notifications/devices/{deviceId}` | — | 200, no-op when absent or not yours |
 
 **Events.** New: `dictionary.rated` (ms_marketplace), `dictionary.changed`

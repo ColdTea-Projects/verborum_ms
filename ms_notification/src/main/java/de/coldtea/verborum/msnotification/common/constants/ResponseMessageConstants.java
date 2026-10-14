@@ -7,6 +7,10 @@ package de.coldtea.verborum.msnotification.common.constants;
  */
 public final class ResponseMessageConstants {
 
+    //DeviceTokenController
+    public static final String DEVICE_REGISTERED_SUCCESSFULLY = "Registered successfully device ";
+    public static final String DEVICE_REMOVED_SUCCESSFULLY = "Removed device ";
+
     private ResponseMessageConstants() {
     }
 }
