@@ -35,5 +35,8 @@ public class DictionaryImportedEvent {
 
     private String keycloakId;
 
+    /** The importing install (P4N-14); carried onto `vault.changed`. Null from an older publisher. */
+    private String deviceId;
+
     private OffsetDateTime eventTimestamp;
 }

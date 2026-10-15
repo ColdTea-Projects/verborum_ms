@@ -3,6 +3,7 @@ package de.coldtea.verborum.msnotification.common.config;
 import de.coldtea.verborum.msnotification.common.event.DictionaryChangedEvent;
 import de.coldtea.verborum.msnotification.common.event.DictionaryImportedEvent;
 import de.coldtea.verborum.msnotification.common.event.UserDeletedEvent;
+import de.coldtea.verborum.msnotification.common.event.VaultChangedEvent;
 import org.junit.jupiter.api.Test;
 import org.springframework.amqp.core.Message;
 import org.springframework.amqp.core.MessageProperties;
@@ -65,6 +66,19 @@ class RabbitMQConfigTest {
         // Assert
         assertEquals("kc-publisher", event.getPublisherId());
         assertEquals("kc-importer", event.getKeycloakId());
+    }
+
+    @Test
+    void vaultChanged_FromMsUser_Deserializes() {
+        // Act — exactly the JSON ms_user publishes
+        VaultChangedEvent event = (VaultChangedEvent) consume("""
+                {"keycloakId":"kc-owner","dictionaryId":"d1","deviceId":"3f2c1b8e-6a54-4f0e-9d2a-1b7c5e8a9f10",
+                 "eventTimestamp":"2026-10-14T23:30:00.123+02:00"}""",
+                VaultChangedEvent.class, "de.coldtea.verborum.msuser.common.event.VaultChangedEvent");
+
+        // Assert
+        assertEquals("kc-owner", event.getKeycloakId());
+        assertEquals("3f2c1b8e-6a54-4f0e-9d2a-1b7c5e8a9f10", event.getDeviceId());
     }
 
     @Test

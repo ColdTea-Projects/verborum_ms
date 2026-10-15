@@ -34,7 +34,7 @@ public class MarketplaceEventListener {
         log.info("Received dictionary.imported event for keycloakId: {}, dictionaryId: {}",
                 event.getKeycloakId(), event.getDictionaryId());
         try {
-            vaultService.importDictionary(event.getKeycloakId(), event.getDictionaryId());
+            vaultService.importDictionary(event.getKeycloakId(), event.getDictionaryId(), event.getDeviceId());
         } catch (Exception e) {
             // Re-thrown on purpose: the message is retried and finally dead-lettered rather than
             // acknowledged as handled. An unknown keycloakId lands here — a real inconsistency

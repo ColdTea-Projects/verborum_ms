@@ -60,6 +60,7 @@ background. Design, contract and order of work: `docs/agent/push-notifications.m
 | `dictionary.imported` | `notification.dictionary.imported` | ms_marketplace | silent `REFRESH` to `publisherId` |
 | `dictionary.rated` | `notification.dictionary.rated` | ms_marketplace | silent `REFRESH` to `publisherId` |
 | `user.deleted` | `notification.user.deleted` | ms_user | deletes the user's tokens — **match on `keycloakId`** |
+| `vault.changed` | `notification.vault.changed` | ms_user | silent `SYNC` to the owner's **other** devices — a Forum download or unsubscribe (P4N-14); the event's `deviceId` is skipped |
 
 - Listeners (`common/listener/`, one class per source service) delegate to `NotificationService` /
   `DeviceTokenService` and re-throw, so retry (3 attempts, backoff) and then the dead-letter queue take over.
@@ -78,7 +79,7 @@ background. Design, contract and order of work: `docs/agent/push-notifications.m
 
 ## What arrives next
 - `P4N-08` docs + `security-auditor` run, then the clients (`P4N-09` Android; web needs no push). The
-  service itself is feature-complete for the first release; `P4N-05` (preferences) is deferred.
+  service itself is feature-complete for the first release; preferences (`BL-06`, was `P4N-05`) are deferred.
 
 ## Quirks
 - **A device row can be moved by anyone holding its FCM token** (audit P4N-08, accepted): the same token
@@ -92,7 +93,7 @@ background. Design, contract and order of work: `docs/agent/push-notifications.m
   service** — changing a live queue's arguments fails the declaration; do it with a new queue name.
 - `RequestBodyLimitFilter` refuses an unknown-length body only when `Transfer-Encoding` is present, like
   ms_user's; Tomcat does not enable HTTP/2 here. Tighten in all services together, not in one.
-- Silent data messages only: no `notification` block, no preferences table (`P4N-05` is deferred).
+- Silent data messages only: no `notification` block, no preferences table (`BL-06`, was `P4N-05`, is deferred).
 - The Firebase service-account key is a credential. It lives outside every repo
   (`~/.config/verborum/`), is read through `FIREBASE_CREDENTIALS_FILE`, and `.gitignore` guards its
   usual file names.

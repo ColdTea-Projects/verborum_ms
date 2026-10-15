@@ -41,6 +41,8 @@ public class RabbitMQConfig {
     // P4-13: display name set, changed or cleared — consumed by ms_marketplace
     public static final String ROUTING_KEY_USER_PROFILE_UPDATED = "user.profile.updated";
     public static final String ROUTING_KEY_DICTIONARY_IMPORTED = "dictionary.imported";
+    // P4N-14: a vault entry was added or removed — ms_notification nudges the user's other devices
+    public static final String ROUTING_KEY_VAULT_CHANGED = "vault.changed";
 
     public static final String QUEUE_DICTIONARY_IMPORTED = "user.dictionary.imported";
 

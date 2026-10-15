@@ -22,7 +22,8 @@ import org.springframework.context.annotation.Configuration;
  * <p>
  * Consumes only: `dictionary.changed` (ms_dictionary → silent SYNC to the user's other devices),
  * `dictionary.imported` and `dictionary.rated` (ms_marketplace → silent REFRESH to the publisher), and
- * `user.deleted` (ms_user → drop the user's device tokens). It publishes nothing, so there is no
+ * `user.deleted` and `vault.changed` (ms_user → drop the user's device tokens, or silent SYNC to the user's
+ * other devices after a Forum download or unsubscribe). It publishes nothing, so there is no
  * RabbitTemplate and no OutboundEventPublisher here.
  * <p>
  * All services declare the same exchange; declarations are idempotent, so whichever service starts
@@ -39,11 +40,13 @@ public class RabbitMQConfig {
     public static final String ROUTING_KEY_DICTIONARY_IMPORTED = "dictionary.imported";
     public static final String ROUTING_KEY_DICTIONARY_RATED = "dictionary.rated";
     public static final String ROUTING_KEY_USER_DELETED = "user.deleted";
+    public static final String ROUTING_KEY_VAULT_CHANGED = "vault.changed";
 
     public static final String QUEUE_DICTIONARY_CHANGED = "notification.dictionary.changed";
     public static final String QUEUE_DICTIONARY_IMPORTED = "notification.dictionary.imported";
     public static final String QUEUE_DICTIONARY_RATED = "notification.dictionary.rated";
     public static final String QUEUE_USER_DELETED = "notification.user.deleted";
+    public static final String QUEUE_VAULT_CHANGED = "notification.vault.changed";
 
     @Bean
     public TopicExchange verborumExchange() {
@@ -100,6 +103,18 @@ public class RabbitMQConfig {
     @Bean
     public Binding userDeletedBinding(Queue userDeletedQueue, TopicExchange verborumExchange) {
         return BindingBuilder.bind(userDeletedQueue).to(verborumExchange).with(ROUTING_KEY_USER_DELETED);
+    }
+
+    @Bean
+    public Queue vaultChangedQueue() {
+        return QueueBuilder.durable(QUEUE_VAULT_CHANGED)
+                .withArgument("x-dead-letter-exchange", DEAD_LETTER_EXCHANGE)
+                .build();
+    }
+
+    @Bean
+    public Binding vaultChangedBinding(Queue vaultChangedQueue, TopicExchange verborumExchange) {
+        return BindingBuilder.bind(vaultChangedQueue).to(verborumExchange).with(ROUTING_KEY_VAULT_CHANGED);
     }
 
     /**

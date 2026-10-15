@@ -1,7 +1,10 @@
 package de.coldtea.verborum.msuser.vault.service.impl;
 
 import de.coldtea.verborum.msuser.common.exception.RecordNotFoundException;
+import de.coldtea.verborum.msuser.common.event.OutboundEvent;
+import de.coldtea.verborum.msuser.common.event.VaultChangedEvent;
 import de.coldtea.verborum.msuser.common.mapper.VaultEntryMapper;
+import de.coldtea.verborum.msuser.common.utils.RequestDevice;
 import de.coldtea.verborum.msuser.user.entity.User;
 import de.coldtea.verborum.msuser.common.exception.ForbiddenOperationException;
 import de.coldtea.verborum.msuser.user.repository.UserRepository;
@@ -12,14 +15,17 @@ import de.coldtea.verborum.msuser.vault.repository.VaultEntryRepository;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static de.coldtea.verborum.msuser.common.config.RabbitMQConfig.ROUTING_KEY_VAULT_CHANGED;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
@@ -42,6 +48,12 @@ class VaultServiceImplTest {
 
     @Mock
     private VaultEntryMapper vaultEntryMapper;
+
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+
+    @Mock
+    private RequestDevice requestDevice;
 
     @InjectMocks
     private VaultServiceImpl vaultService;
@@ -150,6 +162,81 @@ class VaultServiceImplTest {
         // Assert
         assertEquals(responseDTO, result);
         verify(vaultEntryRepository, never()).saveAndFlush(any());
+    }
+
+    // ---- vault.changed (P4N-14) ----
+
+    private VaultChangedEvent publishedVaultChange() {
+        ArgumentCaptor<OutboundEvent> captor = ArgumentCaptor.forClass(OutboundEvent.class);
+        verify(eventPublisher).publishEvent(captor.capture());
+        assertEquals(ROUTING_KEY_VAULT_CHANGED, captor.getValue().routingKey());
+        return (VaultChangedEvent) captor.getValue().payload();
+    }
+
+    @Test
+    void importDictionary_NewEntry_PublishesVaultChangedWithTheImportingDevice() {
+        // Arrange
+        User user = User.builder().userId(USER_ID).keycloakId("kc-1").build();
+        when(userRepository.findByKeycloakId("kc-1")).thenReturn(Optional.of(user));
+        when(vaultEntryRepository.findByUserIdAndDictionaryId(USER_ID, DICTIONARY_ID)).thenReturn(Optional.empty());
+        when(userRepository.existsById(USER_ID)).thenReturn(true);
+        VaultEntry vaultEntry = new VaultEntry();
+        when(vaultEntryMapper.toVaultEntry(anyString(), eq(USER_ID), any(VaultEntryRequestDTO.class))).thenReturn(vaultEntry);
+        when(vaultEntryRepository.saveAndFlush(vaultEntry)).thenReturn(vaultEntry);
+        when(vaultEntryMapper.toVaultEntryResponseDTO(vaultEntry)).thenReturn(new VaultEntryResponseDTO());
+
+        // Act
+        vaultService.importDictionary("kc-1", DICTIONARY_ID, "device-1");
+
+        // Assert — keyed on the JWT subject, with the install to skip; ids only
+        VaultChangedEvent event = publishedVaultChange();
+        assertEquals("kc-1", event.getKeycloakId());
+        assertEquals(DICTIONARY_ID, event.getDictionaryId());
+        assertEquals("device-1", event.getDeviceId());
+    }
+
+    @Test
+    void importDictionary_Redelivered_PublishesNothing() {
+        // Arrange — the entry is already there: a redelivered import is a no-op and says nothing
+        User user = User.builder().userId(USER_ID).keycloakId("kc-1").build();
+        when(userRepository.findByKeycloakId("kc-1")).thenReturn(Optional.of(user));
+        when(vaultEntryRepository.findByUserIdAndDictionaryId(USER_ID, DICTIONARY_ID))
+                .thenReturn(Optional.of(new VaultEntry()));
+        when(vaultEntryMapper.toVaultEntryResponseDTO(any())).thenReturn(new VaultEntryResponseDTO());
+
+        // Act
+        vaultService.importDictionary("kc-1", DICTIONARY_ID, "device-1");
+
+        // Assert
+        verifyNoInteractions(eventPublisher);
+    }
+
+    @Test
+    void deleteVaultEntry_Existing_PublishesVaultChangedWithTheRequestDevice() {
+        // Arrange
+        when(vaultEntryRepository.findByUserIdAndDictionaryId(USER_ID, DICTIONARY_ID))
+                .thenReturn(Optional.of(new VaultEntry()));
+        when(requestDevice.currentDeviceId()).thenReturn("device-9");
+
+        // Act
+        vaultService.deleteVaultEntry(USER_ID, DICTIONARY_ID, CALLER_KC_ID);
+
+        // Assert
+        VaultChangedEvent event = publishedVaultChange();
+        assertEquals(CALLER_KC_ID, event.getKeycloakId());
+        assertEquals("device-9", event.getDeviceId());
+    }
+
+    @Test
+    void deleteVaultEntry_NotInTheVault_PublishesNothing() {
+        // Arrange
+        when(vaultEntryRepository.findByUserIdAndDictionaryId(USER_ID, DICTIONARY_ID)).thenReturn(Optional.empty());
+
+        // Act — a no-op 200, as before
+        vaultService.deleteVaultEntry(USER_ID, DICTIONARY_ID, CALLER_KC_ID);
+
+        // Assert
+        verifyNoInteractions(eventPublisher);
     }
 
     @Test

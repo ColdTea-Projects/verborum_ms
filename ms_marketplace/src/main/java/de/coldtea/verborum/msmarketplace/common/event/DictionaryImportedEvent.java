@@ -34,5 +34,11 @@ public class DictionaryImportedEvent {
 
     private String publisherId;
 
+    /**
+     * The importing install's `X-Device-Id` (P4N-14), null when the client sent none. ms_user carries it
+     * onto `vault.changed` so the importer's *other* devices are nudged and this one is not.
+     */
+    private String deviceId;
+
     private OffsetDateTime eventTimestamp;
 }

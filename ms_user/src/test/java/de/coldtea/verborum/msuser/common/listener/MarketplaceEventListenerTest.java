@@ -37,14 +37,15 @@ class MarketplaceEventListenerTest {
         DictionaryImportedEvent event = DictionaryImportedEvent.builder()
                 .dictionaryId(DICTIONARY_ID)
                 .keycloakId(KEYCLOAK_ID)
+                .deviceId("device-1")
                 .eventTimestamp(OffsetDateTime.now())
                 .build();
 
         // Act
         marketplaceEventListener.handleDictionaryImported(event);
 
-        // Assert
-        verify(vaultService).importDictionary(KEYCLOAK_ID, DICTIONARY_ID);
+        // Assert — the importing install rides along, for the sync push that skips it (P4N-14)
+        verify(vaultService).importDictionary(KEYCLOAK_ID, DICTIONARY_ID, "device-1");
     }
 
     @Test
@@ -56,7 +57,7 @@ class MarketplaceEventListenerTest {
                 .eventTimestamp(OffsetDateTime.now())
                 .build();
 
-        when(vaultService.importDictionary(KEYCLOAK_ID, DICTIONARY_ID))
+        when(vaultService.importDictionary(KEYCLOAK_ID, DICTIONARY_ID, null))
                 .thenThrow(new RecordNotFoundException("User was not found"));
 
         // Act & Assert — swallowing here would ack the message and lose the import silently

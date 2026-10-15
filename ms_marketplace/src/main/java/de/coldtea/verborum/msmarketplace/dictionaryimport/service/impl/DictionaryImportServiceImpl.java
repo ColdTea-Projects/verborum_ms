@@ -4,6 +4,7 @@ import de.coldtea.verborum.msmarketplace.common.event.DictionaryImportedEvent;
 import de.coldtea.verborum.msmarketplace.common.event.OutboundEvent;
 import de.coldtea.verborum.msmarketplace.common.exception.RecordNotFoundException;
 import de.coldtea.verborum.msmarketplace.common.exception.SelfImportException;
+import de.coldtea.verborum.msmarketplace.common.utils.RequestDevice;
 import de.coldtea.verborum.msmarketplace.dictionaryimport.entity.DictionaryImport;
 import de.coldtea.verborum.msmarketplace.dictionaryimport.repository.DictionaryImportRepository;
 import de.coldtea.verborum.msmarketplace.dictionaryimport.service.DictionaryImportService;
@@ -35,6 +36,9 @@ public class DictionaryImportServiceImpl implements DictionaryImportService {
 
     // Not RabbitTemplate: OutboundEventPublisher sends after this transaction commits (rule 1)
     private final ApplicationEventPublisher eventPublisher;
+
+    // Which install imported it (P4N-14): decoration for the importer's other devices, never ownership
+    private final RequestDevice requestDevice;
 
     @Transactional
     @Override
@@ -78,6 +82,7 @@ public class DictionaryImportServiceImpl implements DictionaryImportService {
                         // Whom to tell (P4N-06). The listing's owner — not the importer, and never an id
                         // taken from the request
                         .publisherId(listing.getUserId())
+                        .deviceId(requestDevice.currentDeviceId())
                         .eventTimestamp(OffsetDateTime.now())
                         .build()));
     }

@@ -64,9 +64,14 @@ unchanged (`creation_dt`/`update_dt`/`imported_at`).
 - `vaultEntryId` is **server-generated** (`UUID.randomUUID()`), unlike every other entity's
   client-supplied id — a vault entry is a system-owned row, and P2-09 creates identical rows from a
   `dictionary.imported` event that carries no client id.
+- **Publishes `vault.changed`** (P4N-14) when the vault *really* changes — a first import (from the
+  `dictionary.imported` consumer, carrying the importing install's `deviceId`) or an unsubscribe that removed a
+  row (`X-Device-Id` read from the request by `RequestDevice`). Never for a redelivery or a no-op delete. It
+  is published here, after the entry exists, not by ms_marketplace: the import event can reach another
+  device before this service has written the entry.
 - **Adding is idempotent** (import path only): an already-imported `(userId, dictionaryId)` returns the existing entry
-  rather than violating the composite UNIQUE, so a redelivered `dictionary.imported` is harmless (the private
-  `addVaultEntry` helper).
+  rather than violating the composite UNIQUE, so a redelivered `dictionary.imported` is harmless
+  (`VaultServiceImpl.importDictionary`, which also decides whether `vault.changed` is published).
 - An import for an unknown user throws (`fk_user_id` is a real FK) and is dead-lettered. DELETE of an
   entry that is not there is a silent 200, matching `deleteUser`/`deleteDictionary`.
 

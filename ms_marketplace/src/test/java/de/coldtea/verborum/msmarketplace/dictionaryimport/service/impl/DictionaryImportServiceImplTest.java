@@ -1,6 +1,7 @@
 package de.coldtea.verborum.msmarketplace.dictionaryimport.service.impl;
 
 import de.coldtea.verborum.msmarketplace.common.event.DictionaryImportedEvent;
+import de.coldtea.verborum.msmarketplace.common.utils.RequestDevice;
 import de.coldtea.verborum.msmarketplace.common.event.OutboundEvent;
 import de.coldtea.verborum.msmarketplace.common.exception.ForbiddenOperationException;
 import de.coldtea.verborum.msmarketplace.common.exception.RecordNotFoundException;
@@ -47,6 +48,9 @@ class DictionaryImportServiceImplTest {
     @Mock
     private PublisherService publisherService;
 
+    @Mock
+    private RequestDevice requestDevice;
+
     @InjectMocks
     private DictionaryImportServiceImpl dictionaryImportService;
 
@@ -76,6 +80,7 @@ class DictionaryImportServiceImplTest {
     @Test
     void importDictionary_FirstImport_RecordsCountsAndPublishes() {
         // Arrange
+        when(requestDevice.currentDeviceId()).thenReturn("device-1");
         when(dictionaryStatsRepository.findById(DICTIONARY_ID)).thenReturn(Optional.of(listing(true)));
         when(dictionaryImportRepository.findByDictionaryIdAndUserId(DICTIONARY_ID, IMPORTER)).thenReturn(Optional.empty());
 
@@ -98,6 +103,8 @@ class DictionaryImportServiceImplTest {
         assertEquals(IMPORTER, event.getKeycloakId());
         // P4N-06: who to tell — the listing's owner, never the importer
         assertEquals(PUBLISHER, event.getPublisherId());
+        // P4N-14: the importing install, so its own other devices are nudged and it is not
+        assertEquals("device-1", event.getDeviceId());
         assertNotNull(event.getEventTimestamp());
     }
 

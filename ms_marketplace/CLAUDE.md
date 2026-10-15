@@ -97,7 +97,8 @@ request time — decided 2026-07-23, see roadmap `P4-03`.
   consumer; **`keycloakId`** is the importer's JWT subject. Sent on every successful import, repeats
   included (the vault is idempotent; a re-send repairs a lost first event). **`publisherId`** (the
   listing owner's JWT subject, P4N-06) rides along for ms_notification's push; ms_user ignores it
-  (`RabbitMQConfigTest` there pins that).
+  (`RabbitMQConfigTest` there pins that). **`deviceId`** (P4N-14) is the importing install's optional
+  `X-Device-Id` header, read by `RequestDevice` (UUID or dropped); ms_user carries it onto `vault.changed`.
 - **Publishes:** `dictionary.rated` (P4N-06) from `DictionaryRatingServiceImpl.rateDictionary`, only for a
   new rating or changed stars — never a repeat of the same stars, never a removal. Payload
   `{dictionaryId, publisherId, raterKeycloakId, stars, eventTimestamp}`.

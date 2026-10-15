@@ -4,6 +4,7 @@ import de.coldtea.verborum.msnotification.common.event.DictionaryChangedEvent;
 import de.coldtea.verborum.msnotification.common.event.DictionaryImportedEvent;
 import de.coldtea.verborum.msnotification.common.event.DictionaryRatedEvent;
 import de.coldtea.verborum.msnotification.common.event.UserDeletedEvent;
+import de.coldtea.verborum.msnotification.common.event.VaultChangedEvent;
 import de.coldtea.verborum.msnotification.common.exception.PushDeliveryException;
 import de.coldtea.verborum.msnotification.devicetoken.service.DeviceTokenService;
 import de.coldtea.verborum.msnotification.notification.service.NotificationService;
@@ -37,7 +38,7 @@ class NotificationEventListenersTest {
         MockitoAnnotations.openMocks(this);
         dictionaryEventListener = new DictionaryEventListener(notificationService);
         marketplaceEventListener = new MarketplaceEventListener(notificationService);
-        userEventListener = new UserEventListener(deviceTokenService);
+        userEventListener = new UserEventListener(deviceTokenService, notificationService);
     }
 
     @Test
@@ -110,6 +111,29 @@ class NotificationEventListenersTest {
         // Assert — fk_user_id holds the JWT subject; ms_user's userId would delete nothing and look fine
         verify(deviceTokenService).removeAllDevices("kc-1");
         verify(deviceTokenService, never()).removeAllDevices("u-1");
+    }
+
+    @Test
+    void handleVaultChanged_NudgesTheOwnersOtherDevices() {
+        // Arrange
+        VaultChangedEvent event = VaultChangedEvent.builder().keycloakId("kc-owner")
+                .dictionaryId("dict-1").deviceId("dev-1").build();
+
+        // Act
+        userEventListener.handleVaultChanged(event);
+
+        // Assert — a Forum download or unsubscribe is a SYNC like any edit; the installing device is skipped
+        verify(notificationService).syncUserDevices("kc-owner", "dict-1", "dev-1");
+    }
+
+    @Test
+    void handleVaultChanged_Failure_IsRethrownForRetry() {
+        // Arrange
+        doThrow(new PushDeliveryException("fcm down")).when(notificationService).syncUserDevices("kc-owner", "dict-1", null);
+
+        // Act & Assert
+        assertThrows(PushDeliveryException.class, () -> userEventListener.handleVaultChanged(
+                VaultChangedEvent.builder().keycloakId("kc-owner").dictionaryId("dict-1").build()));
     }
 
     @Test
