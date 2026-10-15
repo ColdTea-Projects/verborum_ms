@@ -89,7 +89,7 @@ docker exec verborum-db-user      psql -U coldtea -d vdbprofile    -c "\d vault_
 docker exec verborum-db-dictionary psql -U coldtea -d vdbdictionary -tAc "SELECT count(*) FROM words;"
 ```
 
-Or Adminer at http://localhost:8080 — system *PostgreSQL*, server `db_dictionary` or `db_user`,
+Or Adminer at http://localhost:8090 — system *PostgreSQL*, server `db_dictionary` or `db_user`,
 which are the compose service names, not `localhost`.
 
 ## Cleaning up after a session

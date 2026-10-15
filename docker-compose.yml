@@ -158,7 +158,8 @@ services:
       - db_market
       - db_notification
     ports:
-      - "127.0.0.1:8080:8080"
+      # 8090, not 8080: 8080 is ms_gateway's (P5-01)
+      - "127.0.0.1:8090:8080"
 
   # Fake SMTP for local dev. Keycloak's realm smtpServer points here (host `mailpit`, 1025,
   # no auth), so email verification and passwordless email-code mail are captured — never sent —

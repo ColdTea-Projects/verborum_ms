@@ -15,4 +15,5 @@ services :
     depends_on:
       - db
     ports:
-      - "127.0.0.1:8080:8080"
+      # 8084, not 8080: 8080 is ms_gateway's (P5-01); this file and the root one are never run together
+      - "127.0.0.1:8084:8080"

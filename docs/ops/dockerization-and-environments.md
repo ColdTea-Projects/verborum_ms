@@ -28,7 +28,7 @@ Docker today covers **infrastructure only**. The Spring services run on the host
 | `rabbitmq` — 5672 / 15672 (management UI) | `ms_dictionary` — 8085 |
 | `db_dictionary` — Postgres, `vdbdictionary`, host 5432 | `ms_user` — 8086 (scaffolded) |
 | `db_user` — Postgres, `vdbprofile`, host 5433 | |
-| `admin` — Adminer, 8080 | |
+| `admin` — Adminer, 8090 (moved from 8080, P5-05) | |
 
 There are **no Dockerfiles in the repository yet**. Per-service compose files (`ms_dictionary/`,
 `ms_user/`) exist for isolated work; they clash on host ports with the root file, so only one may run
@@ -37,8 +37,8 @@ at a time.
 **This is the correct local setup and should not change.** Services on the host keep rebuilds fast,
 allow debugger attachment, and preserve hot reload.
 
-**Known port clash to resolve:** Adminer occupies 8080, which the roadmap also assigns to
-`ms_gateway` (P5-01). Move Adminer to 8090 before the gateway arrives.
+**Port clash, resolved (P5-05):** Adminer used to occupy 8080, which the roadmap assigns to
+`ms_gateway` (P5-01). Adminer now listens on 8090; the per-module `ms_dictionary` Adminer on 8084.
 
 ---
 

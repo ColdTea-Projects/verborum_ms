@@ -1756,7 +1756,7 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
 > Owner tags: **[claude]** I build it, **[you]** you do it and report back.
 
 ### Stage 1 — The gateway
-- [ ] `P5-05` **Free port 8080: move Adminer to 8090** [claude]
+- [x] `P5-05` **Free port 8080: move Adminer to 8090** [claude] — done 2026-10-15: root compose `8090`, the per-module `ms_dictionary` Adminer `8084` (the other three already 8081..8083); `docker compose up -d admin` recreated it; Adminer answers on 8090 and 8080 is free
   - Root compose, the `infra-ops` port map, `docs/ops/local-development.md`, the dockerization guide §9
   - Done when: `docker compose up` works and Adminer answers on 8090
 - [ ] `P5-01` **Scaffold `ms_gateway` module** [claude] — agent `spring-boot-architect`; depends on `P5-05`

@@ -37,12 +37,11 @@ auth needs the root file.
 | `db_user`, `db_market`, `db_notification` | `postgres:14-alpine` | 5433 → `vdbprofile`, 5434 → `vdbmarket`, 5435 → `vdbnotification` | `coldtea` / `qwerty` |
 | `keycloak` | `verborum-keycloak:local` (built) | 8180 | `admin` / `admin` |
 | `keycloak-bootstrap` | Keycloak 26 | — | runs once, then exits |
-| `admin` | `adminer` | 8080 | — |
+| `admin` | `adminer` | 8090 | — |
 | `mailpit` | `axllent/mailpit:latest` | 1025 SMTP, 8025 UI | — |
 
 On the host: ms_dictionary 8085, ms_user 8086, ms_marketplace 8087, ms_notification 8088 (ms_gateway 8080 when built).
-**Known clash:** Adminer holds 8080, which the roadmap also assigns to `ms_gateway` — move Adminer
-to 8090 before the gateway arrives. Container layout, the three Keycloak surprises, and what a new
+Adminer sits on 8090 so 8080 stays free for `ms_gateway` (P5-05, done). Container layout, the three Keycloak surprises, and what a new
 service must add are in [references/local-stack.md](references/local-stack.md).
 
 ## Configuration and secrets
@@ -76,7 +75,7 @@ checking the dead-letter queue are in
 
 ## Inspecting state
 
-- **Databases** — Adminer at http://localhost:8080, server `db_dictionary` or `db_user` (the
+- **Databases** — Adminer at http://localhost:8090, server `db_dictionary` or `db_user` (the
   **compose service names**, not `localhost`), or via `docker exec … psql`.
 - **Queues** — Management UI at http://localhost:15672. A growing `verborum.dead-letter` means a
   consumer is failing, not that delivery is broken.

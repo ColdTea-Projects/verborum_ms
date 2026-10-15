@@ -70,8 +70,8 @@ Report every violation with file, line, and the fix.
 - [ ] A new env var has both a `${VAR:local-default}` and a commented `.env.example` entry
 - [ ] No real secret inline in `docker-compose.yml`; no `.env` committed
 - [ ] A new service database is in the **root** compose too, with a named volume and a health check
-- [ ] New host ports do not clash with the existing map (5432/5433, 5672/15672, 8080, 8085/8086,
-      8180, 1025/8025)
+- [ ] New host ports do not clash with the existing map (5432/5433/5434/5435, 5672/15672, 8080 = ms_gateway,
+      8085..8088, 8090 = Adminer, 8180, 1025/8025)
 
 ### Messaging
 - [ ] `RabbitTemplate` used only in `OutboundEventPublisher`

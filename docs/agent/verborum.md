@@ -494,7 +494,7 @@ that service in isolation.
 
 The root `docker-compose.yml` brings up the whole local backend in one command: RabbitMQ
 (5672, Management UI on 15672, `verborum`/`verborum`), `vdbdictionary` on 5432, `vdbprofile`
-on 5433, Keycloak on 8180 (`admin`/`admin`), and a single Adminer on 8080. It binds the same host
+on 5433, Keycloak on 8180 (`admin`/`admin`), and a single Adminer on 8090 (8080 is `ms_gateway`'s). It binds the same host
 ports as the per-service files, so run the root compose or a service compose — never both at once.
 
 Keycloak's realm is imported from `keycloak/import/verborum-realm.json` (versioned, not

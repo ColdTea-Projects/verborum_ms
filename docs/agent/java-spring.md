@@ -300,7 +300,7 @@ services:
 ```
 
 Use different host ports for each service to avoid conflicts:
-- ms_dictionary: DB 5432, Adminer 8080
+- ms_dictionary: DB 5432, Adminer 8084 (8080 is ms_gateway's)
 - ms_user: DB 5433, Adminer 8081
 - ms_marketplace: DB 5434, Adminer 8082
 

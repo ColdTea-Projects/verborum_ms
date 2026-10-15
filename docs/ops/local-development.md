@@ -50,7 +50,7 @@ docker compose ps             # all four should report healthy
 | Postgres `vdbdictionary` | 5432 | `coldtea` / `qwerty` | ms_dictionary |
 | Postgres `vdbprofile` | 5433 | `coldtea` / `qwerty` | ms_user |
 | Keycloak | 8180 | `admin` / `admin` | realm `verborum`, imported from git |
-| Adminer | 8080 | — | web DB client for both databases |
+| Adminer | 8090 | — | web DB client for the databases (8080 is `ms_gateway`'s) |
 
 > **Run the root compose or a per-service compose, never both.** `ms_dictionary/` and `ms_user/`
 > each have their own compose file for working on one service in isolation, and they bind the same
@@ -275,7 +275,7 @@ docker exec verborum-db-user      psql -U coldtea -d vdbprofile    -c "\d vault_
 docker exec verborum-db-dictionary psql -U coldtea -d vdbdictionary -tAc "SELECT count(*) FROM words;"
 ```
 
-Or use Adminer at http://localhost:8080 (system *PostgreSQL*, server `db_dictionary` or `db_user` —
+Or use Adminer at http://localhost:8090 (system *PostgreSQL*, server `db_dictionary` or `db_user` —
 the compose service names, not `localhost`).
 
 ### Test-data hygiene
