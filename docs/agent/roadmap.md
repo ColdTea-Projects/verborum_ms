@@ -1900,12 +1900,64 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
 
 ---
 
+## Phase 5L — Legal foundation (decided 2026-10-15)
+> Goal: the documents, processes and decisions a private individual needs to run a public service with
+> personal data from Germany. Reference: `docs/agent/legal-requirements-2026-10-15.pdf` (discussion record,
+> sources, and what could not be verified). **This is not legal advice** — `P5L-02` puts a lawyer on it.
+> Independent of the gateway and of Phase 5A; must be finished before the first public release (Phase 5R).
+>
+> **Situation (owner, 2026-10-15):** private individual, no company, open source, free app, German
+> establishment with servers in Germany, international users, a contributor in Azerbaijan, costs paid
+> personally. GDPR applies to the owner as controller. Ads, donations, sponsorship or paid features would
+> make the owner a trader — decide that in `P5L-01` before any such button exists.
+> Owner tags: **[claude]** I build it, **[you]** you do it and report back, **[both]** each does a part.
+
+- [ ] `P5L-01` **Decisions** [you]
+  - Project license (repo and contributions: DCO or CLA); minimum user age (GDPR consent age in Germany
+    is 16); whether the owner's name and postal address are public, or an address-forwarding service is
+    used; donations, ads or sponsorship — yes or no, and when; whether the contributor may ever touch
+    production data (default: no, test data only)
+  - Done when: the four answers are recorded in this file
+- [ ] `P5L-02` **Lawyer: scope and booking** [you] — depends on `P5L-01`
+  - One fixed-scope review by a lawyer for IT and data-protection law: privacy policy, terms, the DSA
+    process, push tokens under Sec. 25 TDDDG, whether an individual counts as an "enterprise" under DSA
+    Art. 19, Turkey (KVKK), and the Impressum question. Ask for a flat fee up front
+  - Also ask a broker about a cyber / IT liability policy for a private person
+  - Done when: a review is booked, or you record that you go without one
+- [ ] `P5L-03` **Drafts: privacy policy, terms of use, community guidelines, contact page** [both]
+  - [claude] drafts from what the system really stores (email, display name, dictionaries, words, ratings,
+    FCM tokens; Keycloak, Google and Facebook login, Firebase, mail provider, host), in German and English;
+    the terms include a user license so Forum downloads are lawful, and a minimum age. [you] approve; the
+    lawyer from `P5L-02` reviews. Other languages are convenience translations (`P5R-19`)
+  - Done when: the texts are committed as source and approved
+- [ ] `P5L-04` **Records of processing, breach runbook, rights procedure** [claude]
+  - GDPR Art. 30 record (internal document); a one-page Art. 33 breach runbook (72 hours, authority,
+    who does what); a written way to answer access and export requests within one month — and a decision
+    whether an export endpoint is built
+  - Done when: three documents exist under `docs/`, and the export question is answered
+- [ ] `P5L-05` **Report button and moderation flow in the Forum** [claude] — DSA Art. 16, 17
+  - A report-content action for a listed dictionary (backend endpoint, a stored report, a way to take a
+    listing down with a stated reason to its owner), the working contact address, and the client entry
+    points on Android, web and iOS. Owner-from-JWT rules apply; a report is never anonymous to the server
+  - Done when: a reported listing can be taken down and its owner gets the reason, on a local stack
+- [ ] `P5L-06` **Processor agreements filed** [you]
+  - Hosting provider, Google (Firebase), mail provider — accept and keep the DPAs; note the Google transfer
+    mechanism. The list of processors in the privacy policy matches this list
+  - Done when: each DPA is stored and the processor list is complete
+- [ ] `P5L-07` **Contributor rules and third-party licenses** [both]
+  - [claude] a short CONTRIBUTING note: test data only, no production credentials, the license from
+    `P5L-01`; an open-source licenses screen or file in each client. [you] the contributor's written
+    acknowledgement
+  - Done when: the note is committed, and the licenses page exists in each client
+
+---
+
 ## Phase 5R — Release: the first server (decided 2026-10-15)
 > Goal: take the local stack to a real server. Starts when **you** decide the release starts; nothing here
 > blocks local development. Reference: `docs/ops/dockerization-and-environments.md` (topologies, compose
 > layering, secrets, environments, backups). Nothing here changes code behaviour — it is images,
 > configuration and accounts.
-> Depends on: Phase 5 complete; Phase 5A (account deletion, localized login) is built locally first and
+> Depends on: Phase 5 complete; Phase 5L (legal foundation) complete — `P5R-16..18` need `P5L-03`; Phase 5A (account deletion, localized login) is built locally first and
 > its server-only parts are Stage 6 below. Also pulls in the trigger-based items that say "before any non-local
 > environment": `SEC-03`, `SEC-11`, `BL-02`, `BL-03` (Phase 4S and the backlog).
 > Owner tags: **[claude]** I build it, **[you]** you do it and report back, **[both]** each does a part.
@@ -1984,7 +2036,7 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
   - Done when: a release candidate of the app runs against staging
 
 ### Stage 6 — Accounts, legal pages and mail (needs the domain)
-- [ ] `P5R-16` **Public pages: privacy policy, account-deletion information, support contact** [both]
+- [ ] `P5R-16` **Public pages: privacy policy, account-deletion information, support contact** [both] — depends on `P5L-03`
   - [claude] drafts the pages (what is stored, who processes it — Google for push, the mail provider —
     how long, how to delete the account in the app); [you] approve the legal wording and publish them on the
     domain. App Store Connect and Google Play both ask for these URLs
@@ -1994,7 +2046,7 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
     of the verification and sign-in-code emails in all 19 languages (`P5A-08`)
   - Done when: a verification email and a sign-in code arrive in an inbox, not in spam, in three sample
     languages including a right-to-left one
-- [ ] `P5R-18` **Store declarations** [you] — claude prepares the checklist
+- [ ] `P5R-18` **Store declarations** [you] — claude prepares the checklist; depends on `P5L-03`
   - Apple: App Privacy answers, the account-deletion statement, and a check of Guideline 4.8 (Google and
     Facebook login: is an "equivalent" login option required?). Google Play: Data safety and the data-deletion
     web resource (verify whether Play requires the web link in addition to the in-app path)
