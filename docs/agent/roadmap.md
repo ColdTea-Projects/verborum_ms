@@ -1821,12 +1821,92 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
 
 ---
 
+## Phase 5A — Account deletion and a localized login (decided 2026-10-15)
+> Goal: the two account-lifecycle gaps found on 2026-10-15, both buildable and testable locally. Independent
+> of the gateway: this phase can run beside Phase 5 and does not block it, and nothing in it needs a server.
+> What can only be done on the live server is in Phase 5R, Stage 6.
+>
+> **Decided by the owner 2026-10-15:**
+> - **Account deletion is in the app**, on the profile page, with legal warnings — for Android, iOS and web
+>   alike (unless Google Play forces otherwise). The backend is ready: `DELETE /users/{userId}` removes the
+>   profile, vault, stats, dictionaries, words and the Keycloak identity, behind a login under 5 minutes old
+>   (`SEC-13`, `max_age=0`). **No client calls it yet.** A web page is *not* a substitute: Keycloak's own
+>   account page deletes only the identity and leaves the data.
+> - **All 19 app languages are supported on the login pages.** The stock Keycloak 23.0.0 theme covers 16 of
+>   them; `az`, `uk` and `ko` and every custom string (the email-code screen and the emails) get **our own
+>   translations**. The apps pass their language as `ui_locales`.
+> - **Desktop and every resolution:** the login page first, then the other Keycloak pages.
+> Owner tags: **[claude]** I build it, **[you]** you do it and report back.
+
+### Stage 1 — Account deletion
+- [ ] `P5A-01` **Deletion contract and the canonical warning text** [claude]
+  - One document the three clients share: the flow (confirm → login with `max_age=0` → `DELETE` → wipe local
+    data → login screen), the 403 `ReauthenticationRequiredException` that means "sign in again" (never
+    auto-retried), what happens offline, and the **warning text**: what is deleted (profile, dictionaries,
+    words, ratings, downloads, push registrations, the sign-in account), that it cannot be undone, that
+    published dictionaries disappear for everyone who downloaded them, and the re-login step. Written once
+    in English; each client localizes it
+  - The text is a draft for your review (**[you]**), not legal advice. Put it in
+    `docs/integration/account-deletion-guide.md` and link it from the three clients' doc tables
+  - Done when: the guide exists and you have approved the wording
+- [ ] `P5A-02` **Android: delete account on the profile page** [claude] — repo `verborum_android`; depends on `P5A-01`
+  - A clearly separated, destructive-styled entry on the profile screen with the warning, a typed or
+    double confirmation, the re-login (`AppAuth` additional parameter `max_age=0`), the `DELETE`, then the
+    local wipe through the existing `PostLogoutHook`s. All strings in **all 19 `values-XX` locales**. Unit
+    tests for the flow and the 403 branch
+  - Done when: an account created on the emulator can be deleted from the profile page, every server-side
+    trace is gone (profile, vault, dictionaries, device tokens, ratings), and signing up again is a new account
+- [ ] `P5A-03` **KMP iOS and web: delete account on the profile page** [claude] — repo `verborum_kmp`; depends on `P5A-01`
+  - Same flow on `feature:options` (profile), both targets, the 19 languages from `core:localization`;
+    `max_age=0` on the authorization request; the web build's token storage cleared. Both platforms
+    verified (js, wasmJs, iOS simulator) before any commit
+  - Done when: the same end-to-end result as `P5A-02` on the iOS simulator and in the browser
+- [ ] `P5A-04` **Deletion verified end to end across services** [claude] — depends on `P5A-02`
+  - A checklist and a small script that creates a throwaway user with a dictionary, a download, a rating, a
+    device token and an import by someone else, deletes it through the real API, and asserts the rows in
+    ms_user, ms_dictionary, ms_marketplace and ms_notification, and that the importer's vault entry goes
+  - Done when: the script passes against the local stack
+
+### Stage 2 — A localized, responsive login
+- [ ] `P5A-05` **Rebuild the local Keycloak on 26.8.0** [both] — **first**, the theme may behave differently
+  - The running container is still 23.0.0 although the repo pins 26.8.0. [you] rebuild and restart it
+    (`docker compose build keycloak && docker compose up -d keycloak`); [claude] re-check every flow and
+    that `parent=keycloak` still resolves in 26.8.0
+  - Done when: login, sign-up, forgot password, verify email and the email code all work on 26.8.0
+- [ ] `P5A-06` **Responsive login theme** [claude] — depends on `P5A-05`
+  - Breakpoints for the theme (it has none today, only a dark-mode query), checked at widths from 320 px to
+    a 1920 px desktop, light and dark, and in a right-to-left language. The login page first, then
+    registration, forgot password, verify email, the email-code screen, error and info pages. A screenshot
+    matrix recorded under `docs/ops/`
+  - Done when: no page breaks at any tested width and the matrix is committed
+- [ ] `P5A-07` **Realm localization on** [claude] — depends on `P5A-05`
+  - `internationalizationEnabled`, `supportedLocales` for the 19 app languages with `en` as default, in the
+    realm import. A recorded mapping from the app's language codes to Keycloak locale codes (for example
+    `zh` → `zh-CN`, `pt` → `pt-BR`); decide whether the locale selector stays visible
+  - Done when: a login page opened with `ui_locales=<code>` renders in that language for all 19
+- [ ] `P5A-08` **Our own translations** [claude] — depends on `P5A-07`
+  - `messages_xx.properties` in the theme for every custom string (email-code screen, authenticator
+    messages) and for every base string the login pages use in a language the stock theme lacks (`az`,
+    `uk`, `ko`; re-check the list on 26.8.0). The email theme's subjects and bodies in the 19 languages
+  - Machine-drafted by me; **native-speaker review is `P5R-19`**. Arabic and Persian reviewed for layout
+  - Done when: no raw key and no English fallback appears for any of the 19 languages on any page of
+    `P5A-06`, checked by a script that diffs the key sets
+- [ ] `P5A-09` **Clients send `ui_locales`** [claude] — depends on `P5A-07`
+  - Android (`AuthorizationRequest.Builder.setUiLocales`), KMP iOS and web (`ui_locales` on the
+    authorization and sign-up URLs), from each app's current language setting; a changed language applies
+    to the next login. Tests for the parameter
+  - Done when: switching the app language and logging in shows the login page in that language on all
+    three clients
+
+---
+
 ## Phase 5R — Release: the first server (decided 2026-10-15)
 > Goal: take the local stack to a real server. Starts when **you** decide the release starts; nothing here
 > blocks local development. Reference: `docs/ops/dockerization-and-environments.md` (topologies, compose
 > layering, secrets, environments, backups). Nothing here changes code behaviour — it is images,
 > configuration and accounts.
-> Depends on: Phase 5 complete. Also pulls in the trigger-based items that say "before any non-local
+> Depends on: Phase 5 complete; Phase 5A (account deletion, localized login) is built locally first and
+> its server-only parts are Stage 6 below. Also pulls in the trigger-based items that say "before any non-local
 > environment": `SEC-03`, `SEC-11`, `BL-02`, `BL-03` (Phase 4S and the backlog).
 > Owner tags: **[claude]** I build it, **[you]** you do it and report back, **[both]** each does a part.
 
@@ -1882,7 +1962,7 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
 - [ ] `P5R-11` **First deploy and smoke test** [both] — depends on `P5R-01`..`P5R-10`
   - [you] `docker compose pull && up -d` on the server with the prod layering; [claude] the post-deploy
     checklist: certificates issued, `/actuator/health` through the edge, a login, a sync, a Forum download,
-    a **429** on a token burst, a **413** on an oversized body, CORS from the real web origin
+    an account deletion with its re-login (`P5A-04`'s script), a **429** on a token burst, a **413** on an oversized body, CORS from the real web origin
   - Done when: the checklist passes on the real domain
 - [ ] `P5R-12` **Backups and a rehearsed restore** [both]
   - [claude] nightly `pg_dump` per database, kept off the server, with a restore script; [you] run one
@@ -1902,6 +1982,31 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
   - A second compose project on the same server, its own volumes, subdomain and Keycloak realm; roughly
     doubles memory, so re-check the server size first (decision recorded 2026-10-15)
   - Done when: a release candidate of the app runs against staging
+
+### Stage 6 — Accounts, legal pages and mail (needs the domain)
+- [ ] `P5R-16` **Public pages: privacy policy, account-deletion information, support contact** [both]
+  - [claude] drafts the pages (what is stored, who processes it — Google for push, the mail provider —
+    how long, how to delete the account in the app); [you] approve the legal wording and publish them on the
+    domain. App Store Connect and Google Play both ask for these URLs
+  - Done when: the three URLs are live over HTTPS and linked from the clients' profile pages
+- [ ] `P5R-17` **Real mail: SMTP, SPF, DKIM, DMARC** [both] — also needed by `P5R-08`
+  - [you] choose the provider and add the DNS records; [claude] the realm and compose wiring and a test
+    of the verification and sign-in-code emails in all 19 languages (`P5A-08`)
+  - Done when: a verification email and a sign-in code arrive in an inbox, not in spam, in three sample
+    languages including a right-to-left one
+- [ ] `P5R-18` **Store declarations** [you] — claude prepares the checklist
+  - Apple: App Privacy answers, the account-deletion statement, and a check of Guideline 4.8 (Google and
+    Facebook login: is an "equivalent" login option required?). Google Play: Data safety and the data-deletion
+    web resource (verify whether Play requires the web link in addition to the in-app path)
+  - Done when: both listings validate with no open question
+- [ ] `P5R-19` **Native-speaker review of the translations** [you]
+  - The login pages, the emails and the account-deletion warning, in the languages you can reach reviewers
+    for first; the deletion warning is the one that matters legally
+  - Done when: the reviewed files are committed (a language may ship unreviewed only by your decision)
+- [ ] `P5R-20` **Localized login and deletion proven on the live host** [both] — depends on `P5R-11`
+  - `ui_locales` through Caddy and the production Keycloak hostname; a full account deletion with the
+    re-login on the production origin using a throwaway account
+  - Done when: both pass on `https://auth.<domain>` and `https://api.<domain>`
 
 > The push-notification release work (production Firebase wiring, the stale-token job, iOS) follows in
 > Phase 5N, which now starts only after this phase.
