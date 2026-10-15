@@ -1735,42 +1735,189 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
 
 ---
 
-## Phase 5 — API Gateway
-> Goal: Single entry point for all mobile traffic.
-> Depends on: Phase 4 complete
+## Phase 5 — API Gateway (decided 2026-10-15)
+> Goal: one origin for every client, built and tested **entirely on the local machine** before any server
+> exists. Long-form reasoning: `docs/ops/dockerization-and-environments.md` §13 (the guide pairs Caddy with
+> `ms_gateway`; it never proposed Caddy alone).
+>
+> **Decided by the owner 2026-10-15:**
+> - **Own gateway**, not Caddy alone: `ms_gateway` = Spring Cloud Gateway **Server MVC** (servlet stack, so
+>   `SecurityConfig`, the body-limit filter and the test style are copied from the other services). Verify
+>   Boot 3.5.16 compatibility at scaffold time and pin the Spring Cloud train in the module pom.
+> - **Caddy in front, for TLS only** (and the auth-endpoint rate limit below). It arrives in the release phase
+>   for real, and locally with `tls internal` in `P5-04`.
+> - **Both validate JWTs**: the gateway refuses bad tokens early, every service still validates audience and
+>   issuer itself. **Nothing trusts forwarded user headers**; the gateway strips any inbound `X-User-*`.
+> - **Rate limiting: Caddy, auth endpoints only** (token and login), via the rate-limit module in a custom
+>   image. No API limits and **no Redis** for the first release.
+> - **Staging**: before the Android public release, not at the first deploy (Phase 5R).
+>
+> Depends on: Phase 4 complete (done), Phase 4N complete (done).
+> Owner tags: **[claude]** I build it, **[you]** you do it and report back.
 
-- [ ] `P5-01` **Scaffold ms_gateway module**
-  - Use Spring Cloud Gateway
-  - Port: 8080
-  - Done when: gateway starts and routes requests to the correct service
-- [ ] `P5-02` **Configure routes**
-  - `/dictionaries/**` → ms_dictionary (8085)
-  - `/words/**` → ms_dictionary (8085)
-  - `/users/**` → ms_user (8086)
-  - `/marketplace/**` → ms_marketplace (8087)
-  - `/notifications/**` → ms_notification (8088; Phase 4N, add when it exists)
-  - Done when: all routes work end-to-end through the gateway
-- [ ] `P5-03` **Add JWT validation at gateway level**
-  - Validate token once at the gateway, forward user info in headers
-  - Done when: invalid tokens are rejected at the gateway before reaching services
-- [ ] `P5-04` **Edge rate-limiting + TLS** (split out of `P3B-08` on 2026-09-27)
-  - Lands with the gateway / reverse proxy — see `docs/ops/dockerization-and-environments.md`
-  - Rate-limit the Keycloak token/auth endpoints, enforce HTTPS, secure cookies
-  - Done when: auth endpoints are rate-limited at the edge and all external traffic is HTTPS
+### Stage 1 — The gateway
+- [ ] `P5-05` **Free port 8080: move Adminer to 8090** [claude]
+  - Root compose, the `infra-ops` port map, `docs/ops/local-development.md`, the dockerization guide §9
+  - Done when: `docker compose up` works and Adminer answers on 8090
+- [ ] `P5-01` **Scaffold `ms_gateway` module** [claude] — agent `spring-boot-architect`; depends on `P5-05`
+  - Spring Cloud Gateway Server MVC, port **8080**, no database, no RabbitMQ. Module in the aggregator pom,
+    `ms_gateway/CLAUDE.md`, actuator `health,info`, Swagger off (`SWAGGER_ENABLED`), the 2 MB body cap
+  - `SecurityConfig` copied from a service (JWT resource server: issuer, jwk-set, audience `verborum-api`)
+  - Done when: starts, `/actuator/health` 200, an anonymous call is 401, tests green
+- [ ] `P5-02` **Routes** [claude] — depends on `P5-01`
+  - `/dictionaries/**` and `/words/**` → ms_dictionary (8085) · `/users/**` → ms_user (8086) ·
+    `/marketplace/**` → ms_marketplace (8087) · `/notifications/**` → ms_notification (8088)
+  - Upstream URLs are `${DICTIONARY_URL:http://localhost:8085}` style variables, so containers later use
+    service names with no code change. Unknown path → 404 in the usual error envelope; an unreachable
+    upstream → 502/504, never a stack trace. `Authorization` and `X-Device-Id` pass through unchanged
+  - Done when: every contract endpoint in `verborum.md` works through the gateway with a real token,
+    including `PUT /notifications/devices` and the vault `DELETE`
+- [ ] `P5-03` **JWT validation at the gateway** [claude] — depends on `P5-02`
+  - Both validate (decision above). Reject at the gateway before any upstream call; strip inbound
+    `X-User-*`/`X-Forwarded-User`-style headers; forward nothing identity-shaped
+  - Done when: an invalid, expired or wrong-audience token is refused at the gateway and never reaches a
+    service (proved by a web-slice test and by the services' access logs)
+- [ ] `P5-06` **CORS at the gateway** [claude] — depends on `P5-02`
+  - Allowed origins per environment (`CORS_ALLOWED_ORIGINS`), preflight answered at the gateway, allowed
+    headers include `Authorization`, `Content-Type`, `X-Device-Id`. Keycloak's *Web Origins* stay `"+"`
+    (`docs/agent/security.md`). This closes the KMP web CORS gap
+  - Done when: the web app, served from its local origin, reads and writes through the gateway in a
+    browser with no CORS error
 
+### Stage 2 — The edge, still local
+- [ ] `P5-04` **Caddy in the local stack: TLS and the auth rate limit** [claude] — depends on `P5-02`
+  - Replaces the old "edge rate-limiting + TLS" wording (split out of `P3B-08` on 2026-09-27)
+  - A `caddy` service with a custom image (`xcaddy` + the rate-limit module, versions pinned), `tls
+    internal` for a local CA, `auth.` → Keycloak and `api.` → the gateway, Keycloak started with proxy
+    headers so the token `iss` stays correct (`KC_HOSTNAME` and every service's issuer URI must match)
+  - Rate limit on `/realms/*/protocol/openid-connect/token` only; `flush_interval -1` toward Keycloak
+  - Done when: HTTPS works locally with the CA trusted, a burst to the token endpoint returns **429**, a
+    normal login still works end to end
 
+### Stage 3 — Clients
+- [ ] `P5-09` **Android: one API origin** [claude] — repo `verborum_android`; depends on `P5-02`
+  - `core/build.gradle.kts` has four base URLs → one gateway URL (debug `http://10.0.2.2:8080/`; release
+    from a build property, not a literal LAN IP). `DeviceIdInterceptor`'s origin list collapses. Retrofit
+    modules for user, marketplace and notification re-point; update the tests
+  - Done when: login, sync, Forum browse and download, rating, a silent push and an unsubscribe all work
+    through the gateway on the emulator
+- [ ] `P5-10` **KMP web: one API origin** [claude] — repo `verborum_kmp`; depends on `P5-06`
+  - `core:network` `ApiConfig` per target → the gateway origin; remove the per-service ports
+  - Done when: the same flows work from the browser through the gateway, with CORS clean
+- [ ] `P5-11` **KMP iOS: one API origin** [claude] — repo `verborum_kmp`; depends on `P5-02`
+  - Same `ApiConfig`; keep the ATS cleartext exception for local development only (`ios-security` skill)
+  - Done when: the iOS simulator passes the same flows through the gateway
+- [ ] `P5-12` **Client contracts and the heads-up** [claude] — depends on `P5-09`, `P5-10`, `P5-11`
+  - `docs/integration/*` guides and the three clients' `CLAUDE.md` doc tables: one origin, the route table,
+    the CORS rule. This also settles the old `P3-03a` client heads-up
+  - Done when: no integration guide still names a per-service port as a client origin
+
+### Stage 4 — Prove it
+- [ ] `P5-13` **End-to-end pass through the edge** [both] — depends on `P5-03`, `P5-04`, `P5-06`, `P5-09`..`P5-12`
+  - [claude] a written checklist in `docs/ops/local-development.md` and a small smoke script; [you] run it
+    on a physical phone (LAN IP, Keycloak issuer pinned per `docs/agent/security.md`) and on the web
+  - Done when: login, sync, Forum, push and unsubscribe pass on emulator, phone and web through Caddy and the
+    gateway, and `docker stats` of the whole local stack is recorded for server sizing
+
+---
+
+## Phase 5R — Release: the first server (decided 2026-10-15)
+> Goal: take the local stack to a real server. Starts when **you** decide the release starts; nothing here
+> blocks local development. Reference: `docs/ops/dockerization-and-environments.md` (topologies, compose
+> layering, secrets, environments, backups). Nothing here changes code behaviour — it is images,
+> configuration and accounts.
+> Depends on: Phase 5 complete. Also pulls in the trigger-based items that say "before any non-local
+> environment": `SEC-03`, `SEC-11`, `BL-02`, `BL-03` (Phase 4S and the backlog).
+> Owner tags: **[claude]** I build it, **[you]** you do it and report back, **[both]** each does a part.
+
+### Stage 1 — Decisions and accounts
+- [ ] `P5R-01` **Server: provider, size, region — and buy it** [you]
+  - 4 GB is the minimum for four Spring services + Keycloak + Postgres + RabbitMQ, 8 GB comfortable
+    (guide §11). Use `P5-13`'s recorded `docker stats` to choose. Create an SSH key; allow only 22, 80, 443
+  - One Postgres with three databases and three users, or three containers (guide §12) — decide here, a
+    connection-string change either way
+  - Done when: you can `ssh` in and Docker runs
+- [ ] `P5R-02` **Domain and DNS** [you]
+  - `api.<domain>` and `auth.<domain>` as A records to the server (staging names later, `P5R-15`)
+  - Done when: both names resolve to the server
+- [ ] `P5R-03` **Registry and CI secrets** [you]
+  - A GitHub Container Registry token and the repository secrets the workflows in `P5R-06` need
+
+### Stage 2 — Containers and configuration
+- [ ] `P5R-04` **Dockerfiles for every service** [claude]
+  - `ms_dictionary`, `ms_user`, `ms_marketplace`, `ms_notification`, `ms_gateway`: multi-stage, JRE, non-root,
+    `-XX:MaxRAMPercentage=75`, `.dockerignore`, a health check with `start_period`
+  - Done when: every image builds and starts locally against the compose infrastructure
+- [ ] `P5R-05` **`docker-compose.services.yml` and the full local stack** [claude] — depends on `P5R-04`
+  - Topology B of the guide: services in containers, gateway and Caddy in front, internal network names
+  - Done when: `P5-13`'s checklist passes against the containerized stack on your machine
+- [ ] `P5R-06` **CI: build, test, push** [claude] — depends on `P5R-04`
+  - GitHub Actions: `mvn verify`, build images, push to GHCR tagged with the commit SHA (never only
+    `latest`); an osv-scan of each built jar (the shaded Netty in `grpc-netty-shaded` is not reachable by a
+    version pin)
+  - Done when: a push produces tagged images for all five services
+- [ ] `P5R-07` **Production compose, Caddyfile and `.env` template** [claude] — depends on `P5R-05`
+  - `docker-compose.prod.yml` (no published ports except Caddy's 80/443, memory limits, restart policy,
+    Adminer off), the production Caddy image and Caddyfile (TLS, CORS origins, auth rate limit, body cap),
+    `.env.prod.example` with placeholders only
+  - Done when: a dry run with `docker compose config` is clean and no secret is in the repository
+
+### Stage 3 — Identity and secrets
+- [ ] `P5R-08` **Production Keycloak realm** [both] — also `SEC-11`, `BL-03`, `BL-02`
+  - [claude] production realm import without dev users and without the `verborum-dev-cli` password-grant
+    client; `sslRequired`, redirect URIs and Web Origins for the real domains; password policy; proxy
+    headers and `KC_HOSTNAME=https://auth.<domain>`; reCAPTCHA on the registration form
+  - [you] rotate every secret (admin, `verborum-backend`, Google and Facebook client secrets — the last two
+    were pasted into a chat once) and create the production social-login apps' redirect URIs
+  - Done when: a login through `https://auth.<domain>` yields a token every service accepts
+- [ ] `P5R-09` **RabbitMQ per-service users and topic permissions** [claude] — `SEC-03`
+  - One user per service limited to the routing keys it publishes and the queues it consumes
+  - Done when: a service cannot publish or consume outside its own keys, and all events still flow
+- [ ] `P5R-10` **Production secrets and the Firebase production project** [you]
+  - Generate unique database, RabbitMQ and client secrets; keep `.env` on the server only. Create
+    `verborum-prod` in Firebase (own `google-services.json`, own service account, key as a file secret) —
+    this is the first half of `P4N-11`
+
+### Stage 4 — First deploy
+- [ ] `P5R-11` **First deploy and smoke test** [both] — depends on `P5R-01`..`P5R-10`
+  - [you] `docker compose pull && up -d` on the server with the prod layering; [claude] the post-deploy
+    checklist: certificates issued, `/actuator/health` through the edge, a login, a sync, a Forum download,
+    a **429** on a token burst, a **413** on an oversized body, CORS from the real web origin
+  - Done when: the checklist passes on the real domain
+- [ ] `P5R-12` **Backups and a rehearsed restore** [both]
+  - [claude] nightly `pg_dump` per database, kept off the server, with a restore script; [you] run one
+    restore into a scratch database and report the result
+  - Done when: a restore has been rehearsed once
+- [ ] `P5R-13` **Operations basics** [both]
+  - Log rotation, an uptime check on `api.` and `auth.`, a look at the dead-letter queue, RabbitMQ UI only
+    over an SSH tunnel, a documented update and rollback by SHA tag
+  - Done when: `docs/ops/` has the runbook and a rollback has been tried once
+
+### Stage 5 — Clients and staging
+- [ ] `P5R-14` **Clients on the production origin** [claude] — depends on `P5R-11`
+  - Android: a release build type with the HTTPS origin and a narrowed cleartext exception (debug only);
+    KMP web and iOS: production origins per target
+  - Done when: a release build of each client logs in against production
+- [ ] `P5R-15` **Staging stack — before the Android public release** [both] — depends on `P5R-11`
+  - A second compose project on the same server, its own volumes, subdomain and Keycloak realm; roughly
+    doubles memory, so re-check the server size first (decision recorded 2026-10-15)
+  - Done when: a release candidate of the app runs against staging
+
+> The push-notification release work (production Firebase wiring, the stale-token job, iOS) follows in
+> Phase 5N, which now starts only after this phase.
 ---
 
 ## Phase 5N — Push Notifications: release and iOS (deferred 2026-10-14)
 > Goal: take the push channel to production, and then to iOS. **Not started until the release does** —
-> owner decision 2026-10-14: these are release tasks, done after Phase 5 (the gateway exists, so the
-> `/notifications/**` route in `P5-02` is in place and clients use one origin). The working push
+> owner decision 2026-10-14: these are release tasks, done after Phase 5 and Phase 5R (the gateway exists, so
+> the `/notifications/**` route in `P5-02` is in place and clients use one origin; the server, the images and
+> the production Firebase project come from `P5R-04`..`P5R-10`). The working push
 > channel itself (backend, Android, web refetch) is Phase 4N and is complete.
 > Design and contract: `docs/agent/push-notifications.md`.
-> Depends on: Phase 5 complete, and the start of the release.
+> Depends on: Phase 5 and Phase 5R complete (a server exists), and the start of the release.
 
 ### Stage 4 — Android + web release
-- [ ] `P4N-11` **Release prerequisites** — depends on `P4N-09`, `P4N-10`, Phase 5; also `SEC-03`, `SEC-11`
+- [ ] `P4N-11` **Release prerequisites** — depends on `P4N-09`, `P4N-10`, Phase 5R (`SEC-03` and `SEC-11` are `P5R-09` and `P5R-08`)
   - Production Firebase project and key as a platform secret (not in an image), Dockerfile and
     deployment entry for `ms_notification`, stale-token job (30 days), metrics, privacy text naming
     Google as a processor of the device token
