@@ -19,8 +19,9 @@ roadmap, not here.
 | Web | **No FCM.** Refetch on tab focus plus a slow timer while visible (`P4N-10`, decided 2026-10-14). SSE is backlog `BL-05` |
 | Apple Developer account | **Not yet.** iOS is built and released last |
 
-**Order of work:** backend + Android on a local stack → web on a local stack → Android + web release →
-iOS build and release.
+**Order of work:** backend + Android on a local stack → web on a local stack → *(API Gateway, Phase 5)* →
+Android + web release → iOS build and release. The release work (production Firebase, deployment, the
+stale-token job, iOS) is roadmap Phase 5N, deferred until the release starts (owner, 2026-10-14).
 
 ## 2. How it fits together
 
@@ -48,6 +49,7 @@ is needed.
 |---|---|---|---|---|
 | `SYNC` | `dictionary.changed` (new) | the user's **other** devices | start a sync now | first |
 | `REFRESH` | `dictionary.imported` (+`publisherId`), `dictionary.rated` (new) | the publisher | refresh Forum stats | second |
+| `SYNC` | `vault.changed` (new, ms_user; P4N-14) | the user's **other** devices | a Forum download or unsubscribe happened elsewhere | built |
 
 `data` keys: `type` (required), `dictionaryId` (every type), `eventId` (optional). **Ids only.**
 

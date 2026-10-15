@@ -69,6 +69,7 @@ Durable: true
 | `dictionary.imported` | ms_marketplace | `user.dictionary.imported` | Add to user vault |
 | `dictionary.imported` | ms_marketplace | `notification.dictionary.imported` | Silent `REFRESH` to the publisher; carries `publisherId` |
 | `dictionary.rated` | ms_marketplace | `notification.dictionary.rated` | Silent `REFRESH` to the publisher (P4N-06) |
+| `vault.changed` | ms_user | `notification.vault.changed` | Silent `SYNC` to the user's other devices after a Forum download or unsubscribe (P4N-14) |
 | `dictionary.changed` | ms_dictionary | `notification.dictionary.changed` |
 | `user.deleted` | ms_user | `notification.user.deleted` | Drop the user's device tokens (match on keycloakId) |
 | (placeholder removed) | Silent `SYNC` to the user's other devices (P4N-06) |

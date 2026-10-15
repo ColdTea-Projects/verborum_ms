@@ -47,6 +47,7 @@ One durable **topic** exchange for everything: `verborum.events`. Keys are `{dom
 | `user.profile.updated` | ms_user | `marketplace.user.profile.updated`, `dictionary.user.profile.updated` (live) | display name or marketplace agreement changed |
 | `dictionary.imported` | ms_marketplace | `user.dictionary.imported`, `notification.dictionary.imported` (live) | listed dictionary imported (every successful call); carries `publisherId` (P4N-06) |
 | `dictionary.rated` | ms_marketplace | `notification.dictionary.rated` (live) | rating created or changed (P4N-06) |
+| `vault.changed` | ms_user | `notification.vault.changed` (live) | a vault entry really added or removed (P4N-14) |
 | `dictionary.changed` | ms_dictionary | `notification.dictionary.changed` (live) | a real change to a user's dictionary, words or tags (P4N-06) |
 
 Both built services declare the exchange and the dead-letter infrastructure; declarations are
