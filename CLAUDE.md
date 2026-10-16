@@ -29,6 +29,7 @@ verborum_ms/
 ├── ms_dictionary/             ← ✅ complete and secured (reference implementation)
 ├── ms_user/                   ← ✅ Phase 2 complete, verified over HTTP
 ├── ms_marketplace/            ← 🚧 scaffolded and secured (P4-01); entities/endpoints next
+├── ms_gateway/                ← 🚧 scaffolded and secured (P5-01); routes next (P5-02)
 └── sql_dumps/
 ```
 

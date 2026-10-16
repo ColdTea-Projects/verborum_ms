@@ -14,5 +14,6 @@
         <module>ms_user</module>
         <module>ms_marketplace</module>
         <module>ms_notification</module>
+        <module>ms_gateway</module>
     </modules>
 </project>

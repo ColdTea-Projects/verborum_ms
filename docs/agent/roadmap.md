@@ -1759,7 +1759,7 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
 - [x] `P5-05` **Free port 8080: move Adminer to 8090** [claude] — done 2026-10-15: root compose `8090`, the per-module `ms_dictionary` Adminer `8084` (the other three already 8081..8083); `docker compose up -d admin` recreated it; Adminer answers on 8090 and 8080 is free
   - Root compose, the `infra-ops` port map, `docs/ops/local-development.md`, the dockerization guide §9
   - Done when: `docker compose up` works and Adminer answers on 8090
-- [ ] `P5-01` **Scaffold `ms_gateway` module** [claude] — agent `spring-boot-architect`; depends on `P5-05`
+- [x] `P5-01` **Scaffold `ms_gateway` module** [claude] — done 2026-10-15: module registered, Spring Cloud `2025.0.3` pinned (the Boot 3.5.x train; `2025.1.x` is Boot 4), secured shell with no routes, no springdoc (nothing to document); 10 tests green; started on 8080: health 200, anonymous 401, `/actuator/env` 404
   - Spring Cloud Gateway Server MVC, port **8080**, no database, no RabbitMQ. Module in the aggregator pom,
     `ms_gateway/CLAUDE.md`, actuator `health,info`, Swagger off (`SWAGGER_ENABLED`), the 2 MB body cap
   - `SecurityConfig` copied from a service (JWT resource server: issuer, jwk-set, audience `verborum-api`)
