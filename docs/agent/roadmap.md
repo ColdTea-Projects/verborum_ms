@@ -1795,7 +1795,7 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
     normal login still works end to end
 
 ### Stage 3 — Clients
-- [ ] `P5-09` **Android: one API origin** [claude] — repo `verborum_android`; depends on `P5-02`
+- [x] `P5-09` **Android: one API origin** [claude] — repo `verborum_android`; done 2026-10-17 (uncommitted in the Android repo until you say): `ROOT_URL_VERBORUM_API` is the only API field (debug `http://10.0.2.2:8080/`, release from `-PverborumApiUrl` / `~/.gradle/gradle.properties`, default `https://api.verborum.invalid/`); the user, Forum and notification Retrofit modules use it; `DeviceIdInterceptor` now scopes by path (all writes except `notifications/`); `docs/production-cutover.md` §1 rewritten; unit tests and `:app:assembleDebug` green. Run on the emulator (logged-in session): sync of dictionaries, words, tags, vault, `GET /users/me` and the device `PUT /notifications/devices` all went through the gateway (69× 200, 1× 201). **Not done by hand:** Forum browse/download, rating, a silent push and an unsubscribe — they need taps on your account's real data — depends on `P5-02`
   - `core/build.gradle.kts` has four base URLs → one gateway URL (debug `http://10.0.2.2:8080/`; release
     from a build property, not a literal LAN IP). `DeviceIdInterceptor`'s origin list collapses. Retrofit
     modules for user, marketplace and notification re-point; update the tests
