@@ -1772,7 +1772,7 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
     upstream → 502/504, never a stack trace. `Authorization` and `X-Device-Id` pass through unchanged
   - Done when: every contract endpoint in `verborum.md` works through the gateway with a real token,
     including `PUT /notifications/devices` and the vault `DELETE`
-- [ ] `P5-03` **JWT validation at the gateway** [claude] — depends on `P5-02`
+- [x] `P5-03` **JWT validation at the gateway** [claude] — done 2026-10-17: `IdentityHeaderFilter` strips the identity header family; 13 new tests incl. the real decoder against a served JWKS (11 token/header cases, 2 filter units); run for real: tampered, edited-payload, `alg:none`, missing and query-string tokens all 401, a valid token with a forged `X-User-Id` passes. Not done: "the services' access logs" evidence — the stub upstream counting zero hits stands in for it — depends on `P5-02`
   - Both validate (decision above). Reject at the gateway before any upstream call; strip inbound
     `X-User-*`/`X-Forwarded-User`-style headers; forward nothing identity-shaped
   - Done when: an invalid, expired or wrong-audience token is refused at the gateway and never reaches a

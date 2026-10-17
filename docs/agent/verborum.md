@@ -95,8 +95,8 @@ API Gateway ──► Autofil Service  (word suggestions from community data, No
 - **Port:** 8080 · **Base package:** `de.coldtea.verborum.msgateway` · **Spring Cloud:** 2025.0.3
 - **Built:** the secured shell — `SecurityConfig`, `RequestBodyLimitFilter` (2 MB), error envelope, actuator
   `health,info` — and the four routes (`/dictionaries/**`+`/words/**`, `/users/**`, `/marketplace/**`,
-  `/notifications/**`; upstream URLs are `*_URL` variables; 502/504 when a service is down). Gateway JWT
-  rules for forwarded headers are `P5-03`, CORS `P5-06`
+  `/notifications/**`; upstream URLs are `*_URL` variables; 502/504 when a service is down). Gateway validates
+  the JWT and strips client identity headers (`P5-03`); CORS is `P5-06`
 - **Guide:** `ms_gateway/CLAUDE.md`; decisions and tasks: roadmap Phase 5
 - **Security requirement:** both the gateway and the services validate JWTs; nothing trusts forwarded headers.
 
