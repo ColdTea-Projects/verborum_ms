@@ -364,6 +364,12 @@ auth.verborum.example.com {
 }
 ```
 
+**Built locally in P5-04:** `caddy/Caddyfile` is this file plus the login rate limit, the public-path allow-list for
+Keycloak (`/realms/*` and `/resources/*` only; the admin console and the master realm stay off the internet) and
+`tls internal`. The image is custom (`caddy/Dockerfile`, xcaddy) because the rate-limit module is not in the stock
+image. For a server, drop `tls internal` (Let's Encrypt takes over), point `GATEWAY_UPSTREAM` at the gateway
+container, and set `KC_HOSTNAME`/`KC_PROXY_HEADERS` as `docker-compose.edge.yml` does. Run with `docs/ops/local-development.md` §7a.
+
 Two DNS names — one for the API gateway, one for Keycloak — because clients perform OAuth redirects
 against Keycloak directly (see the Integration document §6).
 

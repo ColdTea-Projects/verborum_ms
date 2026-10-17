@@ -265,6 +265,61 @@ Find the LAN address with `ipconfig` (ignore the `172.x` WSL/Hyper-V ones). Full
 
 ---
 
+## 7a. The local edge: HTTPS, the gateway and the login rate limit (P5-04)
+
+Caddy sits in front of the gateway and Keycloak. It does two jobs: TLS and a brute-force limit on the login and
+token endpoints. It is **opt-in**, because it changes the token issuer.
+
+| Name | Goes to | Notes |
+|---|---|---|
+| `https://api.verborum.localhost` | `ms_gateway` on the host, `:8080` | the one origin for every client |
+| `https://auth.verborum.localhost` | Keycloak | only `/realms/*` and `/resources/*`; the admin console and the master realm answer 404 |
+
+`*.localhost` resolves to 127.0.0.1 in a browser without a hosts-file entry. Change the names with
+`CADDY_API_HOST` and `CADDY_AUTH_HOST` in `.env`.
+
+**1. Start Keycloak and Caddy** (this recreates the Keycloak container with the HTTPS issuer):
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.edge.yml up -d --build caddy keycloak
+```
+
+**2. Trust the local CA once.** Caddy makes its own certificate authority. Without trust, every client says "invalid
+certificate". Export the root and add it to the system store (macOS shown; this one step needs your password):
+
+```bash
+docker cp verborum-caddy:/data/caddy/pki/authorities/local/root.crt ./caddy-local-root.crt
+sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain ./caddy-local-root.crt
+```
+
+Without trusting it, `curl --cacert ./caddy-local-root.crt ...` works. Delete the certificate again when you stop
+using the edge. The Android emulator and the iOS simulator need the same root installed in their own stores.
+
+**3. Start the gateway and every service with the HTTPS issuer.** Tokens now carry
+`iss=https://auth.verborum.localhost/realms/verborum`, and a service that expects `http://localhost:8180` answers 401.
+Only the issuer changes. Keep the JWK set on plain `localhost:8180`, so no JVM has to trust the local CA:
+
+```
+KEYCLOAK_ISSUER_URI=https://auth.verborum.localhost/realms/verborum
+# KEYCLOAK_JWK_SET_URI stays http://localhost:8180/realms/verborum/protocol/openid-connect/certs
+```
+
+**4. Check it.**
+
+```bash
+TOKEN=$(curl -s --cacert ./caddy-local-root.crt -X POST https://auth.verborum.localhost/realms/verborum/protocol/openid-connect/token \
+  -d client_id=verborum-dev-cli -d username=testuser -d password=testuser -d grant_type=password \
+  | sed -E 's/.*"access_token":"([^"]+)".*/\1/')
+curl --cacert ./caddy-local-root.crt -H "Authorization: Bearer $TOKEN" https://api.verborum.localhost/users/me
+```
+
+**The rate limit.** `AUTH_RATE_EVENTS` (default 30) per `AUTH_RATE_WINDOW` (default `1m`) per client address, on
+`POST` to the token endpoint and the login form. Over the limit the answer is `429` with `Retry-After`. Lower it
+to see it work: `AUTH_RATE_EVENTS=5` in `.env`, then recreate Caddy.
+
+**Back to the plain setup:** `docker compose up -d keycloak` (without the edge file) and start the services with
+the default issuer again. The browser keeps nothing; only the trusted certificate remains until you delete it.
+
 ## 8. Looking at the databases
 
 ```bash

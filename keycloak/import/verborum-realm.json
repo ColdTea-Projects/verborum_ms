@@ -53,7 +53,7 @@
     {
       "clientId": "verborum-app",
       "name": "Verborum app (Android, iOS, web)",
-      "description": "Public client, Authorization Code + PKCE. Integration doc 6.1. Every Verborum client uses this one - the KMP web app authenticates as verborum-app too, redirecting to its own page rather than a custom scheme, which is why the separate verborum-web client was removed. Deployed origins are added to redirectUris by keycloak/bootstrap/configure.sh from APP_WEB_ORIGIN; only local values are committed here.",
+      "description": "Public client, Authorization Code + PKCE (Integration doc 6.1). Every Verborum client uses it, the KMP web app too. Deployed origins are added to redirectUris by keycloak/bootstrap/configure.sh from APP_WEB_ORIGIN.",
       "enabled": true,
       "protocol": "openid-connect",
       "publicClient": true,

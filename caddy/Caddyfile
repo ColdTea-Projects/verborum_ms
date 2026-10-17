@@ -1,0 +1,60 @@
+# Local edge (P5-04): TLS and the auth rate limit, nothing else. Not a router — the gateway routes.
+#
+#   api.<domain>   -> ms_gateway (runs on the host, :8080)
+#   auth.<domain>  -> Keycloak (container, :8080)
+#
+# The two host names are variables, so the same file serves local development (`*.verborum.localhost`,
+# which a browser resolves to 127.0.0.1 with no hosts-file entry) and a real server (`P5R`).
+# `tls internal` = Caddy's own local CA; the production Caddyfile drops that line and Let's Encrypt takes over.
+{
+	# The rate_limit handler is a third-party module; give it a place in the directive order
+	order rate_limit before reverse_proxy
+}
+
+{$CADDY_API_HOST:api.verborum.localhost} {
+	tls internal
+
+	reverse_proxy {$GATEWAY_UPSTREAM:host.docker.internal:8080}
+}
+
+{$CADDY_AUTH_HOST:auth.verborum.localhost} {
+	tls internal
+
+	# Brute-force guard. Only the places a password or a refresh token is guessed at: the token endpoint and the
+	# login form. Per client address; 30 a minute leaves room for several people behind one office or mobile-carrier
+	# address, and stops a guessing script within seconds. Over the limit: 429 with Retry-After.
+	@auth {
+		path /realms/*/protocol/openid-connect/token /realms/*/login-actions/*
+		not path /realms/master/*
+		method POST
+	}
+	handle @auth {
+		rate_limit {
+			zone auth_attempts {
+				key {remote_host}
+				events {$AUTH_RATE_EVENTS:30}
+				window {$AUTH_RATE_WINDOW:1m}
+			}
+		}
+		reverse_proxy {$KEYCLOAK_UPSTREAM:keycloak:8080} {
+			flush_interval -1
+		}
+	}
+
+	# The public face of Keycloak is /realms and /resources. The admin console, the master realm and the
+	# management endpoints stay off the internet (Keycloak's own guidance for a reverse proxy). Locally the
+	# admin console is still on http://localhost:8180.
+	@public {
+		path /realms/* /resources/* /robots.txt
+		not path /realms/master /realms/master/*
+	}
+	handle @public {
+		reverse_proxy {$KEYCLOAK_UPSTREAM:keycloak:8080} {
+			flush_interval -1
+		}
+	}
+
+	handle {
+		respond "Not found" 404
+	}
+}

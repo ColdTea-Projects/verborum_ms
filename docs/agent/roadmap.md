@@ -1785,7 +1785,7 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
     browser with no CORS error
 
 ### Stage 2 — The edge, still local
-- [ ] `P5-04` **Caddy in the local stack: TLS and the auth rate limit** [claude] — depends on `P5-02`
+- [x] `P5-04` **Caddy in the local stack: TLS and the auth rate limit** [claude] — done 2026-10-17: `caddy/` (xcaddy image, Caddy 2.11.7 + rate-limit module pinned) and an **opt-in** `docker-compose.edge.yml`; names `api.`/`auth.verborum.localhost` (`CADDY_*_HOST`); proved in an isolated test project with Keycloak 26: HTTPS with the local CA, token `iss` = the HTTPS issuer, login page + assets, gateway behind Caddy, 31st token/login POST in a minute = 429, login works again after the window; admin console and master realm are 404 on the public host. **Found and fixed:** Keycloak 26 could not import the realm on a fresh volume (the `verborum-app` description was 404 chars, the column holds 255). Not done: a login in a real browser, and the CA trusted in the system store (needs your password, steps in `docs/ops/local-development.md` §7a) — depends on `P5-02`
   - Replaces the old "edge rate-limiting + TLS" wording (split out of `P3B-08` on 2026-09-27)
   - A `caddy` service with a custom image (`xcaddy` + the rate-limit module, versions pinned), `tls
     internal` for a local CA, `auth.` → Keycloak and `api.` → the gateway, Keycloak started with proxy

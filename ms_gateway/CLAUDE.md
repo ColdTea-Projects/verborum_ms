@@ -63,6 +63,12 @@ message (never the host or port).
   must be added to this list, or the browser refuses the call.
 - Keycloak's *Web Origins* stay `"+"` (that is the login server, a separate origin from this gateway).
 
+## Behind Caddy (P5-04)
+Locally and opt-in, Caddy terminates TLS in front of the gateway (`https://api.verborum.localhost` →
+`host.docker.internal:8080`). The gateway itself stays plain HTTP on 8080 and needs no change, except that
+tokens then carry the HTTPS issuer: start it with `KEYCLOAK_ISSUER_URI=https://auth.verborum.localhost/realms/verborum`
+and the default JWK set. Rate limiting lives in Caddy, not here.
+
 ## Two things that break writes if "tidied" (found on the first real run, P5-02)
 - **`remove-content-length-request-headers-filter.enabled=false`** and **`httpclient5` in the pom.** By
   default the gateway drops `Content-Length` and sends the body chunked; every service's

@@ -39,6 +39,7 @@ auth needs the root file.
 | `keycloak-bootstrap` | Keycloak 26 | — | runs once, then exits |
 | `admin` | `adminer` | 8090 | — |
 | `mailpit` | `axllent/mailpit:latest` | 1025 SMTP, 8025 UI | — |
+| `caddy` (opt-in: `docker-compose.edge.yml`) | `verborum-caddy:local` (built) | 80, 443 | — |
 
 On the host: ms_dictionary 8085, ms_user 8086, ms_marketplace 8087, ms_notification 8088 (ms_gateway 8080 when built).
 Adminer sits on 8090 so 8080 stays free for `ms_gateway` (P5-05, done). Container layout, the three Keycloak surprises, and what a new

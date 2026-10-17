@@ -1,0 +1,53 @@
+# Opt-in override: the local edge (P5-04) — Caddy with a local CA in front of the gateway and Keycloak.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.edge.yml up -d --build caddy keycloak
+#
+# Why opt-in: it changes the issuer. With the edge, Keycloak stamps https://auth.verborum.localhost/... into
+# every token, so the gateway and each service must be started with the matching KEYCLOAK_ISSUER_URI
+# (docs/ops/local-development.md §7a). Plain `docker compose up -d` keeps the http://localhost:8180 setup that
+# the IDE run configurations use.
+#
+#   https://api.verborum.localhost   -> ms_gateway on the host (:8080)
+#   https://auth.verborum.localhost  -> Keycloak
+#
+# Both names end in .localhost, which a browser resolves to 127.0.0.1 without a hosts-file entry. Change them
+# with CADDY_API_HOST / CADDY_AUTH_HOST in .env (the issuer variables then change with them).
+# Trust the local CA once, or every client reports an invalid certificate: docs/ops/local-development.md §7a.
+
+services:
+  caddy:
+    build: ./caddy
+    image: verborum-caddy:local
+    container_name: verborum-caddy
+    restart: unless-stopped
+    ports:
+      # Loopback only (SEC-02). 8443/8080 are not used here: 443 is what the apps will really use.
+      - "127.0.0.1:80:80"
+      - "127.0.0.1:443:443"
+    environment:
+      CADDY_API_HOST: ${CADDY_API_HOST:-api.verborum.localhost}
+      CADDY_AUTH_HOST: ${CADDY_AUTH_HOST:-auth.verborum.localhost}
+      AUTH_RATE_EVENTS: ${AUTH_RATE_EVENTS:-30}
+      AUTH_RATE_WINDOW: ${AUTH_RATE_WINDOW:-1m}
+    extra_hosts:
+      # The gateway runs on the host. Docker Desktop defines this name itself; Linux needs the mapping.
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # The local CA and its certificates. Losing the volume = a new CA to trust.
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      keycloak:
+        condition: service_healthy
+
+  keycloak:
+    environment:
+      # The issuer in every token, and the address Keycloak puts into links and redirects
+      KC_HOSTNAME: https://${CADDY_AUTH_HOST:-auth.verborum.localhost}
+      # Caddy sets X-Forwarded-*; Keycloak 26 reads them with this (replaces the old KC_PROXY=edge)
+      KC_PROXY_HEADERS: xforwarded
+
+volumes:
+  caddy_data:
+  caddy_config:

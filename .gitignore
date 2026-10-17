@@ -20,3 +20,6 @@ service-account*.json
 
 # Python bytecode (scripts/dev-seed)
 __pycache__/
+
+# Exported root certificate of Caddy's local CA (docs/ops/local-development.md §7a) — machine-specific, never committed
+caddy-local-root.crt

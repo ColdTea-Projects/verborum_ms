@@ -107,3 +107,12 @@ the port. It refuses to start unless `.env` sets `KEYCLOAK_ADMIN_PASSWORD` and
 Verify with the LAN address, not `host.docker.internal`. Docker Desktop routes containers to the
 host's loopback, so another container on the same machine still reaches loopback-only ports. That is
 expected, and it does not mean the port is on the network.
+
+## The local edge: Caddy (opt-in, P5-04)
+
+`docker-compose.edge.yml` adds Caddy (80/443 on loopback) in front of the gateway and Keycloak, and re-pins
+Keycloak's `KC_HOSTNAME` to `https://auth.verborum.localhost`. It is a layer, not part of the default stack,
+because it changes the token issuer: the gateway and every service then need
+`KEYCLOAK_ISSUER_URI=https://auth.verborum.localhost/realms/verborum` (keep the JWK set on plain
+`localhost:8180`, so no JVM has to trust the local CA). The IDE run configurations keep the plain setup.
+Steps, CA trust and the rate limit: `docs/ops/local-development.md` §7a.
