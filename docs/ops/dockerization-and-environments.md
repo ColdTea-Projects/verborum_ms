@@ -327,6 +327,10 @@ a JVM and the heaviest single consumer.
 | RabbitMQ | ~150–250 MB |
 | Caddy | ~30 MB |
 
+**Measured locally (2026-10-17, `docs/ops/local-development.md` §7b):** each service JVM ~305–330 MB, the gateway ~205 MB,
+Keycloak 26 ~626 MiB, RabbitMQ ~197 MiB, Postgres ~35 MiB each, Caddy ~19 MiB — about **2.5 GB for the whole stack idle**,
+with no memory limits and little data.
+
 **2 GB will not hold this. 4 GB is a workable minimum, 8 GB is comfortable** — and staging on the
 same host effectively doubles the requirement. Always set explicit memory limits together with
 `-XX:MaxRAMPercentage`, so one runaway service cannot starve the rest.

@@ -1813,7 +1813,7 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
   - Done when: no integration guide still names a per-service port as a client origin
 
 ### Stage 4 — Prove it
-- [ ] `P5-13` **End-to-end pass through the edge** [both] — depends on `P5-03`, `P5-04`, `P5-06`, `P5-09`..`P5-12`
+- [x] `P5-13` **End-to-end pass through the edge** [both] — depends on `P5-03`, `P5-04`, `P5-06`, `P5-09`..`P5-12`. **Done 2026-10-17.** [claude] the checklist is `docs/ops/local-development.md` §7b, the smoke test is `scripts/edge-smoke/smoke.py` (23/23 PASS against the live stack; `--edge --rate-limit` run through Caddy against an isolated test stack with the services stubbed — TLS, CA, HTTPS issuer, CORS and the 429 after 30 all pass), and the memory baseline is in §7b and the dockerization guide §11 (about 2.5 GB idle for the whole stack). [you] the manual pass was reported as working on all platforms (owner, 2026-10-17). **Found on the way:** the web app froze its tabs after a sign-out and sign-in because Compose Navigation casts `history.state` to text without checking — fixed with `history-guard.js` in the KMP repo (the source of the foreign value was never identified; the guard logs it if it ever fires). The Keycloak dev accounts `testuser`/`testadmin` cannot finish the web login (no offline access); use a real or probe account for that flow. **Phase 5 is complete.**
   - [claude] a written checklist in `docs/ops/local-development.md` and a small smoke script; [you] run it
     on a physical phone (LAN IP, Keycloak issuer pinned per `docs/agent/security.md`) and on the web
   - Done when: login, sync, Forum, push and unsubscribe pass on emulator, phone and web through Caddy and the

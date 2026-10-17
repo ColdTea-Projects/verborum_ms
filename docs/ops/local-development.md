@@ -320,6 +320,78 @@ to see it work: `AUTH_RATE_EVENTS=5` in `.env`, then recreate Caddy.
 **Back to the plain setup:** `docker compose up -d keycloak` (without the edge file) and start the services with
 the default issuer again. The browser keeps nothing; only the trusted certificate remains until you delete it.
 
+## 7b. End-to-end pass through the gateway (P5-13)
+
+Run this after any change to the gateway, the edge, a route, or the clients' API configuration. A script proves what
+a machine can prove; the apps are checked by hand.
+
+**1. Start everything.** The compose stack, the four services, and the gateway (`./mvnw -pl ms_gateway spring-boot:run`,
+port 8080). For the HTTPS edge (§7a) start Caddy too; the services then need the HTTPS issuer.
+
+**2. Run the script.**
+
+Plain: the gateway on `:8080` and Keycloak on `:8180`. Expect every check to PASS.
+
+```bash
+python3 scripts/edge-smoke/smoke.py --writes
+```
+
+Through Caddy (§7a), with the exported local CA:
+
+```bash
+python3 scripts/edge-smoke/smoke.py --edge --cacert caddy-local-root.crt --writes --rate-limit
+```
+
+Copy only the command, not any text after it. An interactive zsh does not treat `#` as a comment, so a pasted trailing
+comment becomes arguments and the script stops with "unrecognized arguments".
+
+It checks the token and the refusals (no token, tampered token, token in the query string), the CORS answers for the web
+origin, that every route reaches its service, that a service's own errors pass through, that a forged `X-User-Id` changes
+nothing, and a write with a body. `--rate-limit` bursts the token endpoint until Caddy answers 429 (wait a minute
+afterwards). Exit code 1 on any failure. It uses the dev account `testuser` and a probe device it removes again.
+
+**3. Check the apps by hand.** Every app must do the same six things through the gateway:
+
+| # | Flow | How to see it |
+|---|---|---|
+| 1 | Login | sign in with `testuser`; the library opens |
+| 2 | Sync | create a dictionary on one app, it appears on another after a refresh |
+| 3 | Forum | browse, open a listing, download one, rate it |
+| 4 | Silent push | edit a dictionary on app A; app B updates within seconds without opening the Forum (needs `ms_notification` with `FIREBASE_CREDENTIALS_FILE`) |
+| 5 | Unsubscribe | remove a downloaded dictionary on A; B drops it too |
+| 6 | Sign out | the login wall returns, the device is unregistered |
+
+| App | How to run it against the gateway |
+|---|---|
+| Android emulator | debug build. API `http://10.0.2.2:8080/`; Keycloak needs `adb reverse tcp:8180 tcp:8180` |
+| Android phone | a release build with `-PverborumApiUrl=http://<lan-ip>:8080/`. The release `KEYCLOAK_ISSUER` in `core/build.gradle.kts` must name the same LAN origin. Keycloak, the gateway and the services use the LAN issuer (§7); the gateway listens on every interface, so allow port 8080 in the firewall |
+| Web | `./gradlew :composeApp:wasmJsBrowserDevelopmentRun` (port 8280). In the browser's Network tab every API call shows an `OPTIONS` 200 first and no CORS error in the console. Only `/auth` goes through the dev-server proxy |
+| iOS simulator | run `iosApp` from Xcode (debug binary). API `http://localhost:8080`, Keycloak `http://localhost:8180` (the `NSAllowsLocalNetworking` exception covers both) |
+
+**4. Record the cost.** Server sizing (`P5R-01`) uses real numbers. With everything above running and the apps idle:
+
+```bash
+docker stats --no-stream --format 'table {{.Name}}\t{{.MemUsage}}\t{{.CPUPerc}}'
+footprint -p $(pgrep -f MsGatewayApplication | head -1) | grep Footprint:
+```
+
+`footprint` is macOS only. Repeat it for each service (`MsDictionaryApplication`, `MsUserApplication`, …). `ps` under-reports JVMs on macOS (compressed memory); use `footprint`. Latest baseline:
+
+| When | Component | Memory |
+|---|---|---|
+| 2026-10-17 | `ms_dictionary`, `ms_user`, `ms_marketplace`, `ms_notification` (host JVMs from the IDE, C1-only JIT, idle) | 305 / 314 / 329 / 308 MB |
+| | `ms_gateway` (after a smoke run) | 205 MB |
+| | Keycloak 23.0.0 (the running container) / Keycloak 26.8.0 (edge test project) | 563 MiB / 626 MiB |
+| | RabbitMQ | 197 MiB |
+| | four Postgres containers | 32–38 MiB each |
+| | Caddy (edge test project) | 19 MiB |
+| | Adminer, Mailpit | 19 / 38 MiB |
+| | **Total** | **about 2.5 GB** (JVMs 1.46 GB, containers 0.96 GB, plus Keycloak 26's extra 0.06 GB and Caddy 0.02 GB) |
+
+These are development numbers: the services have no `-Xmx`, the data is small, and nothing was under load. A server runs
+the same JVMs with explicit limits, and one Postgres can replace four containers — see
+`docs/ops/dockerization-and-environments.md` §11 and §12.
+
 ## 8. Looking at the databases
 
 ```bash

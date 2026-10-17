@@ -130,3 +130,9 @@ ownership, compose ports or the realm, re-run the probes that touch it:
 - exposure checks against the **LAN IP**
 - ownership checks with two seed users (e.g. a member and a non-member with private dictionaries)
 - token checks with a service-account token (must be 401)
+
+## Smoke test through the gateway and the edge
+
+`python3 scripts/edge-smoke/smoke.py --writes` checks, with a real dev token, the gateway's refusals, CORS, every route,
+error pass-through and a write with a body (`--edge --cacert <root.crt> --rate-limit` goes through Caddy and bursts the token
+endpoint). The manual app checklist and the memory baseline are in `docs/ops/local-development.md` §7b.
