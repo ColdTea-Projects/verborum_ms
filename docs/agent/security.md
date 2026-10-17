@@ -270,6 +270,9 @@ is applied after import by that script from `APP_WEB_ORIGIN` — comma-separated
 contributing `<origin>/*`. The client's `webOrigins` stays `"+"`, which derives the CORS allowlist
 from the redirect URIs, so it follows automatically. Local URIs still live in the realm import file.
 
+The API gateway has its own, separate allowlist for browser calls to the API: `CORS_ALLOWED_ORIGINS` (P5-06,
+exact origins, never `*`). Set it to the same web origin as `APP_WEB_ORIGIN` in every deployed environment.
+
 **PKCE is enforced.** The public client sets `pkce.code.challenge.method=S256`; an authorization
 request without `code_challenge` fails with `invalid_request: Missing parameter:
 code_challenge_method`. Do not treat PKCE as advisory.

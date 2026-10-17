@@ -1777,7 +1777,7 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
     `X-User-*`/`X-Forwarded-User`-style headers; forward nothing identity-shaped
   - Done when: an invalid, expired or wrong-audience token is refused at the gateway and never reaches a
     service (proved by a web-slice test and by the services' access logs)
-- [ ] `P5-06` **CORS at the gateway** [claude] — depends on `P5-02`
+- [x] `P5-06` **CORS at the gateway** [claude] — done 2026-10-17: `CorsConfig` + `CORS_ALLOWED_ORIGINS` (exact list, default the KMP web dev server on 8280), 9 tests; run for real with `Origin: http://localhost:8280` against the live services: preflight 200 with no token, GET and a device `PUT` carry `Access-Control-Allow-Origin`, 401 carries it too, an unknown origin is 403. Not done: a run in a real browser — the web app still calls the per-service ports until `P5-10` — depends on `P5-02`
   - Allowed origins per environment (`CORS_ALLOWED_ORIGINS`), preflight answered at the gateway, allowed
     headers include `Authorization`, `Content-Type`, `X-Device-Id`. Keycloak's *Web Origins* stay `"+"`
     (`docs/agent/security.md`). This closes the KMP web CORS gap

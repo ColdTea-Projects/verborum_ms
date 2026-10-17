@@ -96,7 +96,7 @@ API Gateway ──► Autofil Service  (word suggestions from community data, No
 - **Built:** the secured shell — `SecurityConfig`, `RequestBodyLimitFilter` (2 MB), error envelope, actuator
   `health,info` — and the four routes (`/dictionaries/**`+`/words/**`, `/users/**`, `/marketplace/**`,
   `/notifications/**`; upstream URLs are `*_URL` variables; 502/504 when a service is down). Gateway validates
-  the JWT and strips client identity headers (`P5-03`); CORS is `P5-06`
+  the JWT and strips client identity headers (`P5-03`); CORS is answered at the gateway (`P5-06`, `CORS_ALLOWED_ORIGINS`)
 - **Guide:** `ms_gateway/CLAUDE.md`; decisions and tasks: roadmap Phase 5
 - **Security requirement:** both the gateway and the services validate JWTs; nothing trusts forwarded headers.
 
