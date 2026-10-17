@@ -38,7 +38,7 @@ non-member, offer "Join the Forum" instead of a share toggle.
 When the user joins (accepts the terms on the profile page):
 
 ```
-PUT /users/me/profile-info                         (ms_user :8086)
+PUT /users/me/profile-info                         (ms_user)
 { "displayName": "Anna Bauer", "marketplaceAgreementAccepted": true, "marketplaceAgreementVersion": "2026-10-01" }
 → 201
 ```
@@ -82,7 +82,7 @@ After joining, the user can hide or show individual dictionaries with the normal
 body as any dictionary update, with `isPublic` set:
 
 ```
-PUT /dictionaries/                                 (ms_dictionary :8085)
+PUT /dictionaries/                                 (ms_dictionary)
 {
   "dictionaryId": "4160c0de-0000-4000-8000-000000000001",
   "userId":       "<the token's sub>",
@@ -147,7 +147,7 @@ Non-members create dictionaries as always; send `isPublic: false`.
 ## 6. Deleting a dictionary
 
 ```
-DELETE /dictionaries/{dictionaryId}                (ms_dictionary :8085)
+DELETE /dictionaries/{dictionaryId}                (ms_dictionary)
 → 200 { "status": 200, "message": "Deleted successfully <id>", ... }
 ```
 
@@ -229,13 +229,13 @@ SUB=<the token's sub>
 H="Authorization: Bearer $TOKEN"
 
 # two private dictionaries
-for n in 1 2; do curl -s -H "$H" -H 'content-type: application/json' -X POST http://localhost:8085/dictionaries/ \
+for n in 1 2; do curl -s -H "$H" -H 'content-type: application/json' -X POST http://localhost:8080/dictionaries/ \
   -d "{\"dictionaryId\":\"4160c0de-0000-4000-8000-00000000000$n\",\"userId\":\"$SUB\",\"name\":\"Test $n\",\"isPublic\":false,\"fromLang\":\"de\",\"toLang\":\"tr\"}"; done
 
 # join (needs a profile first: GET /users/me, POST /users/ on 404) -> both become public
-curl -s -H "$H" -H 'content-type: application/json' -X PUT http://localhost:8086/users/me/profile-info \
+curl -s -H "$H" -H 'content-type: application/json' -X PUT http://localhost:8080/users/me/profile-info \
   -d '{"displayName":"Anna Bauer","marketplaceAgreementAccepted":true,"marketplaceAgreementVersion":"2026-10-01"}'
-sleep 2; curl -s -H "$H" http://localhost:8085/dictionaries/$SUB     # isPublic: true on both
+sleep 2; curl -s -H "$H" http://localhost:8080/dictionaries/$SUB     # isPublic: true on both
 
 # hide one -> 201; hide the other (the last shared) -> 400 SharingRequiredException
 ```

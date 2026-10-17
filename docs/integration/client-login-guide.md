@@ -25,10 +25,10 @@ which had been amended ahead of it — where the two differed, the Android copy 
 | Facebook sign-in | **Live** (P3B-05, browser-verified 2026-07-28) — same shape as Google. Public access still gated on Meta App Review; testers must be added as Testers on the Meta app |
 | Passwordless email-code login | **Live** (P3B-06, browser-verified 2026-07-28) — "Try another way" → "Email me a sign-in code", hand-written Keycloak SPI baked into the custom image. No client code |
 | Login page branding | **Themed** — hosted login/registration/verify-email carry the Verborum design (crimson/gold, light + dark). Nothing to build client-side; the page AppAuth opens is simply branded |
-| ms_user (`:8086`) | Secured. All endpoints require a valid JWT |
-| ms_dictionary (`:8085`) | **Secured (P3-03)**, and since **P3-05/P3-08 the owner comes from the token** — a client-supplied `userId` is no longer trusted. See §9 item 2 for the exact status codes |
+| ms_user | Secured. All endpoints require a valid JWT |
+| ms_dictionary | **Secured (P3-03)**, and since **P3-05/P3-08 the owner comes from the token** — a client-supplied `userId` is no longer trusted. See §9 item 2 for the exact status codes |
 | Field limits | Enforced server-side as of 2026-08-06: `level` must be 0..7, and `word`/`translation`/`*Meta` are length-bounded. A violation is a 400 naming the field, not a silent accept |
-| API gateway | Not built (backend Phase 5). Talk to services directly for now |
+| API gateway | **Built (backend Phase 5).** One API origin for every client — `http://localhost:8080` locally — validating the token before any service; Keycloak stays its own origin |
 
 ---
 
@@ -217,7 +217,7 @@ clients are PKCE-only. Dev users: `testuser`/`testuser` (role `user`),
 ## 9. Known gaps — plan around these
 
 1. **ms_dictionary now requires a token (breaking change, 2026-07-23).** It was open until backend
-   P3-03; any client calling `:8085` without `Authorization: Bearer <access>` gets **401** on every
+   P3-03; any client calling the dictionary API without `Authorization: Bearer <access>` gets **401** on every
    endpoint — dictionaries, words, batch fetches, the lot. If your sync suddenly fails everywhere,
    this is why. `/actuator/health` and Swagger stay open.
 2. **The server now enforces ownership (breaking change, 2026-07-23, backend P3-05 + P3-08).**

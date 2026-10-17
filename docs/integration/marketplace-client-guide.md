@@ -37,7 +37,7 @@ otherwise surface as unexplained 401 / 400 / 403 / 404 responses.
 
 > **Verborum backend — changes you must adapt to (as of 2026-10-04)**
 >
-> 1. **ms_dictionary (`:8085`) requires a token on every call — since 2026-07-23.** Send
+> 1. **ms_dictionary requires a token on every call — since 2026-07-23.** Send
 >    `Authorization: Bearer <access token>` on dictionaries, words, tags and batch calls, or you get
 >    **401** everywhere. Only `/actuator/health` and Swagger stay open. If sync suddenly fails across
 >    the board, this is the first thing to check.
@@ -62,7 +62,7 @@ otherwise surface as unexplained 401 / 400 / 403 / 404 responses.
 >    same account, or using an email another profile has, is now **409** (it was a 500).
 > 6. **`PUT /users/` no longer clears `displayName` when you leave it out** — an omitted name is kept.
 >    Send `""` to remove it. It never changes the marketplace agreement.
-> 7. **The marketplace / Forum is live (`ms_marketplace`, `:8087`).** Browse public dictionaries,
+> 7. **The marketplace / Forum is live (`ms_marketplace`).** Browse public dictionaries,
 >    filter by language pairs, tags or publisher name, and import them into your vault. Browse pages
 >    are infinite scroll: they carry `hasNext`, not totals. **The Forum is for members only:** browsing
 >    and importing need a display name and accepted marketplace terms, otherwise **403**; and a user's
@@ -75,9 +75,9 @@ otherwise surface as unexplained 401 / 400 / 403 / 404 responses.
 > 9. **Word save/update messages changed.** `POST`/`PUT /words` now reply "Saved/Updated successfully
 >    into dictionary `<dictionaryId>`" instead of listing the words. Do not parse `message` — it is for
 >    humans and logs.
-> 10. **Web app only:** the backend sends **no CORS headers yet** (they arrive with the API gateway,
->    backend Phase 5). A browser app on its own origin cannot call the services directly — use a
->    same-origin dev proxy for now (§8.3 of the marketplace guide).
+> 10. **Web app only — CORS is answered by the API gateway (built 2026-10-17).** The gateway allows the origins in
+>    `CORS_ALLOWED_ORIGINS` (local default `http://localhost:8280`), so a browser app calls the gateway directly;
+>    no dev proxy is needed for the API (§8.3). The services themselves send no CORS headers.
 >
 > Full details: `docs/integration/marketplace-client-guide.md` in the backend repo.
 
@@ -112,16 +112,17 @@ my own editable copy" (§10).
 
 ## 2. Where to call — base URLs
 
-| Service | Local base URL | Paths this guide uses |
+| What | Local base URL | Paths this guide uses |
 |---|---|---|
-| ms_user | `http://localhost:8086` | `/users/**` |
-| ms_marketplace | `http://localhost:8087` | `/marketplace/dictionaries/**` |
-| ms_dictionary | `http://localhost:8085` | `/dictionaries/**`, `/words/**` |
+| The API (gateway) | `http://localhost:8080` (emulator `http://10.0.2.2:8080`) | `/users/**`, `/marketplace/dictionaries/**`, `/dictionaries/**`, `/words/**`, `/notifications/**` |
 | Keycloak | `http://localhost:8180/realms/verborum` | token issuer (login guide) |
 
-- **Keep one configurable base URL per service.** When the API gateway lands (backend Phase 5) all
-  three collapse into one origin with **the same paths** (`/marketplace/**` → ms_marketplace, and so
-  on), so a per-service base URL becomes one value — no path changes.
+- **One configurable base URL for the API.** Since backend Phase 5 every client calls one gateway origin; it routes by
+  the first path segment (`/users` → ms_user, `/marketplace` → ms_marketplace, `/dictionaries` and `/words` →
+  ms_dictionary, `/notifications` → ms_notification). The paths in this guide are unchanged. The release value
+  comes from configuration (Android: the `verborumApiUrl` build property), never a literal address.
+- Keycloak stays its own origin: it is the token issuer, and the issuer string must match what the gateway and
+  the services validate.
 - **Physical device testing:** replace `localhost` with the machine's LAN IP *and* read
   `client-login-guide.md` §7 first — the token issuer must match or every call is a 401.
 - Local stack is plain `http`. Production will be `https` behind the gateway; never hard-code `http`.
@@ -160,7 +161,8 @@ There is no anonymous Forum. Token acquisition, refresh and storage are exactly 
 9. **Token storage per platform** (from the login guide): Android — EncryptedSharedPreferences /
    DataStore backed by Keystore; iOS — Keychain; web — **never `localStorage`**: memory only, or a
    BFF holding tokens server-side (§8.3).
-10. **There is no server-side rate limiting yet** (it lands at the gateway, backend P5-04). Be a good
+10. **There is no rate limit on the API itself.** The edge limits only the login and token endpoints (backend P5-04,
+    answer `429` with `Retry-After`; a refresh storm trips it too). Be a good
     citizen: cancel superseded requests (§6.5), run the name search on tap rather than per keystroke,
     do not poll listings in a loop, page on scroll rather than prefetching everything.
 
@@ -183,7 +185,7 @@ a display name.
 ### 4.2 `GET /users/me` — after every login
 
 ```
-GET /users/me                       (ms_user :8086)
+GET /users/me                       (ms_user)
 Authorization: Bearer <token>
 ```
 
@@ -637,13 +639,13 @@ and may change.
 
 ### 8.3 Web (Compose Multiplatform Wasm, `verborum_kmp`)
 - Same `commonMain` code as iOS — only the HTTP engine, token storage and login redirect differ.
-- **CORS is not available yet.** The services do not emit CORS headers (planned at the gateway,
-  backend Phase 5, `frontend-backend-integration.md` §7). A browser page on `http://localhost:3000`
-  calling `http://localhost:8087` directly is **blocked by the browser**, even though the same call
-  works from curl or Android. Until the gateway exists, serve the app through a **same-origin dev
-  proxy** that forwards `/marketplace/**` → `:8087`, `/dictionaries/**` and `/words/**` → `:8085`,
-  `/users/**` → `:8086` — the same routing the gateway will do, so the app's paths do not change later.
-  Do **not** ask the backend to add per-service CORS as a shortcut.
+- **CORS is answered by the gateway** (built, backend P5-06; `frontend-backend-integration.md` §7). The web app
+  calls the gateway directly (`http://localhost:8080` locally); the browser sends a preflight for every call that
+  carries `Authorization`, and the gateway allows the origins in `CORS_ALLOWED_ORIGINS` (local default
+  `http://localhost:8280`), the verbs `GET POST PUT DELETE`, and the headers `Authorization`, `Content-Type`,
+  `Accept`, `Accept-Language`, `X-Device-Id`. **Add a new custom header to the gateway's list before the web app
+  sends it** — otherwise the browser refuses the call with an error the Node tests cannot show. No cookies:
+  the token is a Bearer header. The services never emit CORS headers.
 - **Token storage:** memory only, or a BFF (decision pending, §6.3 of the integration doc). Never
   `localStorage` / `sessionStorage`.
 - **Render all listing and dictionary text as text** (Compose `Text` does this; if any HTML interop
@@ -653,7 +655,7 @@ and may change.
 
 ## 9. Verifying locally
 
-Backend stack: `docker compose up -d` in the backend repo, services running (see
+Backend stack: `docker compose up -d` in the backend repo, the services **and the gateway** running (see
 `docs/ops/local-development.md`). Dev users `testuser` / `testuser` and `testadmin` / `testadmin`.
 
 ```bash
@@ -664,15 +666,15 @@ TOKEN=$(curl -s -X POST http://localhost:8180/realms/verborum/protocol/openid-co
 H="Authorization: Bearer $TOKEN"
 
 # profile: 404 the first time -> create it with POST /users/ (sub and email from the token)
-curl -s -H "$H" http://localhost:8086/users/me
+curl -s -H "$H" http://localhost:8080/users/me
 # join the Forum
-curl -s -H "$H" -H 'content-type: application/json' -X PUT http://localhost:8086/users/me/profile-info \
+curl -s -H "$H" -H 'content-type: application/json' -X PUT http://localhost:8080/users/me/profile-info \
   -d '{"displayName":"Anna Bauer","marketplaceAgreementAccepted":true,"marketplaceAgreementVersion":"2026-10-01"}'
 
 # browse
-curl -s -H "$H" "http://localhost:8087/marketplace/dictionaries?size=5"
-curl -s -H "$H" "http://localhost:8087/marketplace/dictionaries?pair=de-en&pair=EN-TR&tag=travel&publisher=ann"
-curl -s -X POST -H "$H" "http://localhost:8087/marketplace/dictionaries/<dictionaryId>/import"
+curl -s -H "$H" "http://localhost:8080/marketplace/dictionaries?size=5"
+curl -s -H "$H" "http://localhost:8080/marketplace/dictionaries?pair=de-en&pair=EN-TR&tag=travel&publisher=ann"
+curl -s -X POST -H "$H" "http://localhost:8080/marketplace/dictionaries/<dictionaryId>/import"
 ```
 
 Full round trip: as `testadmin`, create a dictionary, create a profile and join the Forum — the

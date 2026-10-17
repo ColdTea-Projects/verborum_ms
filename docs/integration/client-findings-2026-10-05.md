@@ -50,7 +50,7 @@ deployed yet; the roadmap ("Security fixes (audit 2026-10-05)") tracks them.
 | **SEC-14 by-id reads are 404 — live now** | `GET /words/dictionary/{id}` answers 404 (was `200 []`) when the dictionary is gone or private, and `GET /users/{id}` / `…/vault` of another user is 404 (was 403). Android's sync already treats a failed word fetch as "no information". KMP's `syncDictionary` will now surface a failure for a dictionary deleted on another device; show it as "no longer available" instead of an error. The Forum details screen should treat 404 as "made private or deleted" |
 | **SEC-05 audience check — live now** | Nothing; the audience mapper sits on the `verborum-app` client. Tokens issued before the switch fail once and refresh |
 | **Keycloak 26 (SEC-08) — live now** | Nothing changes in the contract: same issuer, realm, clients and flows. App tokens now also carry `auth_time` (the new `basic` scope). The hosted login page is the same Verborum theme. The backend dev rebuilds once with `docker compose up -d --build`; see `docs/ops/local-development.md` §2 |
-| **SEC-02 local stack is loopback-only — live now** | Emulator testing is unchanged (`10.0.2.2` and `adb reverse` reach the host's loopback). A **physical device** now needs the backend dev to start the stack with `docker-compose.lan.yml` (see `docs/ops/local-development.md` §7); without it Keycloak is unreachable from the phone. The services on 8085–8087 still answer on the LAN |
+| **SEC-02 local stack is loopback-only — live now** | Emulator testing is unchanged (`10.0.2.2` and `adb reverse` reach the host's loopback). A **physical device** now needs the backend dev to start the stack with `docker-compose.lan.yml` (see `docs/ops/local-development.md` §7); without it Keycloak is unreachable from the phone. The API gateway (`:8080`) answers on the LAN, and so do the services behind it |
 | **SEC-01 word ids are pinned to their dictionary — live now** | `POST`/`PUT /words` answers 403 when an existing `wordId` is sent under a different `dictionaryId`. Clients never move words, so nothing should change; if this 403 shows up, a local row has the wrong `dictionaryId` |
 | **SEC-10 reserved display names — live now** | `PUT /users/me/profile-info` and `POST`/`PUT /users/` answer 400 `displayName contains a reserved word …` for names with `Verborum`, `admin`, `moderator`, `official` (and `support`, `team`, `staff`, … as words). Show the message on the profile/Join screen and keep the input. Duplicate names are allowed by design |
 | **Ratings (P4-19..P4-22) — live now** | New listing fields `ratingAverage`/`ratingCount`, `/top-rated`, and `PUT`/`GET`/`DELETE …/{id}/rating` for importers. See §4.9 |
@@ -90,7 +90,7 @@ is gated on a debug binary; the token pair is read behind a mutex.
 | K-S2 | Medium | KMP has no `/users` call at all, so no ms_user profile is created for iOS or web users. Account deletion and the `user.deleted` cascade are impossible for them | Add `UserApi`: after every login call `GET /users/me`, and on 404 only, `POST /users/` (body: new `userId` UUID, `keycloakId` = token `sub`, `email` = token `email` claim). See `marketplace-client-guide.md` §4 |
 | K-S3 | Medium | Upload failures are swallowed by design (`UploadPendingChangesUseCase`: "Nothing is reported"). A permanent 400/403 is retried forever | See §4.2 |
 | K-S4 | Low | The web has no local database (`createBibliothecaDatabase()` returns `null`), so offline edits live in memory and are lost when the tab closes | A product decision: either document it in the KMP README as intended, or persist pending writes (IndexedDB). It isn't a leak; it's data loss |
-| K-S5 | Low | The iOS release base URL `https://api.verborum.coldtea.de` is a single origin, which only works once the backend gateway (Phase 5) exists | Nothing to fix; just don't ship iOS before Phase 5 |
+| K-S5 | Low | The iOS release base URL `https://api.verborum.coldtea.de` is a single origin, which needs the backend gateway (Phase 5, built — the release phase puts it on that host) | Nothing to fix; just don't ship iOS before the release phase |
 
 ---
 
@@ -155,18 +155,14 @@ real API:
 - **Rating flow (§4.9):** `PUT/GET/DELETE /marketplace/dictionaries/{id}/rating`, only for dictionaries the user imported.
 - Also available: `GET /marketplace/dictionaries/popular`, `/top-rated` (rated only, best first), and `/publisher/{publisherId}` for "more
   from this publisher".
-- **Base URL:** add `ROOT_URL_VERBORUM_MARKETPLACE_API` (`:8087`) to `core/build.gradle.kts`, and a
+- **Base URL:** the one gateway origin (`ROOT_URL_VERBORUM_API`; since P5-09 there is no per-service field) and a
   `MarketplaceApi` Retrofit interface.
 - The caller's own dictionaries never appear in browse (P4-17), so don't filter them client-side.
 
-### 4.5 KMP: one base URL, one service
-`ApiConfig` reaches only ms_dictionary:
-- web: `/api` is proxied to `:8085` (`composeApp/webpack.config.d/devServerProxy.js`)
-- iOS debug: `http://localhost:8085`
-
-ms_user (`:8086`) and ms_marketplace (`:8087`) are unreachable. Either add per-service base URLs (web:
-`/api/users` → 8086 and `/api/marketplace` → 8087 proxy entries with `pathRewrite`), or wait for the
-backend gateway. The paths stay the same either way.
+### 4.5 KMP: one base URL — resolved by the gateway (P5-10, P5-11)
+`ApiConfig` was reaching only ms_dictionary. Since the API gateway it is one `baseUrl` for every service: iOS debug
+`http://localhost:8080`; web calls the local gateway directly on `:8080` (CORS answered by the gateway,
+`CORS_ALLOWED_ORIGINS`), and keeps `<origin>/api` when deployed until the release decides. The paths did not change.
 
 ### 4.6 KMP Forum
 `feature/forum/.../data/Listing.kt` is the original template placeholder (price, seller). Replace it

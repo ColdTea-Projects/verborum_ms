@@ -2,7 +2,7 @@
 
 For the Android and KMP (iOS, web) teams. The design and the backend rules are in
 `docs/agent/push-notifications.md`; this file is the contract you build against. Service:
-**ms_notification**, `:8088` locally (through the gateway later). Every endpoint needs the usual bearer
+**ms_notification**, reached through the API gateway (`/notifications/**`; `http://localhost:8080` locally). Every endpoint needs the usual bearer
 token; the owner is always the token subject.
 
 ## What a push is — and is not
@@ -90,7 +90,7 @@ FCM **data** messages (no `notification` block), normal priority. In `onMessageR
 
 ## 5. Try it locally
 
-- **Backend:** the root compose stack, then ms_dictionary (8085) and ms_notification (8088). Without a
+- **Backend:** the root compose stack, then ms_dictionary, ms_notification and the gateway. Without a
   Firebase key ms_notification logs "Push not sent" and delivers nothing; with
   `FIREBASE_CREDENTIALS_FILE` set it sends for real. `FIREBASE_DRY_RUN=true` validates with FCM and
   delivers nothing.

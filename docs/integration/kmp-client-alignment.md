@@ -29,7 +29,8 @@ No action needed on any of this:
 
 ## 1. No ms_user profile is created
 
-`ApiConfig` knows one base URL, `ms_dictionary` (`:8085` on iOS debug, `{origin}/api` on web). There
+`ApiConfig` knows one base URL, the API gateway (`http://localhost:8080` on iOS debug and on a local web
+origin, `{origin}/api` on a deployed web build) — the dictionary calls only. There
 is no `UserApi` and no call to `/users`, so an iOS or web user logs in and works normally but has
 **no row in ms_user**.
 
