@@ -1764,7 +1764,7 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
     `ms_gateway/CLAUDE.md`, actuator `health,info`, Swagger off (`SWAGGER_ENABLED`), the 2 MB body cap
   - `SecurityConfig` copied from a service (JWT resource server: issuer, jwk-set, audience `verborum-api`)
   - Done when: starts, `/actuator/health` 200, an anonymous call is 401, tests green
-- [ ] `P5-02` **Routes** [claude] — depends on `P5-01`
+- [x] `P5-02` **Routes** [claude] — done 2026-10-16: four routes via `*_URL` variables, 502/504 envelope, 18 tests green; run for real against the live services with a Keycloak token (reads and writes of dictionaries, tags, words, marketplace, user, vault, device PUT/DELETE); the real run found that writes failed with 411 (gateway chunked the body) — fixed with `httpclient5` + `remove-content-length-request-headers-filter.enabled=false`, guarded by a test — depends on `P5-01`
   - `/dictionaries/**` and `/words/**` → ms_dictionary (8085) · `/users/**` → ms_user (8086) ·
     `/marketplace/**` → ms_marketplace (8087) · `/notifications/**` → ms_notification (8088)
   - Upstream URLs are `${DICTIONARY_URL:http://localhost:8085}` style variables, so containers later use

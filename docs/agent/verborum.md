@@ -89,12 +89,14 @@ API Gateway ──► Autofil Service  (word suggestions from community data, No
 - **Design, contract and order of work:** `docs/agent/push-notifications.md`; tasks `P4N-01`…`P4N-13`
 - **Security requirement:** `SecurityConfig` from the first commit; owner always from the JWT subject.
 
-### 🚧 ms_gateway — SCAFFOLDED (P5-01, 2026-10-15), ROUTES TO BE BUILT
+### 🚧 ms_gateway — SCAFFOLDED (P5-01), ROUTED (P5-02, 2026-10-16)
 - **What it does:** the single origin for every client (Spring Cloud Gateway Server MVC); validates the JWT,
   then routes to the four services. No database, no RabbitMQ
 - **Port:** 8080 · **Base package:** `de.coldtea.verborum.msgateway` · **Spring Cloud:** 2025.0.3
-- **Built:** the secured shell only — `SecurityConfig`, `RequestBodyLimitFilter` (2 MB), error envelope,
-  actuator `health,info`. Routes are `P5-02`, gateway JWT rules `P5-03`, CORS `P5-06`
+- **Built:** the secured shell — `SecurityConfig`, `RequestBodyLimitFilter` (2 MB), error envelope, actuator
+  `health,info` — and the four routes (`/dictionaries/**`+`/words/**`, `/users/**`, `/marketplace/**`,
+  `/notifications/**`; upstream URLs are `*_URL` variables; 502/504 when a service is down). Gateway JWT
+  rules for forwarded headers are `P5-03`, CORS `P5-06`
 - **Guide:** `ms_gateway/CLAUDE.md`; decisions and tasks: roadmap Phase 5
 - **Security requirement:** both the gateway and the services validate JWTs; nothing trusts forwarded headers.
 

@@ -51,6 +51,14 @@
             <artifactId>spring-cloud-starter-gateway-server-webmvc</artifactId>
         </dependency>
 
+        <!-- Apache HttpClient 5 as the upstream client. With the JDK client the gateway forwards every request
+             body chunked, and the services' RequestBodyLimitFilter refuses a body with no Content-Length (411).
+             Spring Boot picks this client up on its own (P5-02). -->
+        <dependency>
+            <groupId>org.apache.httpcomponents.client5</groupId>
+            <artifactId>httpclient5</artifactId>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>

@@ -5,6 +5,7 @@ import de.coldtea.verborum.msgateway.common.utils.ResponseUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -12,14 +13,17 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
+import java.net.SocketTimeoutException;
 import java.time.OffsetDateTime;
 
 import static de.coldtea.verborum.msgateway.common.constants.ErrorMessageConstants.INTERNAL_SERVER_ERROR;
+import static de.coldtea.verborum.msgateway.common.constants.ErrorMessageConstants.UPSTREAM_TIMEOUT;
+import static de.coldtea.verborum.msgateway.common.constants.ErrorMessageConstants.UPSTREAM_UNAVAILABLE;
 import static de.coldtea.verborum.msgateway.common.constants.ErrorMessageConstants.METHOD_NOT_ALLOWED;
 
 /**
- * The gateway's own failures in the usual error envelope. Upstream errors pass through unchanged;
- * the upstream-unreachable 502/504 handlers arrive with the routes (P5-02).
+ * The gateway's own failures in the usual error envelope. An upstream's own error responses pass
+ * through unchanged; only a service that cannot be reached becomes a 502, or a 504 when it hangs.
  */
 @ControllerAdvice
 @Slf4j
@@ -34,6 +38,20 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleException(Exception ex, WebRequest request) {
         log.error(Exception.class.getCanonicalName(), ex);
         return buildErrorResponse(HttpStatus.INTERNAL_SERVER_ERROR, Exception.class.getSimpleName(), INTERNAL_SERVER_ERROR, request);
+    }
+
+    /**
+     * The upstream could not be reached (connection refused, DNS) or did not answer in time. 502/504 in
+     * the usual envelope with a fixed message — the exception text names the upstream host and port,
+     * which is internal topology and never goes on the wire.
+     */
+    @ExceptionHandler(ResourceAccessException.class)
+    public ResponseEntity<ErrorResponse> handleResourceAccessException(ResourceAccessException ex, WebRequest request) {
+        log.error("{}: {}", ResourceAccessException.class.getCanonicalName(), ex.getMessage());
+        if (ex.getCause() instanceof SocketTimeoutException) {
+            return buildErrorResponse(HttpStatus.GATEWAY_TIMEOUT, ResourceAccessException.class.getSimpleName(), UPSTREAM_TIMEOUT, request);
+        }
+        return buildErrorResponse(HttpStatus.BAD_GATEWAY, ResourceAccessException.class.getSimpleName(), UPSTREAM_UNAVAILABLE, request);
     }
 
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)

@@ -12,7 +12,7 @@ Decisions and tasks: `docs/agent/roadmap.md`, Phase 5 (`P5-01`…`P5-13`).
 ## Facts
 - **Port:** 8080 (Adminer moved to 8090 in `P5-05`)
 - **Base package:** `de.coldtea.verborum.msgateway`
-- **Status:** scaffolded (P5-01) — secured shell, **no routes yet** (`P5-02`). Starts with no
+- **Status:** routes done (P5-02); JWT rules for forwarded headers `P5-03`, CORS `P5-06`. Starts with no
   infrastructure at all: Keycloak keys are fetched lazily.
 - **Spring Cloud train:** `2025.0.3` ("Northfields", the line for Boot 3.5.x; `2025.1.x` is for Boot 4),
   pinned in this module's pom only. Starter: `spring-cloud-starter-gateway-server-webmvc`.
@@ -27,10 +27,32 @@ Decisions and tasks: `docs/agent/roadmap.md`, Phase 5 (`P5-01`…`P5-13`).
   accepts; the services keep their own, smaller caps.
 - No domain code: no entities, services or mappers. `GlobalExceptionHandler` covers the gateway's own
   failures in the usual envelope (404 unknown path, 405, catch-all 500 with no internals).
-- Upstream URLs will be `${DICTIONARY_URL:http://localhost:8085}`-style variables (`P5-02`), so
-  containers use service names later with no code change.
+
+## Routes (`application.properties`, prefix `spring.cloud.gateway.server.webmvc.routes`)
+| Path prefix | Upstream variable | Default |
+|---|---|---|
+| `/dictionaries/**`, `/words/**` | `DICTIONARY_URL` | `http://localhost:8085` |
+| `/users/**` | `USER_URL` | `http://localhost:8086` |
+| `/marketplace/**` | `MARKETPLACE_URL` | `http://localhost:8087` |
+| `/notifications/**` | `NOTIFICATION_URL` | `http://localhost:8088` |
+
+Nothing is rewritten. `Authorization` and `X-Device-Id` pass through. A service's own error (401, 403, 404,
+400 …) passes through unchanged; an unknown path is a 404 in the gateway's envelope; an unreachable
+service is **502** and one that does not answer within `GATEWAY_READ_TIMEOUT` is **504**, both with a fixed
+message (never the host or port).
+
+## Two things that break writes if "tidied" (found on the first real run, P5-02)
+- **`remove-content-length-request-headers-filter.enabled=false`** and **`httpclient5` in the pom.** By
+  default the gateway drops `Content-Length` and sends the body chunked; every service's
+  `RequestBodyLimitFilter` then answers 411. Reads work, every `POST`/`PUT` fails — and a stub-upstream test
+  does not show it. `RoutingTest.requestBody_KeepsItsContentLength_AndIsNotChunked` guards it.
+- Query parameters may come out **re-ordered**, and a form-style `+` becomes `%20`; percent-encoded values
+  (`%C3%A9`, `%2B`) are kept. MockMvc reads a literal `+` differently from Tomcat, so tests avoid it.
 
 ## Tests
 `MsGatewayApplicationTests` (full context, no network, `@MockBean JwtDecoder`): health 200, anonymous
 401, unknown path 404 in the envelope, 413 over the body cap, `/actuator/env` not exposed.
+`RoutingTest`: a JDK `HttpServer` stands in for the services — every prefix routed, query string, headers,
+Content-Length, upstream errors pass through, unknown path and anonymous never reach an upstream.
+`UpstreamDownTest`: 502 in the envelope.
 `SecurityConfigTest`: the realm-role extraction.
