@@ -1498,6 +1498,29 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
     (the import record stays — documented trade-off).
   - `marketplace-client-guide.md` gains the rating endpoints and fields; `client-findings-2026-10-05.md`
     points the client agents at it; dev seed gains ratings so the clients can test with dummy data.
+
+### Content reporting (decided 2026-10-19)
+> Decided with the owner 2026-10-19: a **report** feature ships before the first store release. Forum
+> listings are user-generated content, and Google Play's UGC policy and Apple guideline 1.2 require
+> in-app reporting plus a way to remove reported content (`RELEASE_PLAN.md` §6 Phase C.1). **v1 scope:
+> a user reports a listing, an admin hides it.** Lives in ms_marketplace, which owns the listings.
+> Banning users, reporting display names and automated thresholds are not in v1 — ask before adding them.
+
+- [ ] `P4-23` **`listing_reports` table + report endpoint** (ms_marketplace) — depends on P4-22
+  - `listing_reports`: `report_id` (UUID), `fk_dictionary_id`, `fk_user_id` (reporter = JWT sub), `reason`
+    (enum, values to agree before building), optional short `comment`, `status` (open/resolved),
+    `creation_dt`/`update_dt`; UNIQUE (`fk_dictionary_id`, `fk_user_id`) so one user reports a listing once
+  - `POST /marketplace/dictionaries/{id}/report` → 201. Forum member (403 otherwise), listing must be listed
+    (404), never your own (400). Reporter = token subject only
+- [ ] `P4-24` **Admin moderation: hide and restore a listing** (ms_marketplace, realm) — depends on P4-23
+  - An `admin` realm role (realm JSON + bootstrap, no test admin outside local). `GET /marketplace/admin/reports`
+    (open first), `PUT /marketplace/admin/dictionaries/{id}/moderation` hide/restore, resolving its reports
+  - A moderation hide is its **own flag**, not the visibility hide: today every public event re-lists a
+    hidden row, so a publisher's next edit would undo a plain hide. A moderated listing stays out of every
+    browse, search and publisher list until an admin restores it; its imports and ratings are kept
+- [ ] `P4-25` **Report contract for the clients** (docs) — depends on P4-23
+  - `marketplace-client-guide.md` gains the report endpoint and the reasons; `client-findings` points the
+    client agents at it; the dev seed gains a few reports
 ---
 
 ## Phase 4S — Security fixes (audit 2026-10-05)
@@ -1738,19 +1761,34 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
 ## Phase 5 — API Gateway
 > Goal: Single entry point for all mobile traffic.
 > Depends on: Phase 4 complete
+>
+> **Decided by the owner 2026-10-19: Caddy for v1, no `ms_gateway`.** The service paths do not overlap, so
+> Caddy routes by path on one public origin and terminates TLS (`RELEASE_PLAN.md` §2). Each service keeps
+> validating the JWT itself, as today. So `P5-01`…`P5-03` are replaced by `P5-05`; `P5-04` stays and is
+> done in Caddy. The Spring Cloud Gateway tasks are kept below for when a real need appears (e.g. token
+> relay, request aggregation, per-user rate limits) — do not start them without asking.
 
-- [ ] `P5-01` **Scaffold ms_gateway module**
+- [ ] `P5-05` **Caddy as the v1 edge** — depends on Phase 4
+  - A `Caddyfile`: `api.<domain>` routes `/dictionaries*` (tags included), `/words*` → ms_dictionary (8085),
+    `/users*` → ms_user (8086), `/marketplace*` → ms_marketplace (8087), `/notifications*` → ms_notification
+    (8088); `auth.<domain>` → Keycloak with `X-Forwarded-*` headers. `/actuator/health` only, nothing else
+    under `/actuator`. CORS for the web origin at the edge (one origin, so none per service)
+  - A local variant (plain HTTP on one port) so the clients can switch to one base URL before release
+  - Done when: every client call works through Caddy on a local stack, and a direct service port is not
+    needed by any client
+
+- [ ] `P5-01` **Scaffold ms_gateway module** (on hold — replaced by `P5-05` for v1)
   - Use Spring Cloud Gateway
   - Port: 8080
   - Done when: gateway starts and routes requests to the correct service
-- [ ] `P5-02` **Configure routes**
+- [ ] `P5-02` **Configure routes** (on hold — replaced by `P5-05` for v1)
   - `/dictionaries/**` → ms_dictionary (8085)
   - `/words/**` → ms_dictionary (8085)
   - `/users/**` → ms_user (8086)
   - `/marketplace/**` → ms_marketplace (8087)
   - `/notifications/**` → ms_notification (8088; Phase 4N, add when it exists)
   - Done when: all routes work end-to-end through the gateway
-- [ ] `P5-03` **Add JWT validation at gateway level**
+- [ ] `P5-03` **Add JWT validation at gateway level** (on hold — replaced by `P5-05` for v1)
   - Validate token once at the gateway, forward user info in headers
   - Done when: invalid tokens are rejected at the gateway before reaching services
 - [ ] `P5-04` **Edge rate-limiting + TLS** (split out of `P3B-08` on 2026-09-27)
@@ -1837,8 +1875,9 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
     purely additive, backward-compatible change — existing full-fetch callers are unaffected
   - Trigger: sync payload sizes or read traffic become a measured problem, or marketplace import
     (Phase 4) starts adding large dictionaries to vaults
-- [ ] `P3-03a` **Tell the client teams ms_dictionary is closed** (added 2026-07-23; moved here from
-  Phase 3 on 2026-09-27)
+- [x] `P3-03a` **Tell the client teams ms_dictionary is closed** (added 2026-07-23; moved here from
+  Phase 3 on 2026-09-27) — **done 2026-10-19:** both clients log in and send the bearer token (Android
+  feature table: Keycloak PKCE, JWT `sub` as row owner; KMP Forum and Profile live)
   - Android currently talks to `:8085` with no token and will start getting 401s the moment this is
     deployed to their dev machine. `docs/integration/client-login-guide.md` is updated, but a heads-up
     matters more than a doc edit here
