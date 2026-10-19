@@ -43,6 +43,10 @@ ms_dictionary   ms_user   ms_marketplace   Keycloak 26 (custom image + email-cod
 
 ### Decision: do you need the API gateway (Phase 5) before launch?
 
+> **Superseded 2026-10-19:** the gateway was built anyway (roadmap Phase 5, decided 2026-10-15, done
+> 2026-10-17): `ms_gateway` on 8080 behind Caddy, which does TLS and the auth rate limit. The comparison
+> below is kept as the reasoning of 2026-10-05.
+
 The roadmap plans a Spring Cloud Gateway (`ms_gateway`). For launch you can skip it, because the three
 services' paths don't overlap: `/dictionaries`, `/words` → ms_dictionary; `/users` → ms_user;
 `/marketplace` → ms_marketplace. Caddy can route by path:
@@ -209,8 +213,7 @@ in their `.env` files. Production secrets live only on the server (or in GitHub 
    images.
 7. **Backups:** a nightly `pg_dump` of all four databases to the Storage Box, kept 7 days plus 4 weekly.
    **Rehearse one restore before launch**; a backup that has never been restored doesn't count.
-8. **The rest of Phase 5:** a decision on Caddy path routing versus a gateway (§2), and rate limits on the
-   public endpoints (P5-04).
+8. ~~**The rest of Phase 5**~~ — done 2026-10-17: `ms_gateway` behind Caddy, auth rate limit in Caddy (P5-04).
 
 ### Phase B: build the servers (≈ 2–3 days)
 
@@ -311,13 +314,13 @@ Recruit the 12 testers in week 1–2. The 14 days only start once 12 are opted i
 
 ## 9. Open decisions for you two
 
-1. ~~**Caddy path routing for v1, or build the gateway (Phase 5) first?**~~ **Decided 2026-10-19: Caddy** (roadmap `P5-05`)
+1. ~~**Caddy path routing for v1, or build the gateway (Phase 5) first?**~~ **Done: own gateway `ms_gateway` behind Caddy** (roadmap Phase 5, built 2026-10-17)
 2. **Domain:** which one to buy: `verborum.app`, `.com` or `.de`? Check availability, buy it in week 1, and replace the `coldtea.de` URL in the KMP iOS config.
 3. **Play account type:** personal (12 × 14 closed test) or organization (needs a company and D-U-N-S)?
 4. **Staging:** an always-on CX23 (€5.49/month), or created only for release testing?
 5. **Email provider:** Amazon SES (cheapest, more setup) or Brevo (free tier, simpler)?
 6. ~~**Report and moderation scope for v1:** just "report + admin hides it", or more?~~ **Decided 2026-10-19:
-   report + admin hides it** (roadmap `P4-23`…`P4-25`)
+   report + take-down with a stated reason to the owner** (roadmap `P5L-05`, DSA Art. 16, 17)
 7. **Who is on call** for production, and how will you be alerted (email, Telegram, …)?
 
 ---

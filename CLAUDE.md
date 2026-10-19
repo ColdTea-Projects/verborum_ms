@@ -28,8 +28,10 @@ verborum_ms/
 ├── keycloak/                  ← realm import, bootstrap scripts, custom image, themes
 ├── ms_dictionary/             ← ✅ complete and secured (reference implementation)
 ├── ms_user/                   ← ✅ Phase 2 complete, verified over HTTP
-├── ms_marketplace/            ← 🚧 scaffolded and secured (P4-01); entities/endpoints next
-├── ms_gateway/                ← 🚧 scaffolded and secured (P5-01); routes next (P5-02)
+├── ms_marketplace/            ← ✅ Phase 4 complete: listings, search, import, ratings
+├── ms_notification/           ← ✅ Phase 4N complete: device registration, silent FCM pushes
+├── ms_gateway/                ← ✅ Phase 5 complete: routes, JWT, CORS; Caddy in front (caddy/)
+├── caddy/                     ← TLS and the auth-endpoint rate limit in front of ms_gateway
 └── sql_dumps/
 ```
 

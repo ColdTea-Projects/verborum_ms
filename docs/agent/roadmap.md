@@ -2141,8 +2141,9 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
     purely additive, backward-compatible change — existing full-fetch callers are unaffected
   - Trigger: sync payload sizes or read traffic become a measured problem, or marketplace import
     (Phase 4) starts adding large dictionaries to vaults
-- [ ] `P3-03a` **Tell the client teams ms_dictionary is closed** (added 2026-07-23; moved here from
-  Phase 3 on 2026-09-27)
+- [x] `P3-03a` **Tell the client teams ms_dictionary is closed** (added 2026-07-23; moved here from
+  Phase 3 on 2026-09-27) — **done 2026-10-19:** both clients log in and send the bearer token through
+  the gateway (Android Keycloak PKCE login, KMP Forum and Profile live; P5-09..P5-12)
   - Android currently talks to `:8085` with no token and will start getting 401s the moment this is
     deployed to their dev machine. `docs/integration/client-login-guide.md` is updated, but a heads-up
     matters more than a doc edit here
