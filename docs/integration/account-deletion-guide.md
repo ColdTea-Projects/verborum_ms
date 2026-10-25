@@ -182,6 +182,16 @@ order and the list. Use short sentences.
 | Re-login needed (403) | `Sign in again to continue.` |
 | Other account | `This is a different account. Nothing was deleted.` |
 | Unknown result (§8) | `We could not confirm the deletion. Check your connection and try again.` |
+| Sign-in failed at [B] (added by the Android build) | `We could not sign you in. Nothing was deleted.` |
+
+### Wording rules for the clients (from the Android build, 2026-10-25)
+
+- Say **"downloaded dictionaries"**, not "vault". People do not know the word "vault". The meaning is the same.
+- The line for screen [B] ("Sign in again to confirm that this is you.") is optional. The warning already says
+  it, and the browser opens straight after Continue, so the Android app shows no extra screen.
+- Keep the proper noun **Forum** as it is in every language.
+- The keys are in `core/src/main/res/values*/strings.xml` (`deleteAccount*`, `profileDeleteAccount*`) in the
+  Android repo. The 19 translations are machine drafts. Native-speaker review is `P5R-19`.
 
 ### Open points for the owner
 
@@ -227,7 +237,7 @@ Then show the login screen with the success text.
 
 | Client | Roadmap task | Where |
 |---|---|---|
-| Android | `P5A-02` | Profile screen. Strings in all 19 `values-XX` locales. |
+| Android | `P5A-02` (done 2026-10-25) | `DeleteAccountSection` on the profile screen, `AccountDeletionService`, strings in all 19 `values-XX` locales. |
 | KMP iOS and web | `P5A-03` | `feature:options` (profile). The 19 languages come from `core:localization`. |
 
 Tests each client needs:

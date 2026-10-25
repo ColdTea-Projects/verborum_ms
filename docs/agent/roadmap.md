@@ -1853,13 +1853,23 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
     `docs/integration/account-deletion-guide.md`, copied to both client repos and linked from the backend and
     Android `CLAUDE.md`. Two backend gaps are in its §10: other users keep orphan vault entries (the
     backend does not remove them), and a failed Keycloak delete is silent. Both go to the lawyer list (`BL-07`).
-- [ ] `P5A-02` **Android: delete account on the profile page** [claude] — repo `verborum_android`; depends on `P5A-01`
+- [x] `P5A-02` **Android: delete account on the profile page** [claude] — repo `verborum_android`; depends on `P5A-01`
   - A clearly separated, destructive-styled entry on the profile screen with the warning, a typed or
     double confirmation, the re-login (`AppAuth` additional parameter `max_age=0`), the `DELETE`, then the
     local wipe through the existing `PostLogoutHook`s. All strings in **all 19 `values-XX` locales**. Unit
     tests for the flow and the 403 branch
   - Done when: an account created on the emulator can be deleted from the profile page, every server-side
     trace is gone (profile, vault, dictionaries, device tokens, ratings), and signing up again is a new account
+  - **Done 2026-10-25** (Android repo; 694 unit tests green, 33 new). Flow as in the guide: warning with checkbox →
+    sign-in again with `max_age=0` (Keycloak showed "Please re-authenticate to continue") → same-account check →
+    final dialog → `DELETE` → local wipe → login wall with "Your account was deleted". 27 strings × 19 locales
+    (machine drafts; review is `P5R-19`). **Proved on the emulator** with a throwaway user: profile, dictionary,
+    word and device-token rows were gone after the delete. **Not proved on a device:** the login-screen notice
+    after the final fix (`AuthService` had to become a singleton so the flag is shared; the emulator froze on a
+    host with load 20), ratings and vault (not seeded; `P5A-04` checks every service), and "sign up again is a
+    new account". **Local gotcha:** ms_user started from the IDE needs `KEYCLOAK_ADMIN_CLIENT_SECRET`, or the
+    Keycloak identity stays after the delete (the silent-failure gap in the guide's §10; see
+    `docs/ops/local-development.md`)
 - [ ] `P5A-03` **KMP iOS and web: delete account on the profile page** [claude] — repo `verborum_kmp`; depends on `P5A-01`
   - Same flow on `feature:options` (profile), both targets, the 19 languages from `core:localization`;
     `max_age=0` on the authorization request; the web build's token storage cleared. Both platforms
