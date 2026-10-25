@@ -1839,7 +1839,7 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
 > Owner tags: **[claude]** I build it, **[you]** you do it and report back.
 
 ### Stage 1 — Account deletion
-- [ ] `P5A-01` **Deletion contract and the canonical warning text** [claude]
+- [x] `P5A-01` **Deletion contract and the canonical warning text** [claude]
   - One document the three clients share: the flow (confirm → login with `max_age=0` → `DELETE` → wipe local
     data → login screen), the 403 `ReauthenticationRequiredException` that means "sign in again" (never
     auto-retried), what happens offline, and the **warning text**: what is deleted (profile, dictionaries,
@@ -1849,6 +1849,10 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
   - The text is a draft for your review (**[you]**), not legal advice. Put it in
     `docs/integration/account-deletion-guide.md` and link it from the three clients' doc tables
   - Done when: the guide exists and you have approved the wording
+  - **Done 2026-10-25; the owner approved the §6 text.** The guide is
+    `docs/integration/account-deletion-guide.md`, copied to both client repos and linked from the backend and
+    Android `CLAUDE.md`. Two backend gaps are in its §10: other users keep orphan vault entries (the
+    backend does not remove them), and a failed Keycloak delete is silent. Both go to the lawyer list (`BL-07`).
 - [ ] `P5A-02` **Android: delete account on the profile page** [claude] — repo `verborum_android`; depends on `P5A-01`
   - A clearly separated, destructive-styled entry on the profile screen with the warning, a typed or
     double confirmation, the re-login (`AppAuth` additional parameter `max_age=0`), the `DELETE`, then the
@@ -1865,6 +1869,9 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
   - A checklist and a small script that creates a throwaway user with a dictionary, a download, a rating, a
     device token and an import by someone else, deletes it through the real API, and asserts the rows in
     ms_user, ms_dictionary, ms_marketplace and ms_notification, and that the importer's vault entry goes
+  - **Correction (2026-10-25):** an importer's vault entry does **not** go when the publisher is deleted. It is a
+    reference and stays as "No longer available" (`marketplace-client-guide.md` §6.7). The script must assert
+    the real behavior, or the backend changes first (your decision, see the guide's §10).
   - Done when: the script passes against the local stack
 
 ### Stage 2 — A localized, responsive login
@@ -1923,6 +1930,7 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
     process, push tokens under Sec. 25 TDDDG, whether an individual counts as an "enterprise" under DSA
     Art. 19, Turkey (KVKK), and the Impressum question. Ask for a flat fee up front
   - Also ask a broker about a cyber / IT liability policy for a private person
+  - The question list and the table of stored user data are in `docs/agent/lawyer-questions.md` (`BL-07`)
   - Done when: a review is booked, or you record that you go without one
 - [ ] `P5L-03` **Drafts: privacy policy, terms of use, community guidelines, contact page** [both]
   - [claude] drafts from what the system really stores (email, display name, dictionaries, words, ratings,
@@ -2181,3 +2189,14 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
   - Table `notification_preferences` (`fk_user_id`, `category`, `enabled`; UNIQUE pair). Default is
     enabled. `GET`/`PUT /notifications/preferences`
   - Done when: a disabled category is skipped by the sender path
+- [ ] `BL-07` **Questions for a lawyer, and what user data we hold** (added 2026-10-25)
+  - The owner must ask a lawyer for IT and data-protection law before the first public release. The list is
+    `docs/agent/lawyer-questions.md`: **Part A** is a table of every place where user data is stored (from the
+    code), **Part B** holds the questions: role and liability, the contributor in Azerbaijan, privacy policy
+    and terms, minimum age, Impressum, the Forum license and DSA duties, erasure scope and log retention,
+    Firebase and Google sign-in, Turkey (KVKK), access and export, the breach runbook
+  - Known gaps the lawyer must rate: silent Keycloak delete failure, orphan vault references, no log
+    retention or backup rule, the `sql_dumps/` file
+  - Trigger: this feeds `P5L-02`. Keep the list current: when a service stores a new kind of user data,
+    change Part A in the same commit
+  - Done when: the lawyer answered and the answers are in the file

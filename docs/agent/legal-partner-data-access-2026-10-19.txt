@@ -1,0 +1,303 @@
+VERBORUM - A CONTRIBUTOR IN AZERBAIJAN AND PRODUCTION DATA
+Date: 2026-10-19
+Status: Discussion record. This is NOT legal advice. Ask a data-protection
+lawyer to confirm the points marked [CHECK] before you rely on them.
+
+Related file: docs/agent/legal-requirements-2026-10-15.pdf
+
+
+1. THE STATEMENT BEING EXPLAINED
+----------------------------------------------------------------------
+Earlier I wrote:
+
+  "Giving a contributor in Azerbaijan access to real user data is a
+   transfer to a third country with no adequacy decision. Keep them on
+   seed and test data only, using scripts/dev-seed. Otherwise you need
+   written agreements (SCCs plus confidentiality)."
+
+This file explains each part of that statement.
+
+
+2. SHORT ANSWER
+----------------------------------------------------------------------
+- Verborum has users in the EU. The GDPR applies to their data.
+- The GDPR limits the movement of personal data to countries outside
+  the EU/EEA (Chapter V, Articles 44 to 49).
+- Azerbaijan has no EU adequacy decision [CHECK the current list].
+- Remote access from Azerbaijan to a database in the EU is a transfer.
+  The data does not need to be copied or downloaded. Viewing it is
+  enough.
+- The simple, safe solution: your partner works only on fake data.
+  Then no personal data goes to Azerbaijan and Chapter V does not apply.
+- The other solution: signed agreements and technical limits. This
+  costs time and money, and you stay responsible.
+
+
+3. WHAT IS "PERSONAL DATA" IN VERBORUM
+----------------------------------------------------------------------
+Personal data is any information about an identifiable person
+(Article 4(1)). In Verborum this includes:
+
+  Keycloak            e-mail address, name, login history, linked
+                      Google or Facebook identity, password hashes
+  ms_user             display name, profile, vault, learning statistics,
+                      marketplace agreement
+  ms_dictionary       dictionaries and words. A user can type anything
+                      here, so these texts can hold personal data
+  ms_marketplace      listings, ratings, import history, linked to a user
+  ms_notification     push device tokens and X-Device-Id values
+  RabbitMQ            events with the Keycloak id of the user
+  Logs and backups    IP addresses, user ids, error messages with data
+  Database dumps      all of the above in one file
+
+Pseudonymous data (a Keycloak id without a name) is still personal data
+if you can link it to a person. Removing the name does not remove the
+duty.
+
+
+4. WHAT IS A "TRANSFER TO A THIRD COUNTRY"
+----------------------------------------------------------------------
+The GDPR has no definition, but the European Data Protection Board
+(Guidelines 05/2021) gives three conditions:
+
+  1. A controller or processor (the exporter) is subject to the GDPR
+     for the processing.
+  2. The exporter discloses or makes the data available to another
+     party (the importer).
+  3. The importer is in a third country.
+
+"Makes available" includes remote access. These actions are transfers
+if the person sits in Azerbaijan:
+
+  - A login to the production database or to Adminer
+  - A view of the Keycloak admin console
+  - A copy of a database dump or a backup
+  - A shared screen with real user rows
+  - A log file with user ids or IP addresses sent by e-mail or chat
+  - A screenshot of a real account in a bug report
+
+The servers can be in Germany. This does not change the result. The
+location of the person who reads the data is what matters.
+
+
+5. WHY AZERBAIJAN IS A PROBLEM
+----------------------------------------------------------------------
+Article 45: a transfer is free if the European Commission has decided
+that the country gives an "adequate" level of protection.
+
+Countries with an adequacy decision (as I know the list; [CHECK]):
+Andorra, Argentina, Canada (commercial organizations), Faroe Islands,
+Guernsey, Israel, Isle of Man, Japan, Jersey, New Zealand, South Korea,
+Switzerland, United Kingdom, Uruguay, and the United States for
+companies in the Data Privacy Framework.
+
+Azerbaijan is not on this list.
+
+Azerbaijan has its own personal-data law, and I believe it is a party
+to Council of Europe Convention 108 [CHECK]. This is useful context.
+It is NOT an adequacy decision. A national law or Convention 108
+membership does not replace Article 46 safeguards.
+
+
+6. WHEN NO ADEQUACY DECISION EXISTS: THE OPTIONS
+----------------------------------------------------------------------
+Article 46 safeguards (the normal route):
+
+  A. Standard Contractual Clauses (SCCs), Commission Decision
+     2021/914. You and your partner sign them.
+       - Module 2: controller to processor. Use this if your partner
+         works on your instructions. This is the usual case.
+       - Module 1: controller to controller. Use this if your partner
+         decides on purposes and means too.
+  B. A transfer impact assessment (TIA). After the Schrems II ruling
+     (CJEU C-311/18) you must check whether the laws of Azerbaijan,
+     for example access by public authorities, make the SCCs
+     ineffective in practice. You write down the result.
+  C. Supplementary measures if the TIA shows a gap, for example
+     encryption where only you hold the key, or access to pseudonymized
+     data only.
+
+Article 28 (a processor agreement) is ALSO needed if your partner is a
+processor. It must say, among other things:
+
+  - Processing only on your documented instructions
+  - A duty of confidentiality for the persons who access the data
+  - Security measures (Article 32)
+  - Help with data-subject rights and breach notices
+  - Delete or return the data at the end
+  - Rules for sub-processors
+  - Audit rights
+
+The SCCs (module 2) already contain most of these terms. Many
+controllers still add a short separate agreement for the practical
+rules.
+
+Article 49 derogations (consent, contract necessity, and so on) are
+exceptions. The EDPB says to use them only for occasional transfers.
+A partner with regular access is not occasional. Do not use Article 49
+for this case.
+
+
+7. WHAT IS YOUR PARTNER, LEGALLY?
+----------------------------------------------------------------------
+The answer changes the paperwork. Decide first.
+
+  Employee or contractor who follows your instructions
+    -> Processor (Article 28). Use SCCs module 2 plus the processor
+       agreement.
+
+  Co-owner who decides with you what the app does with user data
+    -> Joint controller (Article 26). You need an arrangement that
+       states who does what. The SCCs module 1 may also apply for the
+       transfer. Users can ask about the essence of this arrangement.
+
+  A person who helps without any contract
+    -> The law does not accept this as a safe position. You stay the
+       controller, and you gave the data to someone with no agreement.
+       This is the worst case.
+
+The "household exemption" (Article 2(2)(c)) does NOT apply. Verborum is
+a public service with users who are not your family or friends.
+
+Important: you are a private person and the controller. You are
+personally liable. There is no company that holds the risk.
+
+
+8. THE RISKS IF YOU DO NOTHING
+----------------------------------------------------------------------
+  - Fines (Article 83(5)): up to EUR 20 million or 4 percent of
+    annual turnover for transfer violations. A small project gets
+    smaller fines in practice, but the legal maximum is real.
+  - A user can claim damages (Article 82).
+  - A complaint to a supervisory authority is free for the user.
+  - If the data leaks at your partner's side, you must still notify the
+    authority within 72 hours (Article 33), and you must tell the
+    users if the risk is high (Article 34).
+  - Apple and Google can ask for your privacy practices. A false
+    answer in the privacy label is a store-policy problem.
+  - You must show that you comply (Article 5(2), accountability). With
+    no documents, you cannot.
+
+
+9. RECOMMENDED SOLUTION: SEED AND TEST DATA ONLY
+----------------------------------------------------------------------
+Your partner never touches production. This avoids the transfer
+completely. No SCCs, no TIA.
+
+How to do it in this repository:
+
+  1. Use scripts/dev-seed/seed.py. It creates 30 fake users through the
+     real APIs, with dictionaries, Forum membership, imports and
+     ratings. reset.py removes them.
+  2. The local stack (docker compose) holds only fake data. Your
+     partner runs it on their own computer.
+  3. Dev accounts testuser and testadmin are fake. They are fine.
+  4. Real e-mail addresses are NOT used in seed data. Check that
+     seed.py uses invented addresses. [CHECK before you share]
+  5. Your partner gets NO access to:
+       - the production server, database, Adminer, RabbitMQ UI
+       - the production Keycloak admin console
+       - backups, dumps, log files, error-tracker data
+       - the production .env file and secrets
+  6. A bug report from a real user: you remove names, e-mail
+     addresses, ids and IP addresses BEFORE you send it. Or you
+     reproduce the bug with seed data.
+  7. Git: the repository must hold no real data. See section 10.
+  8. Access to the code repository itself is not a transfer of user
+     data. Secrets in the repository would be a problem. The project
+     rule "no hardcoded secrets" already covers this.
+  9. A Verborum production fix that needs real data: YOU do it, or you
+     ask your partner to write the fix and you run it.
+
+Why this is the best option for a small project:
+  - No contract negotiation or legal fees
+  - No TIA to maintain
+  - Less risk in a breach
+  - It is also good engineering practice (least privilege)
+
+
+10. ONE ITEM TO CHECK IN THE REPOSITORY
+----------------------------------------------------------------------
+The folder sql_dumps/ holds a tracked file:
+
+  sql_dumps/vdbdictionary-2024-01-28 17-05-17.320271+00  (949 bytes)
+
+It is from 2024, from the dictionary database. Open it and check that
+it has no real user data (for example real Keycloak ids or e-mail
+addresses). If it has real data, take it out of the repository and
+consider that the history may keep it. If it holds only test rows, add
+a note in the folder that dumps must hold test data only, and consider
+a .gitignore rule for new dumps.
+
+I did not open the file in this session. This is an open check, not a
+finding.
+
+
+11. IF YOUR PARTNER MUST HAVE REAL DATA
+----------------------------------------------------------------------
+Use this only if a real need exists. Do these steps in this order:
+
+  1. Decide the role (section 7).
+  2. Reduce the data. Give only what the task needs (Article 5(1)(c)).
+     Use a dump with names, e-mail addresses and free text removed or
+     replaced.
+  3. Sign the SCCs (module 2 or 1) and the processor agreement
+     (Article 28). Include a confidentiality duty in writing.
+  4. Write the TIA for Azerbaijan. Keep it with your records.
+  5. Set technical limits:
+       - A separate read-only database role, no write access
+       - Access through a VPN or a bastion host, with logs
+       - Individual accounts, no shared password
+       - Disk encryption and a screen lock on your partner's computer
+       - No local copies of the data. Delete when done.
+       - Remove access when the task ends
+  6. Add the processor and the third-country transfer to:
+       - Your record of processing activities (Article 30)
+       - Your privacy policy (Articles 13 and 14 name recipients and
+         transfers)
+  7. Review the arrangement once a year.
+
+This is a lot of work for one person. This is why section 9 is the
+recommendation.
+
+
+12. OTHER POINTS TO REMEMBER
+----------------------------------------------------------------------
+  - Other law: Azerbaijan may have its own rules. Sanctions and export
+    rules are not a topic here, but a lawyer can check them in the same
+    session. [CHECK]
+  - Employment law: if your partner is an employee, German or local
+    labor and tax law applies. This is outside the data-protection
+    question.
+  - Hosting: if the servers are with a provider in the EU, you also need
+    an Article 28 agreement with that provider. Most providers offer one
+    online.
+  - Keycloak: a Keycloak admin account in the hands of your partner is
+    "access to real users", even if the partner never exports a list.
+  - Developer tools: crash reporting, analytics and log services that you
+    add later can send data to other countries. Check each one.
+
+
+13. DECISION CHECKLIST
+----------------------------------------------------------------------
+  [ ] My partner works with seed and test data only.
+  [ ] My partner has no production credentials of any kind.
+  [ ] I opened sql_dumps/ and it holds no real data.
+  [ ] I removed personal data from every bug report before I shared it.
+  [ ] I know my partner's role (processor, joint controller, none).
+  [ ] If real data is ever needed: SCCs, processor agreement, TIA, and
+      Article 30 record are done BEFORE the first access.
+
+
+14. SOURCES TO READ
+----------------------------------------------------------------------
+  - GDPR, Articles 4, 5, 26, 28, 30, 32, 44 to 49
+  - Commission Implementing Decision (EU) 2021/914 (the SCCs)
+  - EDPB Guidelines 05/2021 on the interplay between Article 3 and the
+    transfer rules in Chapter V
+  - EDPB Recommendations 01/2020 (supplementary measures)
+  - CJEU C-311/18 (Schrems II)
+  - European Commission page "Adequacy decisions" (check the current
+    list)
+
+End of file.

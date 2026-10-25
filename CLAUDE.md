@@ -56,6 +56,7 @@ project state and the long-form rationale behind them.
 | `docs/agent/testing.md` | Background on test conventions |
 | `docs/integration/frontend-backend-integration.md` | The one API origin (the gateway), its route table, the CORS rule and the environments — what every client (Android/iOS/web) calls |
 | `docs/integration/client-login-guide.md` | Any question from a client team (Android/iOS/web) about login, sign-up, tokens or identity ids |
+| `docs/integration/account-deletion-guide.md` | A client (Android/iOS/web) building "Delete my account" — the flow, the re-login rule, the error handling and the warning text |
 | `docs/integration/marketplace-client-guide.md` | Anything a client (Android/iOS/web) needs to use the marketplace — endpoints, flows, security rules, platform notes; also holds the P3-03a client heads-up |
 | `docs/integration/kmp-client-alignment.md` | Working on or asked about the KMP (iOS/web) client — what it does not yet use, and what this backend already offers it |
 | `docs/integration/client-findings-2026-10-05.md` | Handoff to the Android and KMP agents — client security fixes, integration gaps, and backend changes they must adapt to |
