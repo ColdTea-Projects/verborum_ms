@@ -1870,12 +1870,12 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
     new account". **Local gotcha:** ms_user started from the IDE needs `KEYCLOAK_ADMIN_CLIENT_SECRET`, or the
     Keycloak identity stays after the delete (the silent-failure gap in the guide's §10; see
     `docs/ops/local-development.md`)
-- [ ] `P5A-03` **KMP iOS and web: delete account on the profile page** [claude] — repo `verborum_kmp`; depends on `P5A-01`
+- [x] `P5A-03` **KMP iOS and web: delete account on the profile page** [claude] — repo `verborum_kmp`; depends on `P5A-01`
   - Same flow on `feature:options` (profile), both targets, the 19 languages from `core:localization`;
     `max_age=0` on the authorization request; the web build's token storage cleared. Both platforms
     verified (js, wasmJs, iOS simulator) before any commit
   - Done when: the same end-to-end result as `P5A-02` on the iOS simulator and in the browser
-  - **Built 2026-10-27 (KMP repo); not ticked yet because the iOS simulator pass is missing.** Same flow as Android
+  - **Done 2026-10-27 (KMP repo); the owner tested it on iOS and web and reported that it works.** Same flow as Android
     in `feature:options` (`DeleteAccountSection`, `DeleteAccountViewModel`) with `AuthService.reauthenticate()`
     (`max_age=0`, `AuthEntry.Reauthenticate`), the same-account check and `completeAccountDeletion()` in `core:auth`,
     `AccountDeletionService` in `core:profile`, 25 strings in 19 languages (`Cancel` and `Delete` reuse the shared
@@ -1887,9 +1887,8 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
     redirect returned to `#profile`, the app signed in as the same account, the final dialog opened, Delete removed the
     profile row (1 → 0), the app signed out and the login wall said "Your account was deleted". The Keycloak identity
     was gone too (with your ms_user on the new secret default).
-  - **Not proved:** the iOS simulator UI (compiled and unit-tested only; `ASWebAuthenticationSession` needs taps),
-    the Continue click on the web warning (I started the flow at the same point by code, because clicks in headless
-    Compose were unreliable), ratings and vault cleanup (`P5A-04`). Run the iOS pass yourself or tell me to; then tick this.
+  - **Not checked by me, covered by the owner's manual test:** the iOS simulator UI and the Continue click on the web
+    warning. Ratings and vault cleanup are for `P5A-04`.
   - Found on the way: the dev server does not proxy Keycloak's `/resources`, so the local login page is unstyled when
     the web app is served on `:8280` (dev only, the login still works)
 - [ ] `P5A-04` **Deletion verified end to end across services** [claude] — depends on `P5A-02`
