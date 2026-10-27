@@ -193,6 +193,15 @@ order and the list. Use short sentences.
 - The keys are in `core/src/main/res/values*/strings.xml` (`deleteAccount*`, `profileDeleteAccount*`) in the
   Android repo. The 19 translations are machine drafts. Native-speaker review is `P5R-19`.
 
+### Web: the sign-in is a page navigation (KMP)
+
+On web the browser leg replaces the page, so the flow cannot wait for an answer. Three rules follow:
+
+- The pending authorization stores the **expected subject** beside the PKCE verifier (`sessionStorage`).
+- The redirect returns to the same fragment (`#profile`), where the screen reads the answer when it is created
+  and goes straight to the final dialog [D] (or shows the "different account" notice).
+- The warning's checkbox is not restored after the reload. The person already confirmed it, so [D] opens directly.
+
 ### Open points for the owner
 
 1. Is the list of deleted items correct and complete for your legal view? (Phase 5L, `P5L-04` and `P5L-05`
@@ -238,7 +247,7 @@ Then show the login screen with the success text.
 | Client | Roadmap task | Where |
 |---|---|---|
 | Android | `P5A-02` (done 2026-10-25) | `DeleteAccountSection` on the profile screen, `AccountDeletionService`, strings in all 19 `values-XX` locales. |
-| KMP iOS and web | `P5A-03` | `feature:options` (profile). The 19 languages come from `core:localization`. |
+| KMP iOS and web | `P5A-03` (code done 2026-10-27) | `feature:options` (`DeleteAccountSection`, `DeleteAccountViewModel`), `AuthService.reauthenticate()` and `completeAccountDeletion()` in `core:auth`, `AccountDeletionService` in `core:profile`. The 19 languages come from `core:localization`. |
 
 Tests each client needs:
 

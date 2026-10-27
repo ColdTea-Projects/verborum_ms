@@ -1875,6 +1875,23 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
     `max_age=0` on the authorization request; the web build's token storage cleared. Both platforms
     verified (js, wasmJs, iOS simulator) before any commit
   - Done when: the same end-to-end result as `P5A-02` on the iOS simulator and in the browser
+  - **Built 2026-10-27 (KMP repo); not ticked yet because the iOS simulator pass is missing.** Same flow as Android
+    in `feature:options` (`DeleteAccountSection`, `DeleteAccountViewModel`) with `AuthService.reauthenticate()`
+    (`max_age=0`, `AuthEntry.Reauthenticate`), the same-account check and `completeAccountDeletion()` in `core:auth`,
+    `AccountDeletionService` in `core:profile`, 25 strings in 19 languages (`Cancel` and `Delete` reuse the shared
+    ones), the "Your account was deleted" notice on the login wall. **Web is the hard part:** the sign-in is a page
+    navigation, so the expected subject travels in the pending authorization (`sessionStorage`), the redirect returns
+    to `#profile`, and the view model reads the answer when it is created.
+  - **Proved:** 529 JS tests, 0 failures; the new tests (14 auth, 5 profile, 17 view model, 1 login wall) also pass on
+    the iOS simulator target. **In a real browser** (headless Chrome, throwaway user): Keycloak got `max_age=0`, the
+    redirect returned to `#profile`, the app signed in as the same account, the final dialog opened, Delete removed the
+    profile row (1 → 0), the app signed out and the login wall said "Your account was deleted". The Keycloak identity
+    was gone too (with your ms_user on the new secret default).
+  - **Not proved:** the iOS simulator UI (compiled and unit-tested only; `ASWebAuthenticationSession` needs taps),
+    the Continue click on the web warning (I started the flow at the same point by code, because clicks in headless
+    Compose were unreliable), ratings and vault cleanup (`P5A-04`). Run the iOS pass yourself or tell me to; then tick this.
+  - Found on the way: the dev server does not proxy Keycloak's `/resources`, so the local login page is unstyled when
+    the web app is served on `:8280` (dev only, the login still works)
 - [ ] `P5A-04` **Deletion verified end to end across services** [claude] — depends on `P5A-02`
   - A checklist and a small script that creates a throwaway user with a dictionary, a download, a rating, a
     device token and an import by someone else, deletes it through the real API, and asserts the rows in
