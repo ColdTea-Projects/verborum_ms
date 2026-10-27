@@ -82,8 +82,8 @@ steps and rollback are in `keycloak/passwordless-email-code/README.md`.
 `verborum-backend`'s service account holds `realm-management` `manage-users` and `view-users`,
 granted by the realm import. ms_user uses it to delete the Keycloak identity when a profile is
 deleted — otherwise the account survives and can simply re-register through hosted sign-up. It
-never creates identities. Without `KEYCLOAK_ADMIN_CLIENT_SECRET` the call is skipped with a WARN,
-so local development still works.
+never creates identities. `KEYCLOAK_ADMIN_CLIENT_SECRET` defaults to the local realm secret, so it works with no setup; an
+empty value skips the call with a WARN and a deleted account can still sign in.
 
 ## Social sign-in
 

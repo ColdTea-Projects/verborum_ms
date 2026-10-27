@@ -36,8 +36,9 @@
 - **A `keycloak-bootstrap` container in `Exited (0)`** — it is a one-shot job; that is success.
 - **No message consumed for `dictionary.visibility.*` or `word.created`** — no consumer exists yet,
   and a topic exchange discards a message with no bound queue.
-- **A WARN when deleting a profile locally** — `KEYCLOAK_ADMIN_CLIENT_SECRET` is unset, so the
-  Keycloak identity is deliberately left alone.
+- **A WARN when deleting a profile, and the person can still sign in** — `KEYCLOAK_ADMIN_CLIENT_SECRET` is set to an
+  empty value, so the Keycloak identity is left alone. Unset it (the default is the local realm secret). An ERROR
+  line naming the id means the call reached Keycloak and failed: wrong secret on a shared realm, or Keycloak down.
 - **`keycloak-bootstrap` exits with `$'\r': command not found`.** The shell scripts were checked out with
   Windows line endings (`core.autocrlf=true`). `.gitattributes` pins `*.sh` to LF. If a working copy still
   has CRs, strip them (`tr -d '\r' < f > f.lf && mv f.lf f`) and re-run the bootstrap with

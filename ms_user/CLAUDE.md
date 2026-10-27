@@ -135,11 +135,12 @@ unchanged (`creation_dt`/`update_dt`/`imported_at`).
   - Called from `UserServiceImpl.deleteUser` *after* the DB delete and the `user.deleted` publish,
     and **never throws**: the data is already gone, so a failure is an ERROR log naming the id, not
     a failed request. Keycloak 404 counts as success.
-  - No `KEYCLOAK_ADMIN_CLIENT_SECRET` → WARN and skip, so local dev works without a secret.
+  - `KEYCLOAK_ADMIN_CLIENT_SECRET` defaults to the local realm secret, so a plain local run deletes the identity.
+    An **empty** value → WARN and skip (the person can still sign in).
   - Requires the `verborum-backend` service account to hold `realm-management` `manage-users`; the
     realm import grants it.
-- `keycloak.admin.client-secret` is intentionally left blank in `application.properties` and
-  sourced from the `KEYCLOAK_ADMIN_CLIENT_SECRET` environment variable — never hardcode it.
+- `keycloak.admin.client-secret` is `${KEYCLOAK_ADMIN_CLIENT_SECRET:local-dev-only-change-me}` — the committed
+  local placeholder (it is already in the realm import). A shared or production realm sets the environment variable.
 
 ## Marketplace agreement (P4-14)
 - `users.marketplace_agreement_accepted` (NOT NULL, default false — **set explicitly on create**, the

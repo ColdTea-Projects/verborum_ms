@@ -330,13 +330,13 @@ developer laptop.
 **Account deletion (P3-04).** `verborum-backend`'s service account holds `realm-management`
 `manage-users` + `view-users`, granted by the realm import. ms_user uses it to delete the Keycloak
 identity when a profile is deleted — otherwise the account survives and can simply re-register
-through hosted sign-up. It never creates identities. Without `KEYCLOAK_ADMIN_CLIENT_SECRET` the call
-is skipped with a WARN, so local dev still works.
+through hosted sign-up. It never creates identities. `KEYCLOAK_ADMIN_CLIENT_SECRET` defaults to the local
+realm secret; an empty value skips the call with a WARN, and a deleted account can then still sign in.
 
 **Secrets.** `verborum-backend`'s secret is `local-dev-only-change-me` in the committed realm file —
 a placeholder for local dev, never a real credential. Services read it from
-`KEYCLOAK_ADMIN_CLIENT_SECRET`; `ms_user/application.properties` deliberately leaves it blank. Any
-non-local realm must have a generated secret supplied through the environment.
+`KEYCLOAK_ADMIN_CLIENT_SECRET`; `ms_user/application.properties` defaults to the local placeholder, so a plain local run deletes the
+identity too. Any non-local realm must have a generated secret supplied through the environment (`BL-03`).
 
 **Social sign-in (Google + Facebook)** federates behind Keycloak — the client never touches a social
 SDK. The wiring is built (`oauth2-hardening`, roadmap P3B): the `keycloak-bootstrap` service creates

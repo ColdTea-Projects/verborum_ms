@@ -99,11 +99,10 @@ $env:JAVA_HOME = "$env:USERPROFILE\.jdks\ms-17.0.18"
 Every host, port and credential in `application.properties` is `${ENV_VAR:default}`, so nothing needs
 setting for a normal local run. Two exceptions worth knowing:
 
-- **`KEYCLOAK_ADMIN_CLIENT_SECRET`** — without it, deleting a user profile leaves the Keycloak
-  account alive and logs a WARN (see `ms_user/CLAUDE.md`). To exercise the real path:
-  ```powershell
-  $env:KEYCLOAK_ADMIN_CLIENT_SECRET = "local-dev-only-change-me"   # matches the realm import
-  ```
+- **`KEYCLOAK_ADMIN_CLIENT_SECRET`** — the default is the local realm secret, so deleting a user profile also
+  deletes the Keycloak account with no setup. Set the variable only for a shared realm. An empty value
+  switches the identity delete off: the profile and the data go, but the person can still sign in (WARN in
+  the log; see `ms_user/CLAUDE.md`).
 - **`KEYCLOAK_HOSTNAME_URL` / `KEYCLOAK_ISSUER_URI` / `KEYCLOAK_JWK_SET_URI`** — only for testing
   from a phone. See §7.
 

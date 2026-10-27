@@ -87,6 +87,20 @@ whose `user.deleted` event makes ms_dictionary and ms_marketplace delete everyth
 then the Keycloak account. `testuser`, `testadmin` and any real account are left alone. Afterwards,
 the dead-letter queue (`verborum.dead-letter` in the RabbitMQ UI) should be empty.
 
+## Restore one user
+
+`restore.py` puts one seed user back, for example after you deleted their data while testing. It
+creates only what is missing and touches nobody else:
+
+```bash
+python3 scripts/dev-seed/restore.py "Chloé Bernard"     # display name, username or email
+```
+
+It brings back the dictionaries, words, tags, Forum membership and hides, and gives the user 1–3 new
+imports and ratings. It cannot bring back what **other** users imported from the old dictionaries:
+those get new ids, so the old vault entries of the others show "No longer available". For a fully
+consistent set, run `reset.py` and then `seed.py`.
+
 ## Changing it
 
 - Users, language pairs, dictionary counts, showcases: `seed_data.py`.

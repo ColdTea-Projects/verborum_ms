@@ -49,8 +49,8 @@ shell.
 
 Two environment variables worth knowing locally:
 
-- **`KEYCLOAK_ADMIN_CLIENT_SECRET`** — unset, deleting a profile leaves the Keycloak account alive
-  and logs a WARN. Set it to the value in the realm import to exercise the real path.
+- **`KEYCLOAK_ADMIN_CLIENT_SECRET`** — defaults to the local realm secret, so deleting a profile also
+  deletes the Keycloak account. Only an empty value leaves the account alive (WARN in the log).
 - **`EMAIL_CODE_ENABLED`** — defaults to true; set false for password-only login.
 
 ## Testing from a phone or another machine

@@ -54,8 +54,8 @@ supported.languages=EN,DE,FR,ES,IT,PT,NL,TR,AZ,LT,PL,UK,AR,FA,JA,ZH,KO,EL,RU
 keycloak.realm=${KEYCLOAK_REALM:verborum}
 keycloak.auth-server-url=${KEYCLOAK_AUTH_SERVER_URL:http://localhost:8180}
 keycloak.admin.client-id=${KEYCLOAK_ADMIN_CLIENT_ID:verborum-backend}
-# deliberately blank locally — the Keycloak deletion call is then skipped with a WARN
-keycloak.admin.client-secret=${KEYCLOAK_ADMIN_CLIENT_SECRET:}
+# local default = the realm-import secret, so "Delete account" also deletes the identity; shared realms set their own
+keycloak.admin.client-secret=${KEYCLOAK_ADMIN_CLIENT_SECRET:local-dev-only-change-me}
 ```
 
 ## Rules
