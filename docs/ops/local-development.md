@@ -83,6 +83,16 @@ would otherwise refuse the volume with "Wrong user name or password". `keycloak-
 re-applies themes, token policy, the audience mapper and the email-code flow. If the migration fails
 for any reason, recreate the volume with the commands above and re-run `scripts/dev-seed/seed.py`.
 
+**Back the volume up first** — it holds every local account, and the migration cannot be rolled back. With
+Keycloak stopped (`docker compose stop keycloak`), so the H2 files are not in use:
+
+```bash
+docker run --rm -v verborum_ms_keycloak_data:/data:ro -v "$(pwd):/backup" alpine   sh -c 'cd /data && tar czf /backup/keycloak_data_backup.tgz .'
+```
+
+To go back, remove the volume and unpack the file into a new one. Done once on 2026-10-31 (23.0.0 → 26.8.0, 35 users):
+the migration finished in seconds and nothing was lost.
+
 ---
 
 ## 3. Run a service
@@ -381,6 +391,7 @@ footprint -p $(pgrep -f MsGatewayApplication | head -1) | grep Footprint:
 | 2026-10-17 | `ms_dictionary`, `ms_user`, `ms_marketplace`, `ms_notification` (host JVMs from the IDE, C1-only JIT, idle) | 305 / 314 / 329 / 308 MB |
 | | `ms_gateway` (after a smoke run) | 205 MB |
 | | Keycloak 23.0.0 (the running container) / Keycloak 26.8.0 (edge test project) | 563 MiB / 626 MiB |
+| 2026-10-31 | Keycloak 26.8.0 (the running container, after the upgrade, idle) | 803.4MiB |
 | | RabbitMQ | 197 MiB |
 | | four Postgres containers | 32–38 MiB each |
 | | Caddy (edge test project) | 19 MiB |

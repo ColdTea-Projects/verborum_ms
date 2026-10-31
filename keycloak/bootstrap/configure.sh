@@ -102,9 +102,11 @@ upsert_idp "facebook" "facebook" "${FACEBOOK_CLIENT_ID:-}"   "${FACEBOOK_CLIENT_
 #
 #   APP_WEB_ORIGIN=https://app.verborum.coldtea.de
 #
-# Multiple origins: comma-separate them. Each contributes `<origin>/*` as a redirect URI. Only the
-# redirect list is managed here — the client's `webOrigins` is `"+"`, which tells Keycloak to derive
-# the CORS allowlist from these same redirect URIs, so it follows along on its own.
+# Multiple origins: comma-separate them. Each contributes `<origin>/*` as a redirect URI. The client's
+# `webOrigins` is `"+"`, which tells Keycloak to derive the CORS allowlist from the EXACT redirect URIs,
+# so a deployed origin follows along on its own. It does NOT cover the local wildcard `http://localhost:*`:
+# Keycloak 25+ answers the web app's token request with 403 {"error":"Invalid origin"}, because a browser
+# sends an Origin header even to its own origin. That is why the local branch below lists the dev origin.
 if [[ -n "${APP_WEB_ORIGIN:-}" ]]; then
   log "verborum-app: adding deployed web origin(s) to the redirect allowlist."
 
@@ -128,6 +130,15 @@ if [[ -n "${APP_WEB_ORIGIN:-}" ]]; then
   log "verborum-app: redirect allowlist updated."
 else
   log "verborum-app: no APP_WEB_ORIGIN set — keeping the local redirect URIs from the realm import."
+
+  # Local web dev server (composeApp/build.gradle.kts, port 8280). Applied here too, not only in the realm
+  # import, so a realm that already exists gets it without a re-import. Override with DEV_WEB_ORIGIN.
+  DEV_WEB_ORIGIN="${DEV_WEB_ORIGIN:-http://localhost:8280}"
+  CID=$("$KCADM" get clients -r "$KC_REALM" -q clientId=verborum-app --fields id --format csv | tr -d '"' | tail -n1)
+  if [[ -n "${CID:-}" ]]; then
+    "$KCADM" update "clients/${CID}" -r "$KC_REALM" -b "{\"webOrigins\":[\"+\",\"${DEV_WEB_ORIGIN}\"]}"
+    log "verborum-app: web origins are '+' and ${DEV_WEB_ORIGIN} (the local web dev server)."
+  fi
 fi
 
 # --- Real SMTP override (staging/prod) ---------------------------------------

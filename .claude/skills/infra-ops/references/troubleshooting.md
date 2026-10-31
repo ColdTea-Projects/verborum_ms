@@ -6,6 +6,7 @@
 | `contextLoads` fails, unit tests pass | The compose stack is down — a full-context test boots against the real Postgres | `docker compose up -d` |
 | Port already in use on 5432 or 8090 | The root and a per-service compose are both running | Stop one |
 | 401 with a token that looks fine | Issuer mismatch | Pin `KC_HOSTNAME` (env `KEYCLOAK_HOSTNAME_URL`) and both service URIs to the same origin |
+| Web app: "Signing in did not finish"; the token call answers 403 `{"error":"Invalid origin"}` | Keycloak 25+ no longer derives web origins from the wildcard redirect URI `http://localhost:*`, and a browser sends `Origin` even to its own origin | The `verborum-app` client needs `webOrigins` `["+", "http://localhost:8280"]`: run `docker compose up keycloak-bootstrap` (it sets it), and keep the realm import in step |
 | Keycloak exits with "Wrong user name or password" on start | A Keycloak 23 data volume, opened by 25+ with the new H2 defaults | Keep `KC_DB_USERNAME=sa` / `KC_DB_PASSWORD=password` in compose, or recreate the volume and reseed |
 | 401 on every endpoint after a client update | Expected — every endpoint requires a bearer token | Attach the token |
 | 403 on your own data | The `userId` sent is not the JWT `sub` | Check for a leftover guest UUID in the client |

@@ -1909,11 +1909,31 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
     everywhere), so the script inserts the row by SQL; the cascade is proved, the feature is not built
 
 ### Stage 2 — A localized, responsive login
-- [ ] `P5A-05` **Rebuild the local Keycloak on 26.8.0** [both] — **first**, the theme may behave differently
+- [x] `P5A-05` **Rebuild the local Keycloak on 26.8.0** [both] — **first**, the theme may behave differently
   - The running container is still 23.0.0 although the repo pins 26.8.0. [you] rebuild and restart it
     (`docker compose build keycloak && docker compose up -d keycloak`); [claude] re-check every flow and
     that `parent=keycloak` still resolves in 26.8.0
   - Done when: login, sign-up, forgot password, verify email and the email code all work on 26.8.0
+  - **Done 2026-10-31.** Rebuilt and started by Claude (the backup came first: `tar` of the `keycloak_data` volume with the
+    container stopped). The H2 data migrated in place (24.0.0, 24.0.3, 25.0.0 and on to 26.8.0): **35 users and every
+    realm setting survived**, and `keycloak-bootstrap` re-ran clean and re-bound the email-code flow. Checked on 26.8.0:
+    password grant for `testuser` and a seed user (issuer and audience right, gateway answers 200); the login page, the
+    password step, the sign-up page, the error page, **forgot password (the "Reset password" mail arrives)**, **sign-up
+    plus verify email (mail, link, `emailVerified` true)** and the **email code** (mail, six digits, accepted, redirect);
+    the Verborum theme renders with its `parent=keycloak` styles (6 stylesheets, no failed request); the edge smoke test
+    (20/20) and the deletion check (36/36, which also proves the backend's Keycloak admin client on 26.8.0)
+  - **Found afterwards, by the owner: the web app could not sign in on 26.8.0** ("Signing in did not finish"). The token call
+    answered 403 `{"error":"Invalid origin"}`: Keycloak 25+ does not turn the wildcard redirect URI `http://localhost:*` into
+    an allowed web origin, and a browser sends `Origin` even to its own origin. Fixed: `webOrigins` is `["+", "http://localhost:8280"]`
+    in the realm import and set by `configure.sh` for existing realms (`docker compose up keycloak-bootstrap`); proved with a
+    browser run (token call 200, signed in, library loads; a foreign origin still gets 403). My earlier checks missed it
+    because they stopped at the redirect and never made the browser's token call. Also fixed: the web dev server did not
+    proxy `/resources`, so the first login page was unstyled. **Production:** the deployed web origin must be an exact redirect URI
+    (`APP_WEB_ORIGIN`), which `"+"` then covers; the wildcard must not exist there (`BL-03`)
+  - **Not re-tested by me:** the native Android and iOS apps against the new Keycloak (AppAuth sends no `Origin`, the issuer
+    and keys are unchanged, so they should not notice). **Heads-up:** the first run after a restart logs a WARN per token call that the dev client
+    `verborum-dev-cli` and the service client `verborum-backend` have "Full scope allowed"; `verborum-backend` is a
+    hardening candidate for `BL-03` (production realm)
 - [ ] `P5A-06` **Responsive login theme** [claude] — depends on `P5A-05`
   - Breakpoints for the theme (it has none today, only a dark-mode query), checked at widths from 320 px to
     a 1920 px desktop, light and dark, and in a right-to-left language. The login page first, then
