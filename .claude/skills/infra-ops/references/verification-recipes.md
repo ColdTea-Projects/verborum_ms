@@ -136,3 +136,10 @@ ownership, compose ports or the realm, re-run the probes that touch it:
 `python3 scripts/edge-smoke/smoke.py --writes` checks, with a real dev token, the gateway's refusals, CORS, every route,
 error pass-through and a write with a body (`--edge --cacert <root.crt> --rate-limit` goes through Caddy and bursts the token
 endpoint). The manual app checklist and the memory baseline are in `docs/ops/local-development.md` §7b.
+
+## Account deletion across the services
+
+`python3 scripts/deletion-check/check.py` (P5A-04) creates two throwaway users, deletes one through the real API and
+checks the rows in all four databases, the Keycloak account and the importer's side (36 checks). It needs
+ms_notification running as well, and ms_user on the default `KEYCLOAK_ADMIN_CLIENT_SECRET`. Run it after any change to a
+`user.deleted` consumer or to the delete path. A "Keycloak account gone" failure means the identity delete did not run.

@@ -1891,7 +1891,7 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
     warning. Ratings and vault cleanup are for `P5A-04`.
   - Found on the way: the dev server does not proxy Keycloak's `/resources`, so the local login page is unstyled when
     the web app is served on `:8280` (dev only, the login still works)
-- [ ] `P5A-04` **Deletion verified end to end across services** [claude] — depends on `P5A-02`
+- [x] `P5A-04` **Deletion verified end to end across services** [claude] — depends on `P5A-02`
   - A checklist and a small script that creates a throwaway user with a dictionary, a download, a rating, a
     device token and an import by someone else, deletes it through the real API, and asserts the rows in
     ms_user, ms_dictionary, ms_marketplace and ms_notification, and that the importer's vault entry goes
@@ -1899,6 +1899,14 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
     reference and stays as "No longer available" (`marketplace-client-guide.md` §6.7). The script must assert
     the real behavior, or the backend changes first (your decision, see the guide's §10).
   - Done when: the script passes against the local stack
+  - **Done 2026-10-31:** `scripts/deletion-check/check.py` (README beside it). 36 checks pass on the live stack: all 14
+    places of the victim's data are 0 after the delete (ms_user profile, statistics, vault; ms_dictionary
+    dictionaries, words, tags, Forum membership; ms_marketplace listings, publisher name, imports made, ratings
+    given, and imports and ratings of the victim's dictionary; ms_notification device tokens), the Keycloak account is
+    gone and the old password is refused (HTTP 401), the importer's average no longer counts the victim's rating, and
+    the importer's vault entry **stays** (asserted, as documented). It caught a real gap in the script itself on the
+    first run (no statistics row existed). Finding: **nothing in ms_user writes `user_stats`** (empty table
+    everywhere), so the script inserts the row by SQL; the cascade is proved, the feature is not built
 
 ### Stage 2 — A localized, responsive login
 - [ ] `P5A-05` **Rebuild the local Keycloak on 26.8.0** [both] — **first**, the theme may behave differently
