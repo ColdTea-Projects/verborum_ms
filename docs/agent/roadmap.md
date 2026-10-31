@@ -1934,12 +1934,14 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
     and keys are unchanged, so they should not notice). **Heads-up:** the first run after a restart logs a WARN per token call that the dev client
     `verborum-dev-cli` and the service client `verborum-backend` have "Full scope allowed"; `verborum-backend` is a
     hardening candidate for `BL-03` (production realm)
-- [ ] `P5A-06` **Responsive login theme** [claude] — depends on `P5A-05`
+- [x] `P5A-06` **Responsive login theme** [claude] — depends on `P5A-05`
   - Breakpoints for the theme (it has none today, only a dark-mode query), checked at widths from 320 px to
     a 1920 px desktop, light and dark, and in a right-to-left language. The login page first, then
     registration, forgot password, verify email, the email-code screen, error and info pages. A screenshot
     matrix recorded under `docs/ops/`
   - Done when: no page breaks at any tested width and the matrix is committed
+  - **Done 2026-10-31.** 9 pages × 6 widths × light/dark × LTR/RTL = 216 screenshots, `scripts/theme-matrix/matrix.js`; overflow findings 54 → 0;
+    dark warning boxes fixed. Record: `docs/ops/login-theme-matrix.md`. RTL was simulated on English text; real Arabic comes with `P5A-07`/`P5A-08`
 - [ ] `P5A-07` **Realm localization on** [claude] — depends on `P5A-05`
   - `internationalizationEnabled`, `supportedLocales` for the 19 app languages with `en` as default, in the
     realm import. A recorded mapping from the app's language codes to Keycloak locale codes (for example

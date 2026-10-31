@@ -356,3 +356,105 @@ input[type="checkbox"] { accent-color: var(--v-accent); }
 }
 .pf-c-input-group .pf-c-button.pf-m-control:hover,
 .pf-c-input-group > button:hover { color: var(--v-accent) !important; }
+
+/* ==========================================================================
+   Responsive layout (P5A-06)
+   Mobile first for the page frame, desktop refinements above 768px.
+   Checked from 320px to 1920px, light and dark, left-to-right and right-to-left
+   (matrix: docs/ops/login-theme-matrix.md).
+   ========================================================================== */
+
+/* The stock theme pulls #kc-info out by 7px on each side (negative margins) and sets fixed widths
+   on the card. On a phone that adds a horizontal scrollbar. Keep every box inside the viewport. */
+html, body { overflow-x: hidden; }
+*, *::before, *::after { box-sizing: border-box; }
+#kc-info, #kc-info-wrapper { margin-left: 0 !important; margin-right: 0 !important; }
+
+/* A gutter around the card on every width, safe areas for notched phones. */
+.login-pf-page {
+  padding-left: max(16px, env(safe-area-inset-left)) !important;
+  padding-right: max(16px, env(safe-area-inset-right)) !important;
+  padding-bottom: 24px !important;
+}
+#kc-header-wrapper { text-align: center; }
+
+.card-pf,
+#kc-content-wrapper .card-pf,
+.login-pf-page .card-pf {
+  width: 100% !important;
+  min-width: 0;
+}
+
+/* Long words and addresses (an e-mail address in the verify-email text, German compounds) wrap
+   instead of pushing the card wider. */
+.card-pf, #kc-content, #kc-content-wrapper, .instruction, .alert, .kc-feedback-text {
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+/* The password field and its eye button share a row; let the field shrink. */
+.pf-c-input-group { display: flex; width: 100%; }
+.pf-c-input-group > .pf-c-form-control,
+.pf-c-input-group > input { flex: 1 1 auto; min-width: 0; }
+.pf-c-input-group > .pf-c-button { flex: 0 0 auto; }
+
+/* Narrow phones (iPhone SE and the like, 320px). */
+@media (max-width: 479px) {
+  .login-pf-page { padding-top: 4vh; }
+  .card-pf,
+  #kc-content-wrapper .card-pf,
+  .login-pf-page .card-pf { padding: 24px 18px !important; border-radius: 12px !important; }
+  #kc-header, #kc-header-wrapper { font-size: 24px !important; letter-spacing: 2px !important; padding-bottom: 16px !important; }
+  #kc-page-title, .pf-c-title { font-size: 19px !important; }
+  /* 16px stops iOS Safari from zooming into a focused field. */
+  input[type="text"], input[type="password"], input[type="email"], input[type="number"], .pf-c-form-control { font-size: 16px !important; }
+  /* Touch targets of at least 44px. */
+  input[type="submit"], button[type="submit"], #kc-login, .btn-primary,
+  #kc-social-providers a, a[id^="social-"] { min-height: 44px; }
+}
+
+/* Tablets and small laptops. */
+@media (min-width: 480px) and (max-width: 1023px) {
+  .login-pf-page { padding-top: 8vh; }
+}
+
+/* Desktop and large screens: a little more air, the card stays 420px wide and centred. */
+@media (min-width: 1024px) {
+  .login-pf-page { padding-top: 10vh; }
+}
+@media (min-width: 1600px) {
+  #kc-header, #kc-header-wrapper { font-size: 34px !important; }
+}
+
+/* Short screens (a phone turned sideways): do not centre vertically with a big top gap. */
+@media (max-height: 520px) {
+  .login-pf-page { padding-top: 12px; }
+  #kc-header, #kc-header-wrapper { padding-bottom: 8px !important; }
+}
+
+/* ---- Right-to-left (Arabic, Persian) ------------------------------------ */
+/* Keycloak sets dir="rtl" on <html>. Use logical properties so nothing is mirrored by hand. */
+[dir="rtl"] .card-pf { text-align: start; }
+[dir="rtl"] a#social-google::before,
+[dir="rtl"] a#social-facebook::before { margin-right: 0; margin-left: 14px; }
+[dir="rtl"] .pf-c-input-group .pf-c-button.pf-m-control,
+[dir="rtl"] .pf-c-input-group > button {
+  border-left: 1px solid var(--v-border) !important;
+  border-right: 0 !important;
+  border-radius: var(--v-radius-sm) 0 0 var(--v-radius-sm) !important;
+}
+/* The e-mail code is digits: always left to right, even inside an Arabic page. */
+input[name="code"], input[name="email"], input[name="username"] { unicode-bidi: plaintext; }
+
+/* ---- Warning and info boxes (verify e-mail, expired link, notices) ------- */
+/* The stock theme gives them a pale orange or blue fill that glares on the dark card. */
+.alert-warning, .pf-c-alert.pf-m-warning,
+.alert-info, .pf-c-alert.pf-m-info {
+  background: var(--v-surface-alt) !important;
+  color: var(--v-text) !important;
+  border: 1px solid var(--v-border) !important;
+  border-inline-start: 4px solid var(--v-gold) !important;
+  border-radius: var(--v-radius-sm) !important;
+}
+.alert-warning .kc-feedback-text, .alert-info .kc-feedback-text,
+.pf-c-alert.pf-m-warning .pf-c-alert__title, .pf-c-alert.pf-m-info .pf-c-alert__title { color: var(--v-text) !important; }
