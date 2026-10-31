@@ -285,3 +285,33 @@ clients are PKCE-only. Dev users: `testuser`/`testuser` (role `user`),
    far more meanings than a person writes by hand. No client that respects its own 40/150-character
    typing caps can hit them. If you do see a 400 here, it is a serialisation bug, not a user typing
    too much — treat it as one and do not silently drop the row.
+
+---
+
+## Login page language (`ui_locales`) — P5A-07, 2026-10-31
+
+The realm has localization on: 19 languages, default `en`. A client sends the app's language in the
+authorization and sign-up URLs as `ui_locales=<code>` (`P5A-09` builds this in the clients). The app code and the
+Keycloak code are the same for 18 languages. Only Chinese differs, and Keycloak matches it by itself:
+`ui_locales=zh` opens `zh-Hans` (checked).
+
+| App code | Keycloak code | | App code | Keycloak code |
+|---|---|---|---|---|
+| en | en | | lt | lt |
+| ar (right-to-left) | ar | | nl | nl |
+| az | az | | pl | pl |
+| de | de | | pt | pt |
+| el | el | | ru | ru |
+| es | es | | tr | tr |
+| fa (right-to-left) | fa | | uk | uk |
+| fr | fr | | **zh** | **zh-Hans** |
+| it | it | | ja | ja |
+| ko | ko | | | |
+
+Rules:
+- Send the **app's own language setting**, not the phone's. A changed app language applies from the next login.
+- An unknown code falls back to `en`. A visitor can also pick a language in the selector at the top of the page
+  (**decision: the selector stays visible**; it is the fallback when a link carries no `ui_locales`).
+- All 19 render the login and register pages in their language today. Pages with strings the stock theme lacks
+  (for example the Lithuanian page title) show English until `P5A-08` adds our own translations.
+- The setting lives in the realm import (`keycloak/import/verborum-realm.json`) and in `configure.sh` for an existing volume.

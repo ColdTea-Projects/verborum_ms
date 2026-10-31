@@ -10,6 +10,9 @@
   "duplicateEmailsAllowed": false,
   "loginTheme": "verborum",
   "emailTheme": "verborum",
+  "internationalizationEnabled": true,
+  "supportedLocales": ["en", "ar", "az", "de", "el", "es", "fa", "fr", "it", "ja", "ko", "lt", "nl", "pl", "pt", "ru", "tr", "uk", "zh-Hans"],
+  "defaultLocale": "en",
   "verifyEmail": true,
   "accessTokenLifespan": 300,
   "smtpServer": {

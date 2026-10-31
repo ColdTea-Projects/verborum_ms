@@ -1942,11 +1942,14 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
   - Done when: no page breaks at any tested width and the matrix is committed
   - **Done 2026-10-31.** 9 pages × 6 widths × light/dark × LTR/RTL = 216 screenshots, `scripts/theme-matrix/matrix.js`; overflow findings 54 → 0;
     dark warning boxes fixed. Record: `docs/ops/login-theme-matrix.md`. RTL was simulated on English text; real Arabic comes with `P5A-07`/`P5A-08`
-- [ ] `P5A-07` **Realm localization on** [claude] — depends on `P5A-05`
+- [x] `P5A-07` **Realm localization on** [claude] — depends on `P5A-05`
   - `internationalizationEnabled`, `supportedLocales` for the 19 app languages with `en` as default, in the
     realm import. A recorded mapping from the app's language codes to Keycloak locale codes (for example
     `zh` → `zh-CN`, `pt` → `pt-BR`); decide whether the locale selector stays visible
   - Done when: a login page opened with `ui_locales=<code>` renders in that language for all 19
+  - **Done 2026-10-31.** All 19 exist in the 26.8.0 base theme; `zh` → `zh-Hans` is the only difference (Keycloak resolves it itself). Realm import and
+    `configure.sh` set it; mapping table in `client-login-guide.md`. Checked: login and register pages for all 19 (`lang`, `dir`, title, button); Arabic and
+    Persian come out `rtl`. Selector stays visible (fallback; layout matrix still 0 findings). Known: stock gaps stay English (e.g. `lt` page title) → `P5A-08`
 - [ ] `P5A-08` **Our own translations** [claude] — depends on `P5A-07`
   - `messages_xx.properties` in the theme for every custom string (email-code screen, authenticator
     messages) and for every base string the login pages use in a language the stock theme lacks (`az`,

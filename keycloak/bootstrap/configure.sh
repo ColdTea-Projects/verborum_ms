@@ -39,6 +39,13 @@ log "Logging in to ${KC_URL} (realm master) as ${KEYCLOAK_ADMIN}"
 log "Setting realm loginTheme=verborum, emailTheme=verborum."
 "$KCADM" update "realms/${KC_REALM}" -s loginTheme=verborum -s emailTheme=verborum
 
+# --- Login languages (P5A-07) --------------------------------------------------
+# The 19 app languages, so the login page can follow the app's `ui_locales`. Mapping app code -> Keycloak
+# code: identical, except zh -> zh-Hans. Mirrors the realm import, for realms imported before it.
+log "Realm localization: 19 languages, default en."
+"$KCADM" update "realms/${KC_REALM}" -s internationalizationEnabled=true -s defaultLocale=en \
+  -s 'supportedLocales=["en","ar","az","de","el","es","fa","fr","it","ja","ko","lt","nl","pl","pt","ru","tr","uk","zh-Hans"]'
+
 # --- Refresh-token rotation and offline-session ceiling (SEC-06) ----------------
 # Every refresh returns a new refresh token and the old one stops working; presenting a used one again
 # revokes the session (reuse detection), so a stolen refresh token is only good until the real client
