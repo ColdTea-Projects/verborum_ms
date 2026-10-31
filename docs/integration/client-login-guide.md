@@ -312,6 +312,6 @@ Rules:
 - Send the **app's own language setting**, not the phone's. A changed app language applies from the next login.
 - An unknown code falls back to `en`. A visitor can also pick a language in the selector at the top of the page
   (**decision: the selector stays visible**; it is the fallback when a link carries no `ui_locales`).
-- All 19 render the login and register pages in their language today. Pages with strings the stock theme lacks
-  (for example the Lithuanian page title) show English until `P5A-08` adds our own translations.
+- All 19 render the login pages and the mails in their language, in formal address (`docs/ops/login-translations.md`).
+  The mail language is the language of the login page at sign-up. Machine drafts until `P5R-19`.
 - The setting lives in the realm import (`keycloak/import/verborum-realm.json`) and in `configure.sh` for an existing volume.

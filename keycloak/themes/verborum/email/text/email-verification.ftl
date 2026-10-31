@@ -1,10 +1,8 @@
 <#ftl output_format="plainText">
-Welcome to Verborum!
-
-Confirm this is your email address by opening the link below:
+${msg("emailVerificationIntro")}
 
 ${link}
 
-This link expires in ${linkExpirationFormatter(linkExpiration)}.
+${msg("emailVerificationExpires", linkExpirationFormatter(linkExpiration))}
 
-If you didn't create a Verborum account, you can ignore this message.
+${msg("emailVerificationIgnore")}

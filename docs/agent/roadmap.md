@@ -1950,13 +1950,16 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
   - **Done 2026-10-31.** All 19 exist in the 26.8.0 base theme; `zh` → `zh-Hans` is the only difference (Keycloak resolves it itself). Realm import and
     `configure.sh` set it; mapping table in `client-login-guide.md`. Checked: login and register pages for all 19 (`lang`, `dir`, title, button); Arabic and
     Persian come out `rtl`. Selector stays visible (fallback; layout matrix still 0 findings). Known: stock gaps stay English (e.g. `lt` page title) → `P5A-08`
-- [ ] `P5A-08` **Our own translations** [claude] — depends on `P5A-07`
+- [x] `P5A-08` **Our own translations** [claude] — depends on `P5A-07`
   - `messages_xx.properties` in the theme for every custom string (email-code screen, authenticator
     messages) and for every base string the login pages use in a language the stock theme lacks (`az`,
     `uk`, `ko`; re-check the list on 26.8.0). The email theme's subjects and bodies in the 19 languages
   - Machine-drafted by me; **native-speaker review is `P5R-19`**. Arabic and Persian reviewed for layout
   - Done when: no raw key and no English fallback appears for any of the 19 languages on any page of
     `P5A-06`, checked by a script that diffs the key sets
+  - **Done 2026-10-31.** 18 languages × login (13 own strings) and email (22). Mail templates read their words from the files; the mail follows the user's
+    language. Formal address in every language (owner's rule: "Sie", not "du"). `scripts/theme-i18n/check.py` passes. Record: `docs/ops/login-translations.md`.
+    Known: the "Client not found" page stays English; stock strings of unopened pages are Keycloak's. Native review `P5R-19`
 - [ ] `P5A-09` **Clients send `ui_locales`** [claude] — depends on `P5A-07`
   - Android (`AuthorizationRequest.Builder.setUiLocales`), KMP iOS and web (`ui_locales` on the
     authorization and sign-up URLs), from each app's current language setting; a changed language applies

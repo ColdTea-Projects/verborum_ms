@@ -6,7 +6,8 @@
 -->
 <#macro emailLayout>
 <!DOCTYPE html>
-<html lang="en">
+<#assign rtl = ["ar","fa"]?seq_contains(locale.language)>
+<html lang="${locale.language}" dir="${rtl?then('rtl','ltr')}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -28,11 +29,11 @@
         </tr>
         <tr>
           <td style="padding:18px 34px 26px; color:#999999; font-size:12px; line-height:1.5; border-top:1px solid #ECECEC;">
-            You received this because this address was used with Verborum. If it wasn't you, you can safely ignore this email.
+            ${msg("emailFooter")}
           </td>
         </tr>
       </table>
-      <div style="color:#999999; font-size:11px; margin-top:16px;">Verborum &middot; Language, one word at a time</div>
+      <div style="color:#999999; font-size:11px; margin-top:16px;">Verborum &middot; ${msg("emailTagline")}</div>
     </td></tr>
   </table>
 </body>
