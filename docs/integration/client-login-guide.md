@@ -290,8 +290,8 @@ clients are PKCE-only. Dev users: `testuser`/`testuser` (role `user`),
 
 ## Login page language (`ui_locales`) — P5A-07, 2026-10-31
 
-The realm has localization on: 19 languages, default `en`. A client sends the app's language in the
-authorization and sign-up URLs as `ui_locales=<code>` (`P5A-09` builds this in the clients). The app code and the
+The realm has localization on: 19 languages, default `en`. The clients send the app's language in the
+authorization, sign-up and re-login URLs as `ui_locales=<code>` (Android `setUiLocales`, KMP `ui_locales` parameter; built in `P5A-09`). The app code and the
 Keycloak code are the same for 18 languages. Only Chinese differs, and Keycloak matches it by itself:
 `ui_locales=zh` opens `zh-Hans` (checked).
 

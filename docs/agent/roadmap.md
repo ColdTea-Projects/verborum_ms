@@ -1966,6 +1966,10 @@ else, P4-12 needs ms_dictionary, P4-13 needs ms_user.
     to the next login. Tests for the parameter
   - Done when: switching the app language and logging in shows the login page in that language on all
     three clients
+  - **Built 2026-10-31, not yet ticked: waiting for the owner's check on the three clients.** Android: `AuthConfig.uiLocalesFor` (picker choice, else
+    device language, else `en`) and `setUiLocales` on login, sign-up and re-login; 5 tests. KMP: `ui_locales` in `buildAuthorizationRequest` for every entry,
+    `AuthService(uiLocale = …)` read per attempt, wired to `LanguageSettings` in `AppModule`; 12 new/changed tests (js, and iOS simulator for core:auth).
+    The server side was proven in `P5A-07`. **Not proved:** a real login on each client. Web needs a dev-server restart (it serves the build it started with)
 
 ---
 
